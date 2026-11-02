@@ -7,6 +7,55 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 5 — 2026-11-02 04:55 (Hyland Minimap live as mod list r4; next: rotate with view)
+
+### Completed
+- Server world = Blazzer's co-op save **PTO RETIRED** (details in schedule1-server HANDOFF). Fixed `s1ds import` first:
+  it merged instead of replacing.
+- **Hyland Minimap** (`mods/minimap/`): fork of nacho's Schedule I Minimap 1.0.2 (MIT, ILSpy decompile, baseline commit
+  `bdee77d`). Bezel design picked from in-chat previews: smooth rim over the Mask's stencil edge, supersampled +
+  mipmapped sprites, zoom by map-art pixels, map grading, vignette, view cone, N badge, edge pins (active deals,
+  dealers), marker outlines. Released as `minimap-v1.1.0` (**not latest**), shipped as `hyland-minimap` (client) in
+  **mod list revision 4**. Blazzer: "looks really, really good" in game; log clean, 0 errors.
+- First-launch numbers (Blazzer's PC): map art **2048×2048, Bilinear, no mipmaps**, drawn at 2048 units, HUD scale
+  1.33 → zoom 1 = 0.75× the phone map. nachorn's default 3.0 was 4× the art: the blur.
+- Bugs fixed on the way: `mods.ps1 -Blurb` ignored (function-scoped `$PSBoundParameters`); `s1ds mods apply` exited 1
+  after success (EXIT trap read a function-local under `set -u`); 5.1 `Compress-Archive` writes `Mods\x.dll`.
+
+### Key Decisions
+- Fork, not wrap: no upstream source; MIT allows it. Own DLL/Melon name/prefs category, so it never collides.
+- Mod releases live on hyland-link with `--latest=false`; checked after: `releases/latest` = v0.1.1, feed = 0.1.1.
+- Design is previewed in chat first (`show_widget`), then built: Blazzer wants to see a design before code.
+
+### Hooks & Gotchas
+- **Changing a setting's default doesn't reach existing players**: MelonPreferences keeps saved values, and every
+  player who launched r4 already has `[HylandMinimap] Rotate = false` saved. Flip a default with a new key or a
+  one-time migration (a `SettingsVersion` entry), not by editing the default.
+- Never edit `UserData/MelonPreferences.cfg` while the game runs: MelonLoader rewrites it on exit.
+- Mod zips need forward-slash entries (pwsh `ZipFile.CreateFromDirectory`). Recipe is in CLAUDE.md.
+- Preview renderer for the generated shapes: links `src/Shapes.cs` into a net8 console that writes PNGs (it lived
+  in the session scratchpad; recreate under `mods/minimap/preview/` if the shapes change again).
+
+### Next Steps
+1. **Rotate with view, on for everyone** (Blazzer's ask: map turns as he turns). Already works:
+   `Settings.cs:123` `Rotate`, used at `MinimapHud.cs:399-402` (map layer turns by `num2`, arrow/cone stay up, N badge
+   follows via `MapMath.EdgePoint`). To ship it as the default: add a `SettingsVersion` entry; when it's below 2, set
+   `Rotate = true` once and save. Then smooth the heading (lerp the angle a little each frame, wrapping at ±180°) so
+   fast mouse turns don't snap. Bump to 1.2.0 and ship with the CLAUDE.md recipe (release `minimap-v1.2.0`, not
+   latest; `mods.ps1 add … -Id hyland-minimap`; `publish`).
+   Quick try without a build: with the game closed, set `Rotate = true` under `[HylandMinimap]` in
+   `C:\Program Files (x86)\Steam\steamapps\common\Schedule I\UserData\MelonPreferences.cfg`.
+2. Raise `MapMath.MinimumZoom` (`MapMath.cs:8`, 0.25) to about 0.6: the map art has no mipmaps, so it shimmers when
+   zoomed out further.
+3. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer).
+4. Optional: router DHCP reservation for .180; one leaked `/tmp/tmp.*` in CT 121 from the failed r3 apply.
+
+### Files Modified
+- `mods/minimap/**` (new), `manifest/manifest.json` (r3 nachorn → r4 hyland-minimap), `scripts/mods.ps1`,
+  `app/src-tauri/src/install.rs` (test), CLAUDE.md, README.md; schedule1-server `s1ds` (import --delete, trap fix)
+
+---
+
 ## Session 4 — 2026-11-02 04:01 (v0.1.1 released, Leave & close verified on the server)
 
 ### Completed
