@@ -1,7 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
+import { error as logError, info as logInfo, warn as logWarn } from "@tauri-apps/plugin-log";
 import { api, type InstallProgress, type ServerStatus, type Snapshot } from "./api";
+import { latestStage, parseLine, type GameStage, type LogLine } from "./game-log";
 
 /** What the big button does right now. */
 export type Phase =
@@ -15,6 +17,7 @@ export type Phase =
   | "firstLaunch"
   | "firstLaunchRunning"
   | "ready"
+  | "launching"
   | "playing";
 
 /** The guided steps: 1 find the game, 2 install, 3 first launch, 4 join. */
@@ -26,9 +29,22 @@ const GAME_POLL_MS = 4_000;
 const MANIFEST_POLL_MS = 5 * 60_000;
 /** A focus or Play reuses a mod-list check younger than this instead of asking GitHub again. */
 const MANIFEST_FRESH_MS = 60_000;
+/** The game log is followed this often while the game runs or the log sheet is open. */
+const LOG_POLL_MS = 800;
+/** The log sheet keeps this many of the newest lines. */
+const MAX_LOG_LINES = 600;
+/** How long "Leave & close" waits for the game to go before saying it's still open. */
+const CLOSE_WAIT_MS = 30_000;
+/** How long Play stays locked waiting for Steam to start the game. */
+const LAUNCH_WAIT_MS = 45_000;
 
 function message(error: unknown): string {
   return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
+}
+
+/** Writes to the launcher log (launcher.log); never lets a logging hiccup break the UI. */
+function record(write: (m: string) => Promise<void>, text: string) {
+  write(text).catch((e: unknown) => console.error("launcher log:", e));
 }
 
 class Launcher {
@@ -61,9 +77,9 @@ class Launcher {
         return melonloader.installed || serverMod.installed ? "update" : "setup";
       }
       case 3:
-        return running ? "firstLaunchRunning" : "firstLaunch";
+        return running ? "firstLaunchRunning" : this.launching ? "launching" : "firstLaunch";
       default:
-        return running ? "playing" : "ready";
+        return running ? "playing" : this.launching ? "launching" : "ready";
     }
   });
 
@@ -71,21 +87,65 @@ class Launcher {
   selfUpdate = $state<{ version: string; percent: number | null } | null>(null);
   /** A launcher version that failed to auto-install, offered as a manual download instead. */
   launcherUpdate = $state<string | null>(null);
-  /** The "Mods on this server" sheet. */
-  modsOpen = $state(false);
+  /** The one bottom sheet that's open, if any. */
+  sheet = $state<"mods" | "log" | "settings" | null>(null);
+  /** Set when "Leave & close" asked the game to quit, until it's gone. */
+  closingGame = $state(false);
+  private closeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Set from a Play click until the game shows up (or a timeout), so a double click can't launch twice. */
+  launching = $state(false);
+  private launchTimer: ReturnType<typeof setTimeout> | undefined;
   /** Says why a ready player is suddenly back at "Update". */
   notice = $state<string | null>(null);
   private manifestCheckedAt = 0;
+
+  /** The newest lines of MelonLoader's Latest.log (this run, or the last one once the game closed). */
+  gameLog = $state<LogLine[]>([]);
+  /** Errors in the whole run, not just the lines still kept. */
+  logErrors = $state(0);
+  private logStage = $state<GameStage | null>(null);
+  private logId = 0;
+  /** Why the game log can't be read, shown in the sheet instead of a toast every poll. */
+  logProblem = $state<string | null>(null);
+  private logRun = $state<string | null>(null);
+  private logOffset = 0;
+  private logBusy = false;
+  /** The log that was on disk when Play was pressed: until a new one replaces it, the game hasn't started writing. */
+  private launchedOver = $state<string | null | undefined>(undefined);
+
+  /** Where the running game is, read off its log. Null while the game isn't running. */
+  stage = $derived.by<GameStage | null>(() => {
+    if (!this.snapshot?.game.running) return null;
+    if (this.launchedOver !== undefined && this.logRun === this.launchedOver) return "starting";
+    return this.logStage ?? "starting";
+  });
+  private lastStage: GameStage | null = null;
+
+  /** Shows an error in the banner and writes it to the launcher log. */
+  fail(error: unknown) {
+    this.error = message(error);
+    record(logError, `Shown to the player: ${this.error}`);
+  }
 
   async load() {
     try {
       this.snapshot = await api.getState();
     } catch (e) {
-      this.error = message(e);
+      this.fail(e);
+    }
+    const running = !!this.snapshot?.game.running;
+    if (this.closingGame && !running) {
+      this.closingGame = false;
+      clearTimeout(this.closeTimer);
+    }
+    if (this.launching && running) {
+      this.launching = false;
+      clearTimeout(this.launchTimer);
     }
   }
 
   async checkServer() {
+    const wasOnline = this.server?.online;
     this.checkingServer = true;
     try {
       this.server = await api.queryServer();
@@ -93,6 +153,41 @@ class Launcher {
       this.server = { online: false, name: null, description: null, players: null, maxPlayers: null, pingMs: null, error: message(e) };
     } finally {
       this.checkingServer = false;
+    }
+    if (this.server.online !== wasOnline) {
+      record(logInfo, this.server.online ? `Server online (${this.server.pingMs} ms)` : `Server offline: ${this.server.error ?? "no answer"}`);
+    }
+  }
+
+  /** Follows the game log: the new lines since the last read, or a clean start when the game relaunched. */
+  private async pollLog() {
+    if (this.logBusy) return;
+    this.logBusy = true;
+    try {
+      const chunk = await api.readGameLog(this.logRun, this.logOffset);
+      if (chunk.fresh) {
+        this.gameLog = [];
+        this.logErrors = 0;
+        this.logStage = null;
+      }
+      this.logRun = chunk.run;
+      this.logOffset = chunk.offset;
+      if (chunk.lines.length) {
+        const lines = chunk.lines.map((raw) => parseLine(raw, this.logId++));
+        this.gameLog = [...this.gameLog, ...lines].slice(-MAX_LOG_LINES);
+        this.logErrors += lines.filter((l) => l.level === "error").length;
+        this.logStage = latestStage(lines) ?? this.logStage;
+      }
+      this.logProblem = null;
+    } catch (e) {
+      if (this.logProblem !== message(e)) record(logWarn, `Game log: ${message(e)}`);
+      this.logProblem = message(e);
+    } finally {
+      this.logBusy = false;
+    }
+    if (this.stage !== this.lastStage) {
+      if (this.stage) record(logInfo, `Game: ${this.stage}`);
+      this.lastStage = this.stage;
     }
   }
 
@@ -102,7 +197,7 @@ class Launcher {
     try {
       await action();
     } catch (e) {
-      this.error = message(e);
+      this.fail(e);
     } finally {
       await this.load();
     }
@@ -130,27 +225,55 @@ class Launcher {
       await api.refreshManifest();
       await this.load();
     } catch (e) {
-      this.error = message(e);
+      this.fail(e);
       return;
     }
     if (wasReady && this.step === 2 && this.snapshot?.manifest.revision !== revision) {
       this.notice = "The server's mods just changed. Update to keep playing.";
+      record(logInfo, `Mods changed (revision ${revision} → ${this.snapshot?.manifest.revision}): asked the player to update`);
     }
   }
 
-  play = () =>
-    this.act(async () => {
-      // Never launch on mods the server just replaced: the button turns into Update instead.
-      await this.syncManifest(MANIFEST_FRESH_MS);
-      if (this.step < 3) {
-        this.notice ??= "The server's mods just changed. Update first, then play.";
-        return;
+  play = () => {
+    // Locked from the first click, so a double click can't start the game twice.
+    if (this.launching) return Promise.resolve();
+    this.launching = true;
+    let started = false;
+    return this.act(async () => {
+      try {
+        // Never launch on mods the server just replaced: the button turns into Update instead.
+        await this.syncManifest(MANIFEST_FRESH_MS);
+        if (this.step < 3) {
+          this.notice ??= "The server's mods just changed. Update first, then play.";
+          return;
+        }
+        this.launchedOver = this.logRun;
+        await api.play();
+        started = true;
+        // Steam can take a while to start the game; after this long the button comes back so Play can be retried.
+        clearTimeout(this.launchTimer);
+        this.launchTimer = setTimeout(() => (this.launching = false), LAUNCH_WAIT_MS);
+      } finally {
+        if (!started) this.launching = false;
       }
-      await api.play();
+    });
+  };
+  /** Leave & close: the game shuts down the normal way. If it's still open after a while, say what to do. */
+  quitGame = () =>
+    this.act(async () => {
+      await api.quitGame();
+      this.closingGame = true;
+      clearTimeout(this.closeTimer);
+      this.closeTimer = setTimeout(() => {
+        this.closingGame = false;
+        this.notice = "Schedule I is still open. If it's asking you something, answer it, or quit from its menu.";
+      }, CLOSE_WAIT_MS);
     });
   openGameFolder = () => this.act(() => api.openGameFolder());
   openLauncherDownload = () => this.act(() => api.openLauncherDownload());
+  openLauncherLogs = () => this.act(() => api.openLauncherLogs());
   uninstall = (melonloader: boolean) => this.act(() => api.uninstall(melonloader));
+  uninstallLauncher = () => this.act(() => api.uninstallLauncher());
 
   chooseGameFolder = () =>
     this.act(async () => {
@@ -167,11 +290,21 @@ class Launcher {
   };
 
   showMods = () => {
-    this.modsOpen = true;
+    this.sheet = "mods";
   };
 
-  hideMods = () => {
-    this.modsOpen = false;
+  showLog = () => {
+    this.sheet = "log";
+    void this.pollLog();
+  };
+
+  /** The gear: opens settings, or closes whatever sheet is open. */
+  toggleSettings = () => {
+    this.sheet = this.sheet === "settings" ? null : "settings";
+  };
+
+  closeSheet = () => {
+    this.sheet = null;
   };
 
   /** Friends never update the launcher by hand: a newer signed build on GitHub installs itself on start. */
@@ -180,7 +313,7 @@ class Launcher {
     try {
       version = await api.checkUpdate();
     } catch (e) {
-      this.error = `Couldn't check for a Hyland Link update: ${message(e)}`;
+      this.fail(`Couldn't check for a Hyland Link update: ${message(e)}`);
       return;
     }
     // Never swap the launcher out from under a mod install; the next start picks it up.
@@ -191,7 +324,7 @@ class Launcher {
     } catch (e) {
       this.selfUpdate = null;
       this.launcherUpdate = version;
-      this.error = `Hyland Link ${version} didn't install by itself: ${message(e)}`;
+      this.fail(`Hyland Link ${version} didn't install by itself: ${message(e)}`);
     }
   }
 
@@ -214,6 +347,11 @@ class Launcher {
     setInterval(() => {
       if (!this.installing) void this.load();
     }, GAME_POLL_MS);
+    // One read up front so the sheet can show the last run, then follow it only while there's something to watch.
+    void this.pollLog();
+    setInterval(() => {
+      if (this.snapshot?.game.running || this.sheet === "log") void this.pollLog();
+    }, LOG_POLL_MS);
     await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (!focused || this.installing) return;
       void this.load();

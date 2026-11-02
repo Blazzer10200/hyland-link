@@ -8,33 +8,40 @@
     snapshot,
     progress,
     usingBuiltIn,
+    closingGame,
     onInstall,
     onPlay,
     onChooseFolder,
-    onOpenFolder,
-    onShowMods,
-    onUninstall,
+    onQuit,
   }: {
     phase: Phase;
     snapshot: Snapshot | null;
     progress: InstallProgress | null;
     usingBuiltIn: string | null;
+    closingGame: boolean;
     onInstall: () => void;
     onPlay: () => void;
     onChooseFolder: () => void;
-    onOpenFolder: () => void;
-    onShowMods: () => void;
-    onUninstall: (melonloader: boolean) => void;
+    onQuit: () => void;
   } = $props();
-
-  const hasExtras = $derived(!!snapshot?.install && snapshot.install.mods.length + snapshot.install.staleMods.length > 0);
-
-  let menuOpen = $state(false);
-  let confirming = $state<"mod" | "all" | null>(null);
 
   const percent = $derived(progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null);
 
-  type Button = { label: string; disabled: boolean; run: () => void; kind: "go" | "play" | "wait" | "work" };
+  /** "Leave & close" takes two clicks, so a stray click never ends a session. */
+  let quitArmed = $state(false);
+  let quitTimer: ReturnType<typeof setTimeout> | undefined;
+  function quit() {
+    clearTimeout(quitTimer);
+    if (!quitArmed) {
+      quitArmed = true;
+      quitTimer = setTimeout(() => (quitArmed = false), 4000);
+      return;
+    }
+    quitArmed = false;
+    onQuit();
+  }
+
+  type Button = { label: string; disabled: boolean; run: () => void; kind: "go" | "play" | "wait" | "work" | "leave" | "armed" };
   const idle = () => {};
 
   const button = $derived.by((): Button => {
@@ -62,33 +69,19 @@
         return { label: "Setting up… leave the game open", disabled: true, run: idle, kind: "work" };
       case "ready":
         return { label: "Play", disabled: false, run: onPlay, kind: "play" };
+      case "launching":
+        return { label: "Starting Schedule I…", disabled: true, run: idle, kind: "work" };
       case "playing":
-        return { label: "In game", disabled: true, run: idle, kind: "wait" };
+        if (closingGame) return { label: "Closing Schedule I…", disabled: true, run: idle, kind: "work" };
+        return quitArmed
+          ? { label: "Click again to close the game", disabled: false, run: quit, kind: "armed" }
+          : { label: "Leave server & close game", disabled: false, run: quit, kind: "leave" };
       default:
         return { label: "Looking for Schedule I…", disabled: true, run: idle, kind: "wait" };
     }
   });
 
-  function choose(action: () => void) {
-    menuOpen = false;
-    confirming = null;
-    action();
-  }
-
-  function uninstall(kind: "mod" | "all") {
-    if (confirming !== kind) {
-      confirming = kind;
-      return;
-    }
-    choose(() => onUninstall(kind === "all"));
-  }
 </script>
-
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key === "Escape") menuOpen = false;
-  }}
-/>
 
 <footer class="dock">
   <button
@@ -102,68 +95,27 @@
     {:else if button.kind === "work"}
       <span class="shimmer" aria-hidden="true"></span>
     {/if}
-    {#key button.label === "Play" ? "play" : phase}
+    {#key button.kind === "play" || button.kind === "leave" || button.kind === "armed" ? button.kind : phase}
       <span class="label" in:fly={{ y: 8, duration: 240 }}>
         {#if button.kind === "play"}
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z" /></svg>
+        {:else if button.kind === "leave" || button.kind === "armed"}
+          <svg class="stroke" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 3H4v10h5.5M7 8h6.5m-2.5-2.5L13.5 8 11 10.5" /></svg>
         {/if}
         {button.label}
       </span>
     {/key}
   </button>
 
-  <div class="foot">
-    <span class="versions mono">
-      {#if snapshot}
-        v{snapshot.launcherVersion} · ML {snapshot.manifest.melonloader.version} · mod {snapshot.manifest.mod.version}
-      {/if}
-      {#if usingBuiltIn}
-        <span class="offline" title="Couldn't check online for newer mod versions ({usingBuiltIn}). Using the versions built into this launcher."
-          >· built-in list</span
-        >
-      {/if}
-    </span>
-    <div class="more">
-      <button
-        type="button"
-        class="more-toggle"
-        aria-expanded={menuOpen}
-        onclick={() => {
-          menuOpen = !menuOpen;
-          confirming = null;
-        }}>More</button
+  <div class="foot mono">
+    {#if snapshot}
+      v{snapshot.launcherVersion} · ML {snapshot.manifest.melonloader.version} · mod {snapshot.manifest.mod.version}
+    {/if}
+    {#if usingBuiltIn}
+      <span class="offline" title="Couldn't check online for newer mod versions ({usingBuiltIn}). Using the versions built into this launcher."
+        >· built-in list</span
       >
-      {#if menuOpen}
-        <div class="menu" role="menu" transition:fly={{ y: 8, duration: 180 }}>
-          <button type="button" role="menuitem" disabled={!snapshot?.game.found} onclick={() => choose(onOpenFolder)}
-            >Open game folder</button
-          >
-          <button type="button" role="menuitem" onclick={() => choose(onChooseFolder)}>Choose game folder…</button>
-          {#if hasExtras}
-            <button type="button" role="menuitem" onclick={() => choose(onShowMods)}>Server's mods</button>
-          {/if}
-          <hr />
-          <button
-            type="button"
-            role="menuitem"
-            class="danger"
-            disabled={!snapshot?.install?.serverMod.installed || snapshot?.game.running}
-            onclick={() => uninstall("mod")}
-            >{confirming === "mod"
-              ? `Click again to remove the server mod${hasExtras ? "s" : ""}`
-              : `Remove server mod${hasExtras ? "s" : ""}`}</button
-          >
-          <button
-            type="button"
-            role="menuitem"
-            class="danger"
-            disabled={!snapshot?.install?.melonloader.installed || snapshot?.game.running}
-            onclick={() => uninstall("all")}
-            >{confirming === "all" ? "Click again to remove both" : `Remove server mod${hasExtras ? "s" : ""} + MelonLoader`}</button
-          >
-        </div>
-      {/if}
-    </div>
+    {/if}
   </div>
 </footer>
 
@@ -261,74 +213,48 @@
     height: 15px;
     fill: currentColor;
   }
+  .primary svg.stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* While playing: a calm outline button; armed, it turns red and waits for the second click. */
+  .primary.leave {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .primary.leave:hover {
+    background: var(--raised);
+    border-color: rgb(239 109 106 / 0.5);
+    color: var(--ink);
+  }
+  .primary.armed,
+  .primary.armed:hover:not(:disabled) {
+    background: var(--bad);
+    color: var(--asphalt);
+    animation: nudge 0.3s ease-out;
+  }
+  .primary.leave .label,
+  .primary.armed .label {
+    font: 650 13.5px/1 var(--font-body);
+    letter-spacing: 0;
+  }
+  @keyframes nudge {
+    30% { transform: translateX(-3px); }
+    60% { transform: translateX(3px); }
+  }
 
   .foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .versions {
     font-size: 10.5px;
     color: var(--faint);
+    text-align: center;
   }
   .offline {
     color: var(--warn);
     opacity: 0.8;
     cursor: help;
-  }
-  .more {
-    position: relative;
-  }
-  .more-toggle {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: background 0.15s, color 0.15s;
-  }
-  .more-toggle:hover,
-  .more-toggle[aria-expanded="true"] {
-    color: var(--ink);
-    background: var(--raised);
-  }
-  .menu {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 8px);
-    width: 270px;
-    padding: 6px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--raised);
-    box-shadow: 0 14px 40px -12px rgb(0 0 0 / 0.75);
-    display: flex;
-    flex-direction: column;
-    z-index: 20;
-  }
-  .menu button {
-    text-align: left;
-    border: 0;
-    background: transparent;
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-  }
-  .menu button:hover:not(:disabled) {
-    background: var(--line);
-  }
-  .menu button:disabled {
-    color: var(--faint);
-    cursor: default;
-  }
-  .menu .danger:not(:disabled) {
-    color: var(--bad);
-  }
-  hr {
-    border: 0;
-    border-top: 1px solid var(--line);
-    margin: 4px 2px;
   }
 </style>

@@ -1,5 +1,6 @@
 mod favorites;
 mod game;
+mod game_log;
 mod install;
 mod manifest;
 mod status;
@@ -8,8 +9,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
@@ -17,6 +20,8 @@ use manifest::{Manifest, Source};
 
 struct Shared {
     manifest: Mutex<(Manifest, Source)>,
+    /// The game folder and whether it ran, as last seen: the log polls use it, and the launcher log notes changes.
+    game: Mutex<(Option<String>, bool)>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -72,26 +77,48 @@ struct Snapshot {
     favorite_added: bool,
 }
 
+/// Polled every few seconds. It scans processes and hashes the installed mod files, so it runs off the main thread.
 #[tauri::command]
-fn get_state(app: AppHandle, shared: State<Shared>) -> Snapshot {
+async fn get_state(app: AppHandle, shared: State<'_, Shared>) -> Result<Snapshot, String> {
     let (manifest, source) = shared.manifest.lock().expect("manifest lock").clone();
-    let game = detect_game(&app, &manifest);
-    let dir = game.path.as_ref().map(PathBuf::from);
-    Snapshot {
-        install: dir.as_deref().map(|d| install::state(d, &manifest)),
-        favorite_added: dir.as_deref().is_some_and(|d| favorites::has(d, &manifest.server.host, manifest.server.port)),
-        launcher_version: app.package_info().version.to_string(),
-        manifest,
-        manifest_source: source,
-        game,
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
+        let game = detect_game(&app, &manifest);
+        let dir = game.path.as_ref().map(PathBuf::from);
+        Snapshot {
+            install: dir.as_deref().map(|d| install::state(d, &manifest)),
+            favorite_added: dir.as_deref().is_some_and(|d| favorites::has(d, &manifest.server.host, manifest.server.port)),
+            launcher_version: app.package_info().version.to_string(),
+            manifest,
+            manifest_source: source,
+            game,
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let game = &snapshot.game;
+    let mut seen = shared.game.lock().expect("game lock");
+    if seen.0 != game.path {
+        info!("Game folder: {}", game.path.as_deref().unwrap_or("not found"));
     }
+    if seen.1 != game.running {
+        info!("Schedule I {}", if game.running { "started" } else { "closed" });
+    }
+    *seen = (game.path.clone(), game.running);
+    drop(seen);
+    Ok(snapshot)
 }
 
 /// Re-reads the online version file (blocking network call, so off the main thread).
 #[tauri::command]
 async fn refresh_manifest(shared: State<'_, Shared>) -> Result<(), String> {
     let resolved = tauri::async_runtime::spawn_blocking(manifest::resolve).await.map_err(|e| e.to_string())?;
-    *shared.manifest.lock().expect("manifest lock") = resolved;
+    let mut current = shared.manifest.lock().expect("manifest lock");
+    let describe = |(m, s): &(Manifest, Source)| format!("revision {} from {s:?}", m.revision);
+    if describe(&current) != describe(&resolved) {
+        info!("Mod list: {}", describe(&resolved));
+    }
+    *current = resolved;
     Ok(())
 }
 
@@ -104,15 +131,24 @@ async fn run_install(app: AppHandle, shared: State<'_, Shared>) -> Result<(), St
             "Your game is on the “{branch}” beta branch. In Steam set Schedule I → Properties → Betas to None, let it update, then try again."
         ));
     }
+    info!("Install started (mod list revision {})", manifest.revision);
     let emitter = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         install::install(&dir, &manifest, &|p| {
+            if p.done == 0 {
+                info!("Downloading {}", p.label);
+            }
             let _ = emitter.emit("install-progress", p);
         })?;
         favorites::ensure(&dir, &manifest.server.name, &manifest.server.host, manifest.server.port)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    match &result {
+        Ok(()) => info!("Install finished"),
+        Err(e) => warn!("Install failed: {e}"),
+    }
+    result
 }
 
 #[tauri::command]
@@ -123,12 +159,70 @@ async fn query_server(shared: State<'_, Shared>) -> Result<status::ServerStatus,
         .map_err(|e| e.to_string())
 }
 
+/// Hides MelonLoader's console first (the launcher shows its log instead), then starts the game through Steam.
 #[tauri::command]
 fn play(app: AppHandle, shared: State<Shared>) -> Result<(), String> {
-    let app_id = manifest(&shared).game.app_id;
+    let manifest = manifest(&shared);
+    let (dir, _) = require_game(&app, &manifest)?;
+    // Cosmetic: if the setting can't be written, the console shows up and the game still starts.
+    match game_log::hide_console(&dir) {
+        Ok(true) => info!("Turned MelonLoader's console window off in UserData/Loader.cfg"),
+        Ok(false) => {}
+        Err(e) => warn!("{e} The console window will show."),
+    }
+    info!("Play: starting Schedule I through Steam");
     app.opener()
-        .open_url(format!("steam://rungameid/{app_id}"), None::<&str>)
+        .open_url(format!("steam://rungameid/{}", manifest.game.app_id), None::<&str>)
         .map_err(|e| format!("Couldn't start Steam ({e}). Open Steam and launch Schedule I from there."))
+}
+
+/// "Leave & close": the game quits the normal way, so the client mod saves and disconnects first.
+#[tauri::command]
+fn quit_game() -> Result<(), String> {
+    let windows = game::request_close()?;
+    info!("Asked Schedule I to close ({windows} window{})", if windows == 1 { "" } else { "s" });
+    Ok(())
+}
+
+/// The folder holding launcher.log, so a friend can send it over.
+#[tauri::command]
+fn open_launcher_logs(app: AppHandle) -> Result<(), String> {
+    let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    app.opener().open_path(dir.display().to_string(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Takes the server mods and MelonLoader out of the game, then hands over to Hyland Link's own uninstaller
+/// (which asks for confirmation itself) and closes the launcher.
+#[tauri::command]
+fn uninstall_launcher(app: AppHandle, shared: State<Shared>) -> Result<(), String> {
+    let uninstaller = std::env::current_exe()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .map(|dir| dir.join("uninstall.exe"))
+        .filter(|path| path.is_file())
+        .ok_or("This copy of Hyland Link wasn't installed with the setup, so there's no uninstaller to run.")?;
+    let manifest = manifest(&shared);
+    let game = detect_game(&app, &manifest);
+    if let Some(path) = &game.path {
+        if game.running {
+            return Err("Schedule I is running. Close the game first, then try again.".into());
+        }
+        install::uninstall(&PathBuf::from(path), &manifest, true)?;
+        info!("Removed the server mods and MelonLoader before uninstalling");
+    }
+    info!("Starting the Hyland Link uninstaller");
+    std::process::Command::new(&uninstaller).spawn().map_err(|e| format!("Couldn't start the uninstaller: {e}"))?;
+    app.exit(0);
+    Ok(())
+}
+
+/// New lines of MelonLoader's Latest.log since `offset`, for the in-app game log.
+#[tauri::command]
+async fn read_game_log(shared: State<'_, Shared>, run: Option<String>, offset: u64) -> Result<game_log::LogChunk, String> {
+    let Some(dir) = shared.game.lock().expect("game lock").0.clone() else { return Ok(game_log::LogChunk::default()) };
+    tauri::async_runtime::spawn_blocking(move || game_log::read(&PathBuf::from(dir), run.as_deref(), offset))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Accepts a hand-picked folder only if it really holds the game.
@@ -138,6 +232,7 @@ fn set_game_path(app: AppHandle, path: String) -> Result<(), String> {
     if !game::is_game_dir(&dir) {
         return Err(format!("That folder doesn't have “{}” in it. Pick the folder the game is installed in.", game::EXE_NAME));
     }
+    info!("Game folder picked by hand: {path}");
     save_settings(&app, &Settings { game_path: Some(path) })
 }
 
@@ -160,6 +255,9 @@ fn open_launcher_download(app: AppHandle, shared: State<Shared>) -> Result<(), S
 #[tauri::command]
 async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
     let update = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    if let Some(u) = &update {
+        info!("Launcher update available: {}", u.version);
+    }
     Ok(update.map(|u| u.version))
 }
 
@@ -175,6 +273,7 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?
         .ok_or("No launcher update is waiting.")?;
+    info!("Installing launcher {}", update.version);
     let progress = app.clone();
     let mut downloaded: u64 = 0;
     update
@@ -196,6 +295,7 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
 fn uninstall(app: AppHandle, shared: State<Shared>, melonloader: bool) -> Result<(), String> {
     let manifest = manifest(&shared);
     let (dir, _) = require_game(&app, &manifest)?;
+    info!("Removing the server mods{}", if melonloader { " and MelonLoader" } else { "" });
     install::uninstall(&dir, &manifest, melonloader)
 }
 
@@ -216,11 +316,27 @@ fn style_window_frame(window: &tauri::WebviewWindow) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // %LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log: what the launcher did, for debugging a friend's PC.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets()
+                .target(Target::new(TargetKind::LogDir { file_name: Some("launcher".into()) }))
+                .target(Target::new(TargetKind::Stdout))
+                .level(log::LevelFilter::Info)
+                .max_file_size(1_000_000)
+                .rotation_strategy(RotationStrategy::KeepOne)
+                .timezone_strategy(TimezoneStrategy::UseLocal)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Shared { manifest: Mutex::new((manifest::baked(), Source::BuiltIn { reason: "checking for updates".into() })) })
+        .manage(Shared {
+            manifest: Mutex::new((manifest::baked(), Source::BuiltIn { reason: "checking for updates".into() })),
+            game: Mutex::new((None, false)),
+        })
         .setup(|app| {
+            info!("Hyland Link {} started", app.package_info().version);
             if let Some(window) = app.get_webview_window("main") {
                 style_window_frame(&window);
             }
@@ -232,6 +348,10 @@ pub fn run() {
             run_install,
             query_server,
             play,
+            quit_game,
+            read_game_log,
+            open_launcher_logs,
+            uninstall_launcher,
             set_game_path,
             open_game_folder,
             open_launcher_download,

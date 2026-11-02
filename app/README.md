@@ -22,14 +22,14 @@ does the next thing.
 
 What's installed is decided by `../manifest/manifest.json`. It's compiled in, and the online copy wins when its
 `revision` is higher. The launcher records what it installed, file by file, in `UserData/HylandLink.json` inside the
-game folder. Removing the mods from the More menu removes only those files and leaves the player's own mods and
-`UserData` alone.
+game folder. Removing the mods from Settings (the gear) removes only those files and leaves the player's own mods and
+`UserData` alone. "Uninstall Hyland Link" does that plus MelonLoader, then runs the launcher's own uninstaller.
 
 ## Develop
 
 ```bash
 pnpm install
-pnpm dev                      # UI in a browser with a fake backend: ?s=setup|update|mods|nomods|installing|closegame|firstlaunch|firstrun|ready|playing|offline|branch|nogame|selfupdate
+pnpm dev                      # UI in a browser with a fake backend: ?s=setup|update|mods|nomods|installing|closegame|firstlaunch|firstrun|ready|playing|logerrors|offline|branch|nogame|selfupdate
 pnpm tauri dev                # the real app
 pnpm check                    # svelte-check
 cd src-tauri && cargo test    # unit tests; add `-- --ignored` for the real download + install into a temp folder
@@ -44,7 +44,12 @@ The browser mock (`src/lib/dev-mock.ts`) loads only under `vite dev` outside Tau
 - `src-tauri/src/install.rs`: download, checksum, extract, state detection (incl. extra and stale mods), uninstall
 - `src-tauri/src/favorites.rs`: the mod's saved-servers file
 - `src-tauri/src/status.rs`: the `DS_STATUS` query
+- `src-tauri/src/game_log.rs`: hides MelonLoader's console (`UserData/Loader.cfg`) and follows `MelonLoader/Latest.log`
 - `src/lib/launcher.svelte.ts`: app state, the phase machine (noGame → branch → setup/update → installing →
-  firstLaunch → ready → playing), which of the 4 steps is current, and the manifest rechecks
-- `src/lib/components/`: TitleBar, ServerCard (with SignalBars), Steps (the guided stepper), ActionBar (the one button
-  and the More menu), ModsSheet (the server's mod list)
+  firstLaunch → ready → playing), which of the 4 steps is current, the manifest rechecks and the game log poll
+- `src/lib/game-log.ts`: log line parsing and the game's stage (loading, main menu, connecting, on the server)
+- `src/lib/components/`: TitleBar (with the settings gear), ServerCard (with SignalBars), Steps (the guided stepper),
+  GameStatus (the live stage), ActionBar (the one button: Install / Play / Leave & close), Sheet with ModsSheet (the
+  server's mod list), LogSheet (the game log) and SettingsSheet (folder, logs, removal, uninstall)
+
+The launcher writes its own log to `%LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log` (1 MB, one file kept).

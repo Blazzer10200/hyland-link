@@ -82,12 +82,21 @@ export type InstallProgress = {
   total: number;
 };
 
+/** New lines of MelonLoader/Latest.log. `fresh` means a different run than the one asked about: drop the old lines. */
+export type LogChunk = { run: string | null; offset: number; fresh: boolean; lines: string[] };
+
 export const api = {
   getState: () => invoke<Snapshot>("get_state"),
   refreshManifest: () => invoke<void>("refresh_manifest"),
   runInstall: () => invoke<void>("run_install"),
   queryServer: () => invoke<ServerStatus>("query_server"),
   play: () => invoke<void>("play"),
+  /** Asks the game to quit normally (never kills it). */
+  quitGame: () => invoke<void>("quit_game"),
+  openLauncherLogs: () => invoke<void>("open_launcher_logs"),
+  /** Cleans the game folder, starts Hyland Link's uninstaller and closes the launcher. */
+  uninstallLauncher: () => invoke<void>("uninstall_launcher"),
+  readGameLog: (run: string | null, offset: number) => invoke<LogChunk>("read_game_log", { run, offset }),
   setGamePath: (path: string) => invoke<void>("set_game_path", { path }),
   openGameFolder: () => invoke<void>("open_game_folder"),
   openLauncherDownload: () => invoke<void>("open_launcher_download"),

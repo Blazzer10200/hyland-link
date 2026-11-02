@@ -41,10 +41,10 @@ fn library_folders(steam: &Path) -> Vec<PathBuf> {
     if let Ok(vdf) = fs::read_to_string(steam.join(r"steamapps\libraryfolders.vdf")) {
         for line in vdf.lines() {
             let mut parts = line.split('"').filter(|p| !p.trim().is_empty());
-            if parts.next() == Some("path") {
-                if let Some(value) = parts.next() {
-                    libraries.push(PathBuf::from(value.replace(r"\\", r"\")));
-                }
+            if parts.next() == Some("path")
+                && let Some(value) = parts.next()
+            {
+                libraries.push(PathBuf::from(value.replace(r"\\", r"\")));
             }
         }
     }
@@ -96,35 +96,80 @@ pub fn detect(app_id: u32, manual: Option<&Path>) -> GameInfo {
     }
 }
 
-/// True when a "Schedule I.exe" process exists (ToolHelp snapshot; no console window, no extra crates).
-pub fn is_running() -> bool {
+/// Process ids of every "Schedule I.exe" (ToolHelp snapshot; no console window, no extra crates).
+fn game_pids() -> Vec<u32> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
     };
 
     let target = EXE_NAME.to_lowercase();
+    let mut pids = Vec::new();
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if snapshot == INVALID_HANDLE_VALUE {
-            return false;
+            return pids;
         }
         let mut entry: PROCESSENTRY32W = std::mem::zeroed();
         entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut found = false;
         let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
         while ok {
             let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            let name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
-            if name == target {
-                found = true;
-                break;
+            if String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase() == target {
+                pids.push(entry.th32ProcessID);
             }
             ok = Process32NextW(snapshot, &mut entry) != 0;
         }
         CloseHandle(snapshot);
-        found
     }
+    pids
+}
+
+pub fn is_running() -> bool {
+    !game_pids().is_empty()
+}
+
+/// Asks the game to quit the way the window's X button does (WM_CLOSE to its Unity window), so Unity runs its normal
+/// shutdown and the client mod saves and disconnects. Never kills the process. Returns the windows asked.
+pub fn request_close() -> Result<usize, String> {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
+    };
+
+    struct Search {
+        pids: Vec<u32>,
+        windows: Vec<HWND>,
+    }
+    // Only Unity's own window: closing a MelonLoader console window would end the game without its shutdown.
+    unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> i32 {
+        let search = unsafe { &mut *(data as *mut Search) };
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+        if search.pids.contains(&pid) {
+            let mut class = [0u16; 64];
+            let len = unsafe { GetClassNameW(hwnd, class.as_mut_ptr(), class.len() as i32) };
+            if String::from_utf16_lossy(&class[..len.max(0) as usize]) == "UnityWndClass" {
+                search.windows.push(hwnd);
+            }
+        }
+        1
+    }
+
+    let pids = game_pids();
+    if pids.is_empty() {
+        return Err("Schedule I isn't running.".into());
+    }
+    let mut search = Search { pids, windows: Vec::new() };
+    unsafe { EnumWindows(Some(visit), (&raw mut search) as LPARAM) };
+    if search.windows.is_empty() {
+        return Err("I couldn't find the game's window. Quit from the game's own menu.".into());
+    }
+    let asked = search.windows.iter().filter(|&&hwnd| unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) } != 0).count();
+    if asked == 0 {
+        return Err("Windows didn't let me close the game (is it running as administrator?). Quit from its menu.".into());
+    }
+    Ok(asked)
 }
 
 #[cfg(test)]

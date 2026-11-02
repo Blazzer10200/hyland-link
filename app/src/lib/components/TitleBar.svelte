@@ -1,6 +1,8 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
 
+  let { settingsOpen, onSettings }: { settingsOpen: boolean; onSettings: () => void } = $props();
+
   const appWindow = getCurrentWindow();
 </script>
 
@@ -10,6 +12,14 @@
     <span class="wordmark" data-tauri-drag-region>Hyland Link</span>
   </div>
   <div class="controls">
+    <button type="button" class="gear" class:on={settingsOpen} aria-label="Settings" aria-expanded={settingsOpen} onclick={onSettings}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M6.7 1.8h2.6l.4 1.8 1.2.7 1.8-.6 1.3 2.3-1.4 1.2v1.6l1.4 1.2-1.3 2.3-1.8-.6-1.2.7-.4 1.8H6.7l-.4-1.8-1.2-.7-1.8.6-1.3-2.3 1.4-1.2V7.2L2 6l1.3-2.3 1.8.6 1.2-.7z"
+        />
+        <circle cx="8" cy="8" r="2.1" />
+      </svg>
+    </button>
     <button type="button" aria-label="Minimize" onclick={() => appWindow.minimize()}>
       <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" /></svg>
     </button>
@@ -69,6 +79,22 @@
   .controls .close:hover {
     background: #c42b1c;
     color: #fff;
+  }
+  .gear svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.15;
+    stroke-linejoin: round;
+    transition: transform 0.5s cubic-bezier(0.3, 0.7, 0.3, 1);
+  }
+  .gear:hover svg {
+    transform: rotate(45deg);
+  }
+  .controls .gear.on {
+    color: var(--sodium);
+  }
+  .gear.on svg {
+    transform: rotate(90deg);
   }
   svg {
     width: 12px;

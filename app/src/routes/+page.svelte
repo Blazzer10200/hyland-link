@@ -2,15 +2,18 @@
   import { onMount } from "svelte";
   import { fade, fly } from "svelte/transition";
   import ActionBar from "$lib/components/ActionBar.svelte";
+  import LogSheet from "$lib/components/LogSheet.svelte";
   import ModsSheet from "$lib/components/ModsSheet.svelte";
   import ServerCard from "$lib/components/ServerCard.svelte";
+  import SettingsSheet from "$lib/components/SettingsSheet.svelte";
   import Steps from "$lib/components/Steps.svelte";
   import TitleBar from "$lib/components/TitleBar.svelte";
+  import { latestMessage } from "$lib/game-log";
   import { launcher } from "$lib/launcher.svelte";
 
   onMount(() => {
     launcher.start().catch((e: unknown) => {
-      launcher.error = String(e);
+      launcher.fail(e);
     });
   });
 
@@ -21,10 +24,11 @@
       : null,
   );
   let noticeDismissed = $state(false);
+  const logMessage = $derived(latestMessage(launcher.gameLog));
 </script>
 
 <div class="app">
-  <TitleBar />
+  <TitleBar settingsOpen={launcher.sheet === "settings"} onSettings={launcher.toggleSettings} />
 
   <main>
     <!-- Nothing renders until the first state arrives, so the entrance plays on the real step instead of flashing step 1. -->
@@ -32,7 +36,17 @@
       <div in:fly={{ y: 10, duration: 420 }}>
         <ServerCard server={snapshot.manifest.server} status={launcher.server} checking={launcher.checkingServer} />
       </div>
-      <Steps {snapshot} step={launcher.step} phase={launcher.phase} progress={launcher.progress} onShowMods={launcher.showMods} />
+      <Steps
+        {snapshot}
+        step={launcher.step}
+        phase={launcher.phase}
+        progress={launcher.progress}
+        stage={launcher.stage}
+        {logMessage}
+        logErrors={launcher.logErrors}
+        onShowMods={launcher.showMods}
+        onShowLog={launcher.showLog}
+      />
     {/if}
 
     <div class="toasts" aria-live="polite">
@@ -62,8 +76,32 @@
       {/if}
     </div>
 
-    {#if launcher.modsOpen && snapshot?.install}
-      <ModsSheet install={snapshot.install} installing={launcher.installing} progress={launcher.progress} onClose={launcher.hideMods} />
+    {#if launcher.sheet === "mods" && snapshot?.install}
+      <ModsSheet install={snapshot.install} installing={launcher.installing} progress={launcher.progress} onClose={launcher.closeSheet} />
+    {/if}
+    {#if launcher.sheet === "log"}
+      <LogSheet
+        lines={launcher.gameLog}
+        running={!!snapshot?.game.running}
+        errors={launcher.logErrors}
+        problem={launcher.logProblem}
+        onClose={launcher.closeSheet}
+      />
+    {/if}
+    {#if launcher.sheet === "settings" && snapshot}
+      <SettingsSheet
+        {snapshot}
+        logLines={launcher.gameLog.length}
+        logErrors={launcher.logErrors}
+        onOpenFolder={launcher.openGameFolder}
+        onChooseFolder={launcher.chooseGameFolder}
+        onShowLog={launcher.showLog}
+        onShowMods={launcher.showMods}
+        onOpenLauncherLogs={launcher.openLauncherLogs}
+        onUninstall={launcher.uninstall}
+        onUninstallLauncher={launcher.uninstallLauncher}
+        onClose={launcher.closeSheet}
+      />
     {/if}
   </main>
 
@@ -72,12 +110,11 @@
     {snapshot}
     progress={launcher.progress}
     {usingBuiltIn}
+    closingGame={launcher.closingGame}
     onInstall={launcher.install}
     onPlay={launcher.play}
     onChooseFolder={launcher.chooseGameFolder}
-    onOpenFolder={launcher.openGameFolder}
-    onShowMods={launcher.showMods}
-    onUninstall={launcher.uninstall}
+    onQuit={launcher.quitGame}
   />
 
   {#if launcher.selfUpdate}
@@ -216,7 +253,8 @@
     flex-direction: column;
     gap: 8px;
     pointer-events: none;
-    z-index: 10;
+    /* Above the sheets (16), so an error from a sheet's button is never hidden behind it. */
+    z-index: 18;
   }
   .toast {
     pointer-events: auto;

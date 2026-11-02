@@ -7,17 +7,29 @@ from it. v0.1.0 is released and installed on friends' PCs.
 State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updates): `README.md`.
 
 ## Map
-- `app/src-tauri/src/lib.rs`: every Tauri command (state, install, play, status, updater) + plugin setup.
+- `app/src-tauri/src/lib.rs`: every Tauri command (state, install, play, quit game, game log, status, updater,
+  uninstall incl. running the NSIS `uninstall.exe` next to the exe) + plugin setup.
+- `app/src-tauri/src/game.rs` `request_close`: "Leave & close" posts WM_CLOSE to the game's windows, the same as its X
+  button, so the client mod saves and disconnects. It never kills the process.
 - `app/src-tauri/src/{game,install,favorites,status,manifest}.rs`: Steam detection, install/uninstall (incl. extra
   mods, tracked per file in `UserData/HylandLink.json`), the mod's favorites file, the `DS_STATUS` query, the version
   file (built-in vs online by `revision`, schema 2).
+- `app/src-tauri/src/game_log.rs`: Play sets `hide_console = true` in `UserData/Loader.cfg` (no MelonLoader console
+  window); `read_game_log` follows `MelonLoader/Latest.log` by offset, and a new run id (its first line) means a relaunch.
 - `app/src/lib/launcher.svelte.ts`: the whole UI state machine (phases, current step, self-update, mod-list rechecks
-  every 5 min / on focus / before Play).
-- `app/src/lib/components/`: `Steps` (the stepper), `ActionBar` (big button + More menu), `ModsSheet` (the server's
-  mod list), `ServerCard`, `TitleBar`.
+  every 5 min / on focus / before Play, the game log poll every 800 ms while the game runs or the log is open).
+- `app/src/lib/game-log.ts`: parses log lines and reads the game's stage off them (starting → preparing → loading → menu
+  → connecting → joined). The client-mod strings it matches come from DedicatedServerClient 1.1.6: recheck on a mod update.
+- `app/src/lib/components/`: `Steps` (the stepper), `ActionBar` (the one big button; two-click "Leave server & close
+  game" while playing), `GameStatus` (live stage + newest log line), `Sheet` (shared bottom sheet, one open at a time)
+  under `ModsSheet` (the server's mod list), `LogSheet` (the game log) and `SettingsSheet` (the gear: game folder,
+  logs, two-click removals and "Uninstall Hyland Link"), `ServerCard`, `TitleBar` (gear, minimize, close).
 - `app/src/routes/+page.svelte`: layout, toasts, the self-update overlay. `app/src/app.css`: design tokens.
 - `app/src/lib/dev-mock.ts`: fake backend for the browser preview (`.claude/launch.json` → `hyland-link-ui`, port 1420,
-  viewport 460x720).
+  viewport 460x720). `?s=firstrun|playing|logerrors` stream a fake game log.
+- Debugging a PC: `bash scripts/logs.sh [lines]` prints the launcher's own log
+  (`%LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log`: game found/started/closed, mod list changes, installs,
+  Play, game stages, every error shown to the player), the game's `Latest.log` with error counts, and `hide_console`.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 

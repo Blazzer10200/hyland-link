@@ -1,20 +1,30 @@
 <script lang="ts">
   import { fade, fly, slide } from "svelte/transition";
   import type { Component, InstallProgress, Snapshot } from "$lib/api";
+  import { shortPath, type GameStage } from "$lib/game-log";
   import type { Phase, StepNumber } from "$lib/launcher.svelte";
+  import GameStatus from "./GameStatus.svelte";
 
   let {
     snapshot,
     step,
     phase,
     progress,
+    stage,
+    logMessage,
+    logErrors,
     onShowMods,
+    onShowLog,
   }: {
     snapshot: Snapshot | null;
     step: StepNumber;
     phase: Phase;
     progress: InstallProgress | null;
+    stage: GameStage | null;
+    logMessage: string | null;
+    logErrors: number;
     onShowMods: () => void;
+    onShowLog: () => void;
   } = $props();
 
   type ItemState = "done" | "active" | "pending";
@@ -25,12 +35,6 @@
     { n: 3, title: "Launch once to finish setup", doneTitle: "Setup run finished", preview: "A one-time setup run" },
     { n: 4, title: "Join the server", doneTitle: "Join the server", preview: "Servers → Favorites → Join" },
   ] as const;
-
-  // "C:\Program Files (x86)\Steam\steamapps\common\Schedule I" → "C:\…\common\Schedule I"
-  function shortPath(path: string) {
-    const parts = path.split("\\");
-    return parts.length > 4 ? `${parts[0]}\\…\\${parts.slice(-2).join("\\")}` : path;
-  }
 
   const installing = $derived(phase === "installing");
   const percent = $derived(progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null);
@@ -194,27 +198,29 @@
               </ul>
             {:else if s.n === 3}
               {#if phase === "firstLaunchRunning"}
-                <p>
-                  <b>Setting up…</b> MelonLoader is preparing the game. This takes a few minutes and finishes by itself, so
-                  leave the game open.
-                </p>
-                <div class="working" aria-hidden="true"><span></span></div>
+                <p>MelonLoader is preparing the game. It takes a few minutes and finishes by itself, so leave the game open.</p>
+                <GameStatus stage={stage ?? "starting"} message={logMessage} errors={logErrors} {onShowLog} />
               {:else}
                 <p>
-                  Start the game once. The first launch takes a few minutes, and a black console window opens next to it.
-                  That's MelonLoader getting ready. Leave both open until the main menu shows a <b>Servers</b> button.
+                  Start the game once. The first launch takes a few minutes while MelonLoader gets the game ready, and you
+                  can watch it happen right here.
                 </p>
               {/if}
             {:else}
-              <p>{phase === "playing" ? "Have fun! From the main menu:" : "Press Play, then in the main menu:"}</p>
-              <div class="path">
-                {#each joinPath as crumb, c (c)}
-                  {#if c > 0}<span class="arrow" in:fade={{ delay: 260 + c * 160, duration: 200 }}>→</span>{/if}
-                  <span class="crumb" class:final={c === joinPath.length - 1} in:fly={{ x: -8, delay: 200 + c * 160, duration: 260 }}
-                    >{crumb}</span
-                  >
-                {/each}
-              </div>
+              {#if phase === "playing"}
+                <GameStatus stage={stage ?? "starting"} message={logMessage} errors={logErrors} {onShowLog} />
+              {/if}
+              {#if stage !== "joined"}
+                <p>{phase === "playing" ? "From the main menu:" : "Press Play, then in the main menu:"}</p>
+                <div class="path" transition:slide={{ duration: 260 }}>
+                  {#each joinPath as crumb, c (c)}
+                    {#if c > 0}<span class="arrow" in:fade={{ delay: 260 + c * 160, duration: 200 }}>→</span>{/if}
+                    <span class="crumb" class:final={c === joinPath.length - 1} in:fly={{ x: -8, delay: 200 + c * 160, duration: 260 }}
+                      >{crumb}</span
+                    >
+                  {/each}
+                </div>
+              {/if}
             {/if}
           </div>
         {/if}
@@ -461,27 +467,6 @@
   }
   .active .item-note {
     color: var(--sodium);
-  }
-
-  /* Indeterminate "working" bar while MelonLoader does its first run. */
-  .working {
-    position: relative;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--raised);
-    overflow: hidden;
-  }
-  .working span {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 40%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, transparent, var(--sodium), transparent);
-    animation: sweep 1.6s ease-in-out infinite;
-  }
-  @keyframes sweep {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(250%); }
   }
 
   .path {

@@ -56,4 +56,5 @@ manifest/            the version file the launcher and the server both follow (b
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/release.sh   build, sign and publish a release
 scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)
+scripts/logs.sh      print the launcher log, the game log and the console setting on this PC
 ```

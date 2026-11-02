@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { fade, fly } from "svelte/transition";
   import type { InstallProgress, InstallState } from "$lib/api";
+  import Sheet from "./Sheet.svelte";
 
   let {
     install,
@@ -43,24 +43,12 @@
   const pending = $derived(rows.some((r) => r.status !== "ok"));
 </script>
 
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key === "Escape") onClose();
-  }}
-/>
-
-<div class="scrim" role="presentation" onclick={onClose} transition:fade={{ duration: 200 }}></div>
-<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mods-title" transition:fly={{ y: 40, duration: 260 }}>
-  <header>
-    <div>
-      <h2 id="mods-title">Mods on this server</h2>
-      <p>Hyland Link keeps these matched to the server. You never pick or update them by hand.</p>
-    </div>
-    <button type="button" class="close" aria-label="Close" onclick={onClose}>
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-    </button>
-  </header>
-
+<Sheet
+  id="mods-title"
+  title="Mods on this server"
+  subtitle="Hyland Link keeps these matched to the server. You never pick or update them by hand."
+  {onClose}
+>
   <ul>
     {#each rows as row (row.key)}
       <li class={row.status}>
@@ -76,81 +64,14 @@
     {/each}
   </ul>
 
-  <footer>
+  {#snippet footer()}
     {#if pending && !installing}<span class="hint">Press <b>Update</b> to match the server.</span>{/if}
     <span>Your own mods in Mods/ are left alone.</span>
-  </footer>
-</div>
+  {/snippet}
+</Sheet>
 
 <style>
-  /* Lives inside <main>, so the title bar and the action bar stay usable: Update can run with the list open. */
-  .scrim {
-    position: absolute;
-    inset: 0;
-    z-index: 15;
-    background: rgb(8 10 12 / 0.62);
-  }
-  .sheet {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 16;
-    max-height: calc(100% - 64px);
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--line);
-    border-bottom: 0;
-    border-radius: 16px 16px 0 0;
-    background: var(--panel);
-    box-shadow: 0 -18px 50px -20px rgb(0 0 0 / 0.85);
-  }
-  header {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 18px 20px 12px;
-  }
-  header div {
-    flex: 1;
-    min-width: 0;
-  }
-  h2 {
-    margin: 0 0 3px;
-    font: 700 17px/1.25 var(--font-display);
-    font-stretch: 108%;
-  }
-  header p {
-    margin: 0;
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--muted);
-  }
-  .close {
-    flex: none;
-    width: 28px;
-    height: 28px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--muted);
-  }
-  .close:hover {
-    background: var(--raised);
-    color: var(--ink);
-  }
-  .close svg {
-    width: 14px;
-    height: 14px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-  }
-
-  /* The one list in the app that may outgrow the window, so it alone scrolls. */
+  /* The list may outgrow the window, so it scrolls inside the sheet. */
   ul {
     list-style: none;
     margin: 0;
@@ -235,15 +156,6 @@
     to { transform: rotate(360deg); }
   }
 
-  footer {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 12px 20px 18px;
-    border-top: 1px solid var(--line);
-    font-size: 11.5px;
-    color: var(--faint);
-  }
   .hint {
     color: var(--muted);
   }
