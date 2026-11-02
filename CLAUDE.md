@@ -57,6 +57,10 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   rename one, and never bump `schema` without a launcher release that understands it first.
 - **Public repo hygiene:** nothing from `schedule1-server` goes in here (the ntfy topic lives in its scripts). The
   server IP in `manifest/manifest.json` is public on purpose.
+- **"Live" means a launcher read it:** raw.githubusercontent.com caches the manifest up to 5 min per edge server, so
+  one curl seeing the new revision proves nothing about a player's edge. Before telling Blazzer a mod list is live, the
+  launcher log (`bash scripts/logs.sh`) must show `Mod list: revision N from Online`, or 5 min must have passed since
+  the push. A query string doesn't help: the CDN ignores it (random `?t=` still returns `X-Cache: HIT`).
 - **Releases move only when published:** a draft doesn't update `releases/latest`. The asset is always named
   `Hyland-Link-Setup.exe`, so the friend download link never changes.
 - Don't install the mod into Blazzer's real game folder to test. That copy is used for co-op. Use the browser mock

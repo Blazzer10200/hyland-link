@@ -168,15 +168,17 @@ function Set-ServerMod {
     Write-Host "Publishing checks the server boots on MelonLoader $($manifest.melonloader.version). Run: pwsh scripts/mods.ps1 publish"
 }
 
-# Launchers read the plain raw URL, which GitHub's CDN caches for up to 5 minutes after a push. "Live" means that URL
-# serves the new revision, not that the push went through.
+# Launchers read the raw URL, which every GitHub CDN edge server may keep for 5 minutes (max-age=300; query strings
+# don't bypass it). One edge serving the new revision proves nothing about the player's edge: "live" is 5 minutes
+# after the push, once every cached copy has expired.
 function Wait-RawManifest([int] $revision) {
     $url = "https://raw.githubusercontent.com/Blazzer10200/hyland-link/main/manifest/manifest.json"
-    $deadline = (Get-Date).AddMinutes(7)
-    Write-Host "Waiting for GitHub's cache to serve revision $revision (up to 5 minutes)..."
+    $pushed = Get-Date
+    $deadline = $pushed.AddMinutes(7)
+    Write-Host "Waiting 5 minutes for every GitHub cache copy of the old revision to expire..."
     while ($true) {
         $served = try { [int](Invoke-RestMethod $url -TimeoutSec 10).revision } catch { -1 }
-        if ($served -eq $revision) {
+        if ($served -eq $revision -and (Get-Date) -ge $pushed.AddSeconds(310)) {
             Write-Host "Revision $revision is live: launchers get it on their next check (every 5 min, on focus, or at start)."
             return
         }
