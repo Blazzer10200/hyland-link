@@ -269,7 +269,9 @@ internal sealed class CustomerMarkers : IDisposable
 			return;
 		}
 		NPC nPC = customer.NPC;
-		if (nPC == null || nPC.gameObject == null || !nPC.gameObject.activeInHierarchy)
+		// HasNPCData: pooled special customers are active before the game gives them their data, and MugshotSprite /
+		// FullName read through it, so one of those would throw and take the whole minimap down.
+		if (nPC == null || nPC.gameObject == null || !nPC.gameObject.activeInHierarchy || !nPC.HasNPCData)
 		{
 			return;
 		}

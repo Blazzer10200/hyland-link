@@ -401,11 +401,16 @@ internal sealed class MinimapHud : IDisposable
 		}
 		Vector2 vector3 = projection2.Project(position + vector2) - vector;
 		float num = (float)MapMath.Heading(vector3.x, vector3.y);
+		// One degenerate projection (the phone map mid-rescale) must not leave a NaN in the eased heading for good.
+		if (!float.IsFinite(num))
+		{
+			num = 0f;
+		}
 		float num2 = 0f;
 		if (settings.Rotate.Value)
 		{
 			// Ease the map's turn so a fast mouse flick doesn't snap it; the arrow shows the true heading meanwhile.
-			mapHeading = (mapHeading is float last) ? (float)MapMath.SmoothAngle(last, num, HeadingSmoothing, Time.unscaledDeltaTime) : num;
+			mapHeading = (mapHeading is float last && float.IsFinite(last)) ? (float)MapMath.SmoothAngle(last, num, HeadingSmoothing, Time.unscaledDeltaTime) : num;
 			num2 = mapHeading.Value;
 		}
 		else

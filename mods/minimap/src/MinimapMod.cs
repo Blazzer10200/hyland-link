@@ -1,4 +1,5 @@
 using System;
+using Il2CppScheduleOne;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.Map;
 using Il2CppScheduleOne.Persistence;
@@ -31,7 +32,7 @@ public sealed class MinimapMod : MelonMod
 		{
 			settingsDirty = true;
 		});
-		LoggerInstance.Msg("Hyland Minimap 1.2.0 (based on nacho's Schedule I Minimap 1.0.1). Settings: [HylandMinimap] in UserData/MelonPreferences.cfg.");
+		LoggerInstance.Msg("Hyland Minimap " + Info.Version + " (based on nacho's Schedule I Minimap 1.0.2). Settings: [HylandMinimap] in UserData/MelonPreferences.cfg.");
 	}
 
 	public override void OnLateUpdate()
@@ -61,7 +62,9 @@ public sealed class MinimapMod : MelonMod
 			PauseMenu instance5 = Singleton<PauseMenu>.Instance;
 			PlayerCamera instance6 = PlayerSingleton<PlayerCamera>.Instance;
 			bool flag = (instance4 != null && instance4.IsOpen) || (instance5 != null && instance5.IsPaused) || (instance6 != null && instance6.ActiveUIElementCount > 0) || Time.timeScale == 0f;
-			if (!flag && settings.Enabled.Value && zoomInput.Update(settings))
+			// IsTyping covers text fields outside those screens, so PageUp/PageDown while typing never zooms the map.
+			bool typing = GameInput.IsTyping;
+			if (!flag && !typing && settings.Enabled.Value && zoomInput.Update(settings))
 			{
 				settingsDirty = true;
 			}
@@ -88,10 +91,18 @@ public sealed class MinimapMod : MelonMod
 		catch (Exception ex)
 		{
 			DestroyHud();
-			retryAt = Time.unscaledTime + 5f;
-			if (consecutiveFailures++ < 3)
+			// Each retry rebuilds the HUD's textures, so a lasting failure backs off (5, 10, 20, 40, then 60 s).
+			float delay = Math.Min(60f, 5f * (1 << Math.Min(consecutiveFailures, 4)));
+			retryAt = Time.unscaledTime + delay;
+			consecutiveFailures++;
+			string error = ex.GetType().Name + ": " + ex.Message;
+			if (consecutiveFailures <= 3)
 			{
-				LoggerInstance.Warning("Minimap unavailable; retrying in 5s: " + ex.GetType().Name + ": " + ex.Message);
+				LoggerInstance.Warning("Minimap unavailable; retrying in " + delay + "s: " + error);
+			}
+			else if (consecutiveFailures == 4)
+			{
+				LoggerInstance.Warning("Minimap still unavailable; retrying every minute without logging again: " + error);
 			}
 		}
 	}
