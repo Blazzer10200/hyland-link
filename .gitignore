@@ -1,2 +1,4 @@
 # Release builds go to GitHub Releases (scripts/release.sh), not into history.
 dist/
+# The game's own code (Mono branch DLLs + decompiled C#), for reading only. Never public.
+.gameref/
