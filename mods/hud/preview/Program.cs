@@ -16,8 +16,32 @@ internal static class Program
 			return 2;
 		}
 		Directory.CreateDirectory(args[0]);
+		Canvas full = Layout();
 		string layout = Path.Combine(args[0], "hud-layout.png");
-		Png.Write(layout, Layout());
+		Png.Write(layout, full);
+		// Close-ups at 2x, so the details read on a phone screen.
+		Png.Write(Path.Combine(args[0], "hud-hotbar.png"), full.Crop(560, 880, 920, 200, 2));
+		Png.Write(Path.Combine(args[0], "hud-compass.png"), full.Crop(700, 0, 520, 120, 2));
+		// Every sprite on its own, for the animated web demo: name, size and 9-slice border (pixels; the image draws at
+		// 1/Scale, so the CSS border-image-width is border / scale).
+		string dir = Path.Combine(args[0], "sprites");
+		Directory.CreateDirectory(dir);
+		(string Name, Bitmap Bitmap)[] sprites =
+		{
+			("glass22", Art.Glass(22, Theme.GlassFill, Theme.GlassStroke)), ("glass16", Art.Glass(16, Theme.GlassFill, Theme.GlassStroke)),
+			("glass15", Art.Glass(15, Theme.GlassFill, Theme.GlassStroke)), ("glass10", Art.Glass(10, Theme.GlassFill, Theme.GlassStroke)),
+			("slot14", Art.Glass(14, Theme.White.WithAlpha(0.33f), Theme.White)), ("shadow22", Art.Shadow(22, 16, 0.3f)),
+			("shadow16", Art.Shadow(16, 16, 0.3f)), ("underline72", Art.GlowBar(72, Theme.Accent)), ("pointer", Art.Pointer(Theme.Accent)),
+			("dot", Art.Dot()), ("fadeline", Art.FadeLine()), ("sun-core", Art.Render(Art.Icon.SunCore, 64)),
+			("sun-rays", Art.Render(Art.Icon.SunRays, 64)), ("dusk-sun", Art.Render(Art.Icon.DuskSun, 64)),
+			("dusk-horizon", Art.Render(Art.Icon.DuskHorizon, 64)), ("moon", Art.Render(Art.Icon.Moon, 64)),
+			("cash", Art.Render(Art.Icon.Cash, 64)), ("bank", Art.Render(Art.Icon.Bank, 64))
+		};
+		foreach ((string name, Bitmap bitmap) in sprites)
+		{
+			Png.Write(Path.Combine(dir, name + ".png"), Canvas.From(bitmap));
+			Console.WriteLine($"{name}: {bitmap.Width}x{bitmap.Height} border {bitmap.Border} scale {bitmap.Scale}");
+		}
 		string sheet = Path.Combine(args[0], "hud-sprites.png");
 		Png.Write(sheet, Sheet());
 		Console.WriteLine(layout);
@@ -161,6 +185,31 @@ internal sealed class Canvas
 				Pixels[y * Width + x] = row;
 			}
 		}
+	}
+
+	/// <summary>A bitmap as a top-down canvas (bitmap rows run bottom-up).</summary>
+	internal static Canvas From(Bitmap b)
+	{
+		Canvas c = new Canvas(b.Width, b.Height);
+		for (int row = 0; row < b.Height; row++)
+		{
+			Array.Copy(b.Pixels, row * b.Width, c.Pixels, (b.Height - 1 - row) * b.Width, b.Width);
+		}
+		return c;
+	}
+
+	/// <summary>The region (x, y, w, h) enlarged <paramref name="scale"/> times, pixel for pixel.</summary>
+	internal Canvas Crop(int x, int y, int w, int h, int scale)
+	{
+		Canvas crop = new Canvas(w * scale, h * scale);
+		for (int py = 0; py < crop.Height; py++)
+		{
+			for (int px = 0; px < crop.Width; px++)
+			{
+				crop.Pixels[py * crop.Width + px] = Pixels[(y + py / scale) * Width + x + px / scale];
+			}
+		}
+		return crop;
 	}
 
 	private static Rgba Lerp(Rgba a, Rgba b, double t)
