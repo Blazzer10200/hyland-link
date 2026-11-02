@@ -7,6 +7,39 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 4 — 2026-11-02 03:35 (v0.1.1 released and verified)
+
+### Completed
+- **v0.1.1 released** (session 3's console hide, live game status + log, Settings gear, Leave & close, launcher log).
+  Feed serves 0.1.1 anonymously, signature key id `c565f1e2370aae54` = pubkey, download bytes = build.
+- **Self-update proven on this PC:** installed 0.1.0 started → updated → reopened as 0.1.1 (registry + launcher log),
+  server online at 9 ms, mod list revision 2 from Online.
+- Cleanup from a dead-code sweep: dropped the unused `ServerStatus.description` (Rust, `api.ts`, state, mock) and the
+  unused npm `@tauri-apps/plugin-opener` (the Rust crate is used); docs synced (`closing` stage, step 2 title).
+  The rest of the sweep came back clean: commands ↔ `api.ts` 1:1, no unused deps/capabilities/CSS/debug output.
+- Router item settled: 38465 TCP (status ping) and UDP (Blazzer's join via NAT loopback) both pass the forward.
+  CT 121 has a **static** `ip=192.168.1.180/24` (`pct config 121`), so a router reservation is optional.
+- Deleted `%TEMP%\hl-test-webview`. Checks: cargo test 14 passed, clippy 0, svelte-check 0/0.
+
+### Key Decisions
+- Kept in-file-only type exports and module-wide `pub` as they are: churn, not cleanup.
+- Manifest `launcher.version` stays `0.1.0`: nothing reads it, and bumping means a revision push for no effect.
+
+### Next Steps
+1. Leave & close while **joined** (only tested at the main menu). Blazzer can do it solo: Play → join → Leave & close,
+   then `bash scripts/logs.sh` should show the mod's save + disconnect lines.
+2. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
+3. First extra mod when one's picked: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+4. Optional: router DHCP reservation for .180 so nothing else gets handed that address.
+5. schedule1-server HANDOFF step 1 (router check) is answered above; update it next time that repo is open.
+
+### Files Modified
+- `app/src-tauri/src/status.rs`, `app/src/lib/{api.ts,dev-mock.ts,launcher.svelte.ts}`, `app/package.json`,
+  `app/pnpm-lock.yaml`, versions in `app/package.json` / `Cargo.toml` / `Cargo.lock` / `tauri.conf.json`, CLAUDE.md,
+  app/README.md
+
+---
+
 ## Session 3 — 2026-11-02 03:25 (built + real-app verified, not released)
 
 ### Completed
