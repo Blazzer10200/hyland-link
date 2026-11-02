@@ -25,10 +25,16 @@
 
   // Keyboard users land in the sheet, and go back to whatever opened it when it closes.
   let closeButton = $state<HTMLButtonElement>();
+  let sheet = $state<HTMLDivElement>();
   onMount(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButton?.focus({ preventScroll: true });
-    return () => opener?.isConnected && opener.focus({ preventScroll: true });
+    // Only when focus is still in this sheet (or lost): a sheet opened in its place keeps its own focus.
+    return () => {
+      const active = document.activeElement;
+      const lost = !active || active === document.body || !!sheet?.contains(active);
+      if (lost && opener?.isConnected) opener.focus({ preventScroll: true });
+    };
   });
 </script>
 
@@ -40,7 +46,7 @@
 
 <div class="scrim" role="presentation" onclick={onClose} transition:fade={{ duration: 200 }}></div>
 <!-- Not aria-modal: the action bar stays usable while a sheet is open (Update can run with the mod list showing). -->
-<div class="sheet" class:tall role="dialog" aria-labelledby={id} transition:fly={{ y: 40, duration: 260 }}>
+<div class="sheet" class:tall role="dialog" aria-labelledby={id} bind:this={sheet} transition:fly={{ y: 40, duration: 260 }}>
   <header>
     <div class="titles">
       <h2 {id}>{title}</h2>

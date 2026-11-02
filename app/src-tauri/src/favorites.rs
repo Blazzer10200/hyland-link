@@ -19,14 +19,30 @@ fn same_endpoint(entry: &Value, host: &str, port: u16) -> bool {
     entry_host.trim().eq_ignore_ascii_case(host) && entry_port == u64::from(port)
 }
 
-fn load(path: &Path) -> Result<Option<Value>, String> {
+enum LoadError {
+    /// The file is there but isn't JSON (a crash mid-write, a hand edit).
+    Unparsable,
+    Io(String),
+}
+
+fn load(path: &Path) -> Result<Option<Value>, LoadError> {
     match fs::read_to_string(path) {
-        Ok(text) => serde_json::from_str(&text)
-            .map(Some)
-            .map_err(|e| format!("Your saved-servers file couldn't be read ({e}), so I left it alone.")),
+        Ok(text) => serde_json::from_str(&text).map(Some).map_err(|_| LoadError::Unparsable),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("Couldn't open your saved-servers file: {e}")),
+        Err(e) => Err(LoadError::Io(format!("Couldn't open your saved-servers file: {e}"))),
     }
+}
+
+/// The shape the mod reads: an object whose Favorites, when present, is a list (or null).
+fn usable(doc: &Value) -> bool {
+    doc.is_object() && doc.get("Favorites").is_none_or(|f| f.is_null() || f.is_array())
+}
+
+/// Keeps a saved-servers file the mod can't use under a new name (never deletes it), so Favorites can start fresh.
+fn set_aside(path: &Path) -> Result<(), String> {
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or_default();
+    let backup = path.with_extension(format!("json.unreadable-{secs}"));
+    fs::rename(path, &backup).map_err(|e| format!("Your saved-servers file is damaged and I couldn't move it aside: {e}"))
 }
 
 pub fn has(game: &Path, host: &str, port: u16) -> bool {
@@ -42,10 +58,19 @@ fn new_id() -> String {
     digest.iter().take(16).map(|b| format!("{b:02x}")).collect()
 }
 
-/// Adds the server at the top of Favorites unless it's already there. Never rewrites a file it can't parse.
+/// Adds the server at the top of Favorites unless it's already there. A file it can't use is kept aside, not rewritten.
 pub fn ensure(game: &Path, name: &str, host: &str, port: u16) -> Result<(), String> {
     let path = file(game);
-    let mut doc = load(&path)?.unwrap_or_else(|| json!({ "Favorites": [], "History": [] }));
+    let fresh = || json!({ "Favorites": [], "History": [] });
+    let mut doc = match load(&path) {
+        Ok(Some(doc)) if usable(&doc) => doc,
+        Ok(None) => fresh(),
+        Ok(Some(_)) | Err(LoadError::Unparsable) => {
+            set_aside(&path)?;
+            fresh()
+        }
+        Err(LoadError::Io(e)) => return Err(e),
+    };
     let root = doc.as_object_mut().ok_or("Your saved-servers file isn't in the expected format, so I left it alone.")?;
     let favorites = root.entry("Favorites").or_insert_with(|| json!([]));
     if favorites.is_null() {
@@ -105,10 +130,19 @@ mod tests {
     }
 
     #[test]
-    fn leaves_an_unreadable_file_alone() {
-        let game = game_dir("corrupt");
-        fs::write(file(&game), "{ not json").unwrap();
-        assert!(ensure(&game, "x", "69.50.245.12", 38465).is_err());
-        assert_eq!(fs::read_to_string(file(&game)).unwrap(), "{ not json");
+    fn keeps_an_unreadable_file_aside_and_starts_fresh() {
+        for (name, broken) in [("corrupt", "{ not json"), ("wrong-shape", r#"{ "Favorites": 5 }"#)] {
+            let game = game_dir(name);
+            fs::write(file(&game), broken).unwrap();
+            ensure(&game, "x", "69.50.245.12", 38465).unwrap();
+            assert!(has(&game, "69.50.245.12", 38465));
+            let kept: Vec<String> = fs::read_dir(game.join("UserData"))
+                .unwrap()
+                .filter_map(|e| e.ok()?.file_name().into_string().ok())
+                .filter(|n| n.starts_with("DedicatedServerClientServers.json.unreadable-"))
+                .collect();
+            assert_eq!(kept.len(), 1, "{name}: the damaged file is kept");
+            assert_eq!(fs::read_to_string(game.join("UserData").join(&kept[0])).unwrap(), broken);
+        }
     }
 }

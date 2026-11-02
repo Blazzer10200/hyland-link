@@ -198,9 +198,12 @@ fn download(
 ) -> Result<Vec<u8>, String> {
     let emit = |done, total| on_progress(Progress { step, label, item, items, done, total });
     emit(0, 0);
+    // Connecting and the first response byte must be quick; the body may take a while on a slow connection.
     let mut response = ureq::get(url)
         .config()
-        .timeout_global(Some(Duration::from_secs(180)))
+        .timeout_connect(Some(Duration::from_secs(15)))
+        .timeout_recv_response(Some(Duration::from_secs(30)))
+        .timeout_global(Some(Duration::from_secs(15 * 60)))
         .build()
         .call()
         .map_err(|e| format!("Couldn't download {label} ({e}). Check your internet and try again."))?;
@@ -212,7 +215,7 @@ fn download(
         .unwrap_or(0);
 
     let mut reader = response.body_mut().with_config().limit(MAX_DOWNLOAD).reader();
-    let mut bytes = Vec::with_capacity(total as usize);
+    let mut bytes = Vec::with_capacity(total.min(MAX_DOWNLOAD) as usize);
     let mut chunk = [0u8; 64 * 1024];
     loop {
         let n = reader.read(&mut chunk).map_err(|e| format!("The {label} download was interrupted ({e})."))?;
@@ -277,12 +280,17 @@ fn extract_dll(bytes: &[u8], manifest: &Manifest, game: &Path) -> Result<(), Str
     write_game_file(game, &package.dll, &dll)
 }
 
-/// Writes one verified extra mod, dropping files an older version of it shipped that this one doesn't.
-fn install_mod(game: &Path, m: &ExtraMod, bytes: &[u8], marker: &mut Marker) -> Result<(), String> {
+/// Whether a mod on the current list ships this path (case-insensitive, like the Windows game folder).
+fn claimed(manifest: &Manifest, path: &str) -> bool {
+    manifest.client_mods().flat_map(|m| &m.files).any(|f| f.path.eq_ignore_ascii_case(path))
+}
+
+/// Writes one verified extra mod, dropping files an older version of it shipped that no current mod ships.
+fn install_mod(game: &Path, manifest: &Manifest, m: &ExtraMod, bytes: &[u8], marker: &mut Marker) -> Result<(), String> {
     let wanted: Vec<(&str, &str)> = m.files.iter().map(|f| (f.source.as_str(), f.sha256.as_str())).collect();
     let contents = extract_verified(bytes, &m.name, &wanted)?;
     if let Some(previous) = marker.mods.get(&m.id) {
-        for old in previous.files.iter().filter(|old| m.files.iter().all(|f| &f.path != *old)) {
+        for old in previous.files.iter().filter(|old| !claimed(manifest, old)) {
             remove_game_file(game, old)?;
         }
     }
@@ -304,7 +312,7 @@ fn install_mod(game: &Path, m: &ExtraMod, bytes: &[u8], marker: &mut Marker) -> 
 fn remove_stale(game: &Path, manifest: &Manifest, marker: &mut Marker) -> Result<(), String> {
     let stale: Vec<String> = marker.mods.keys().filter(|id| is_stale(manifest, id)).cloned().collect();
     for id in stale {
-        for file in &marker.mods[&id].files {
+        for file in marker.mods[&id].files.iter().filter(|f| !claimed(manifest, f)) {
             remove_game_file(game, file)?;
         }
         marker.mods.remove(&id);
@@ -337,7 +345,7 @@ pub fn install(game: &Path, manifest: &Manifest, on_progress: &dyn Fn(Progress))
         let label = format!("server mod {}", mod_package.version);
         let bytes = download(on_progress, "mod", &label, (1, 1), &mod_package.url, &mod_package.sha256)?;
         extract_dll(&bytes, manifest, game)?;
-        for stale in &mod_package.remove_dlls {
+        for stale in mod_package.remove_dlls.iter().filter(|d| !claimed(manifest, d)) {
             remove_game_file(game, stale)?;
         }
         marker.server_mod = Some(mod_package.version.clone());
@@ -350,14 +358,13 @@ pub fn install(game: &Path, manifest: &Manifest, on_progress: &dyn Fn(Progress))
         write_marker(game, &marker)?;
     }
 
-    let pending: Vec<&ExtraMod> = manifest
-        .client_mods()
-        .filter(|m| !current.mods.iter().any(|s| s.id == m.id && s.up_to_date))
-        .collect();
+    // Checked again after the removals above, so a file one of them deleted is put back.
+    let pending: Vec<&ExtraMod> =
+        manifest.client_mods().filter(|m| !mod_status(game, m, &marker).up_to_date).collect();
     for (i, m) in pending.iter().enumerate() {
         let label = format!("{} {}", m.name, m.version);
         let bytes = download(on_progress, "mods", &label, (i + 1, pending.len()), &m.url, &m.sha256)?;
-        install_mod(game, m, &bytes, &mut marker)?;
+        install_mod(game, manifest, m, &bytes, &mut marker)?;
         write_marker(game, &marker)?;
     }
     Ok(())
@@ -440,7 +447,7 @@ mod tests {
         assert!(!fresh.mods[0].installed && !fresh.mods[0].up_to_date);
 
         let mut marker = read_marker(&game);
-        install_mod(&game, &example, &v1, &mut marker).unwrap();
+        install_mod(&game, &manifest, &example, &v1, &mut marker).unwrap();
         write_marker(&game, &marker).unwrap();
         assert!(state(&game, &manifest).mods[0].up_to_date);
 
@@ -451,13 +458,13 @@ mod tests {
         assert!(outdated.mods[0].installed && !outdated.mods[0].up_to_date);
         assert_eq!(outdated.mods[0].installed_version.as_deref(), Some("1.0.0"));
 
-        install_mod(&game, &example, &v2, &mut marker).unwrap();
+        install_mod(&game, &manifest, &example, &v2, &mut marker).unwrap();
         write_marker(&game, &marker).unwrap();
         assert!(!game.join("Mods").join("Example.dll").exists(), "the old version's file is gone");
         assert!(state(&game, &manifest).mods[0].up_to_date);
 
         let tampered = zip_of(&[("Example2.dll", b"not what the manifest says")]);
-        assert!(install_mod(&game, &example, &tampered, &mut marker).is_err());
+        assert!(install_mod(&game, &manifest, &example, &tampered, &mut marker).is_err());
         assert_eq!(fs::read(game.join("Mods").join("Example2.dll")).unwrap(), b"v2", "nothing written on a bad hash");
 
         manifest.mods.clear();
@@ -467,6 +474,31 @@ mod tests {
         assert!(!game.join("Mods").join("Example2.dll").exists());
         assert!(state(&game, &manifest).stale_mods.is_empty());
         assert!(game.join("Mods").join("Mine.dll").exists(), "a friend's own mod is never touched");
+        fs::remove_dir_all(&game).unwrap();
+    }
+
+    /// A file that moves from one mod to another (or a renamed mod id) is still there after the install.
+    #[test]
+    fn a_file_that_moves_to_another_mod_is_kept() {
+        let game = std::env::temp_dir().join(format!("hyland-link-move-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&game);
+        fs::create_dir_all(game.join("Mods")).unwrap();
+        let mut manifest = crate::manifest::baked();
+
+        let shared = zip_of(&[("Shared.dll", b"same bytes")]);
+        let old = extra("old", Side::Client, &shared, &[("Shared.dll", "Mods/Shared.dll", b"same bytes")]);
+        manifest.mods = vec![old.clone()];
+        let mut marker = read_marker(&game);
+        install_mod(&game, &manifest, &old, &shared, &mut marker).unwrap();
+        write_marker(&game, &marker).unwrap();
+
+        // Renamed id, same file and hash: the new id already counts as installed, and the stale old id must not
+        // take the file with it.
+        manifest.mods = vec![extra("new", Side::Client, &shared, &[("Shared.dll", "Mods/Shared.dll", b"same bytes")])];
+        remove_stale(&game, &manifest, &mut marker).unwrap();
+        assert!(!marker.mods.contains_key("old"));
+        assert!(game.join("Mods").join("Shared.dll").exists(), "the renamed mod's file is kept");
+        assert!(state(&game, &manifest).mods[0].up_to_date);
         fs::remove_dir_all(&game).unwrap();
     }
 

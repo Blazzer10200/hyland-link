@@ -8,6 +8,7 @@ mod status;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,23 @@ struct Shared {
     manifest: Mutex<(Manifest, Source)>,
     /// The game folder and whether it ran, as last seen: the log polls use it, and the launcher log notes changes.
     game: Mutex<(Option<String>, bool)>,
+    /// Set while files in the game folder are being installed or removed, so two of those never overlap.
+    busy: AtomicBool,
+}
+
+/// Holds `Shared::busy` until dropped.
+struct BusyGuard<'a>(&'a AtomicBool);
+
+impl Drop for BusyGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+fn claim_game_folder(busy: &AtomicBool) -> Result<BusyGuard<'_>, String> {
+    busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .map(|_| BusyGuard(busy))
+        .map_err(|_| "Hyland Link is still busy with the game folder. Wait for it to finish, then try again.".into())
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -114,6 +132,14 @@ async fn get_state(app: AppHandle, shared: State<'_, Shared>) -> Result<Snapshot
 async fn refresh_manifest(shared: State<'_, Shared>) -> Result<(), String> {
     let resolved = tauri::async_runtime::spawn_blocking(manifest::resolve).await.map_err(|e| e.to_string())?;
     let mut current = shared.manifest.lock().expect("manifest lock");
+    // A failed recheck keeps the online list already in use: falling back to the older built-in one would tell the
+    // player their mods changed, and Update would install the old ones.
+    if let (Source::BuiltIn { reason }, Source::Online) = (&resolved.1, &current.1)
+        && current.0.revision >= resolved.0.revision
+    {
+        warn!("Mod list recheck failed ({reason}); keeping revision {} from Online", current.0.revision);
+        return Ok(());
+    }
     let describe = |(m, s): &(Manifest, Source)| format!("revision {} from {s:?}", m.revision);
     if describe(&current) != describe(&resolved) {
         info!("Mod list: {}", describe(&resolved));
@@ -124,6 +150,7 @@ async fn refresh_manifest(shared: State<'_, Shared>) -> Result<(), String> {
 
 #[tauri::command]
 async fn run_install(app: AppHandle, shared: State<'_, Shared>) -> Result<(), String> {
+    let _busy = claim_game_folder(&shared.busy)?;
     let manifest = manifest(&shared);
     let (dir, info) = require_game(&app, &manifest)?;
     if let Some(branch) = info.branch {
@@ -164,6 +191,13 @@ async fn query_server(shared: State<'_, Shared>) -> Result<status::ServerStatus,
 fn play(app: AppHandle, shared: State<Shared>) -> Result<(), String> {
     let manifest = manifest(&shared);
     let (dir, _) = require_game(&app, &manifest)?;
+    // Puts the server back in Favorites if the player removed it in game; joining still works without it.
+    if !favorites::has(&dir, &manifest.server.host, manifest.server.port) {
+        match favorites::ensure(&dir, &manifest.server.name, &manifest.server.host, manifest.server.port) {
+            Ok(()) => info!("Added the server back to Favorites"),
+            Err(e) => warn!("Couldn't add the server to Favorites: {e}"),
+        }
+    }
     // Cosmetic: if the setting can't be written, the console shows up and the game still starts.
     match game_log::hide_console(&dir) {
         Ok(true) => info!("Turned MelonLoader's console window off in UserData/Loader.cfg"),
@@ -201,6 +235,7 @@ fn uninstall_launcher(app: AppHandle, shared: State<Shared>) -> Result<(), Strin
         .map(|dir| dir.join("uninstall.exe"))
         .filter(|path| path.is_file())
         .ok_or("This copy of Hyland Link wasn't installed with the setup, so there's no uninstaller to run.")?;
+    let _busy = claim_game_folder(&shared.busy)?;
     let manifest = manifest(&shared);
     let game = detect_game(&app, &manifest);
     if let Some(path) = &game.path {
@@ -291,12 +326,16 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     app.restart();
 }
 
+/// Off the main thread: removing MelonLoader touches a lot of files.
 #[tauri::command]
-fn uninstall(app: AppHandle, shared: State<Shared>, melonloader: bool) -> Result<(), String> {
+async fn uninstall(app: AppHandle, shared: State<'_, Shared>, melonloader: bool) -> Result<(), String> {
+    let _busy = claim_game_folder(&shared.busy)?;
     let manifest = manifest(&shared);
     let (dir, _) = require_game(&app, &manifest)?;
     info!("Removing the server mods{}", if melonloader { " and MelonLoader" } else { "" });
-    install::uninstall(&dir, &manifest, melonloader)
+    tauri::async_runtime::spawn_blocking(move || install::uninstall(&dir, &manifest, melonloader))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Windows 11 draws a light 1px border on undecorated windows; tint it to the app's edge color and keep round corners.
@@ -346,6 +385,7 @@ pub fn run() {
         .manage(Shared {
             manifest: Mutex::new((manifest::baked(), Source::BuiltIn { reason: "checking for updates".into() })),
             game: Mutex::new((None, false)),
+            busy: AtomicBool::new(false),
         })
         .setup(|app| {
             info!("Hyland Link {} started", app.package_info().version);

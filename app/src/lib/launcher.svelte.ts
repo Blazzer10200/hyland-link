@@ -37,6 +37,8 @@ const MAX_LOG_LINES = 600;
 const CLOSE_WAIT_MS = 30_000;
 /** How long Play stays locked waiting for Steam to start the game. */
 const LAUNCH_WAIT_MS = 45_000;
+/** How long the self-update may go without progress before the manual download is offered. */
+const SELF_UPDATE_STALL_MS = 120_000;
 
 function message(error: unknown): string {
   return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
@@ -59,7 +61,8 @@ class Launcher {
     if (!s || !s.game.found || !s.install || s.game.branch) return 1;
     const { melonloader, serverMod, mods, staleMods, firstLaunchDone } = s.install;
     const modsCurrent = mods.every((m) => m.upToDate) && staleMods.length === 0;
-    if (this.installing || !(melonloader.upToDate && serverMod.upToDate && modsCurrent && s.favoriteAdded)) return 2;
+    // Favorites isn't required: Play puts the server back if the player removed it in game.
+    if (this.installing || !(melonloader.upToDate && serverMod.upToDate && modsCurrent)) return 2;
     return firstLaunchDone ? 4 : 3;
   });
 
@@ -98,6 +101,10 @@ class Launcher {
   /** Says why a ready player is suddenly back at "Update". */
   notice = $state<string | null>(null);
   private manifestCheckedAt = 0;
+  /** The last error a state poll showed, so a failure that repeats every poll isn't shown (or logged) again. */
+  private loadError: string | null = null;
+  /** When the self-update last reported progress; a download that stalls gives the player the manual link. */
+  private selfUpdateProgressAt = 0;
 
   /** The newest lines of MelonLoader's Latest.log (this run, or the last one once the game closed). */
   gameLog = $state<LogLine[]>([]);
@@ -130,8 +137,10 @@ class Launcher {
   async load() {
     try {
       this.snapshot = await api.getState();
+      this.loadError = null;
     } catch (e) {
-      this.fail(e);
+      if (this.loadError !== message(e)) this.fail(e);
+      this.loadError = message(e);
     }
     const running = !!this.snapshot?.game.running;
     if (this.closingGame && !running) {
@@ -209,6 +218,7 @@ class Launcher {
       this.progress = null;
       try {
         await api.runInstall();
+        this.notice = null;
       } finally {
         this.installing = false;
         this.progress = null;
@@ -313,18 +323,32 @@ class Launcher {
     try {
       version = await api.checkUpdate();
     } catch (e) {
-      this.fail(`Couldn't check for a Hyland Link update: ${message(e)}`);
+      // Usually just offline (the server card says so). Logged for Blazzer, not shown on every start.
+      record(logWarn, `Couldn't check for a Hyland Link update: ${message(e)}`);
       return;
     }
     // Never swap the launcher out from under a mod install; the next start picks it up.
     if (!version || this.installing) return;
     this.selfUpdate = { version, percent: null };
+    this.selfUpdateProgressAt = Date.now();
+    const giveUp = (reason: string) => {
+      this.selfUpdate = null;
+      this.launcherUpdate = version;
+      this.fail(`Hyland Link ${version} didn't install by itself: ${reason}`);
+    };
+    // A download with no progress for this long hands the player the manual download instead of a stuck screen.
+    const stall = setInterval(() => {
+      if (this.selfUpdate && Date.now() - this.selfUpdateProgressAt > SELF_UPDATE_STALL_MS) {
+        clearInterval(stall);
+        giveUp("the download stopped.");
+      }
+    }, 5_000);
     try {
       await api.installUpdate();
     } catch (e) {
-      this.selfUpdate = null;
-      this.launcherUpdate = version;
-      this.fail(`Hyland Link ${version} didn't install by itself: ${message(e)}`);
+      if (this.selfUpdate) giveUp(message(e));
+    } finally {
+      clearInterval(stall);
     }
   }
 
@@ -333,7 +357,9 @@ class Launcher {
       this.progress = event.payload;
     });
     await listen<number>("update-progress", (event) => {
-      if (this.selfUpdate) this.selfUpdate.percent = event.payload;
+      if (!this.selfUpdate) return;
+      if (this.selfUpdate.percent !== event.payload) this.selfUpdateProgressAt = Date.now();
+      this.selfUpdate.percent = event.payload;
     });
     await this.load();
     void this.checkServer();

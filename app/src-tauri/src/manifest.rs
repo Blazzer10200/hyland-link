@@ -139,8 +139,8 @@ impl Manifest {
         if !is_sha256(&self.mod_package.dll_sha256) {
             return Err("server mod DLL checksum is malformed".into());
         }
-        if self.mod_package.dll.contains("..") || self.mod_package.remove_dlls.iter().any(|d| d.contains("..")) {
-            return Err("server mod paths must stay inside the game folder".into());
+        if !is_mod_path(&self.mod_package.dll) || !self.mod_package.remove_dlls.iter().all(|d| is_mod_path(d)) {
+            return Err(format!("server mod paths must be files under {}", MOD_DIRS.join(", ")));
         }
 
         let mut ids = HashSet::new();
@@ -194,13 +194,23 @@ fn is_sha256(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// A relative, forward-slash file path inside one of MOD_DIRS, with no way out of the game folder.
+/// Files the launcher or the game's mods own; no mod may overwrite them.
+const RESERVED_PATHS: [&str; 4] = [
+    "UserData/HylandLink.json",
+    "UserData/Loader.cfg",
+    "UserData/MelonPreferences.cfg",
+    "UserData/DedicatedServerClientServers.json",
+];
+
+/// A relative, forward-slash file path inside one of MOD_DIRS, with no way out of the game folder, and not one of
+/// RESERVED_PATHS.
 fn is_mod_path(path: &str) -> bool {
     MOD_DIRS.iter().any(|dir| path.starts_with(dir) && path.len() > dir.len())
         && !path.ends_with('/')
         && !path.contains('\\')
         && !path.contains(':')
         && path.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
+        && !RESERVED_PATHS.iter().any(|r| r.eq_ignore_ascii_case(path))
 }
 
 pub fn baked() -> Manifest {
@@ -275,6 +285,21 @@ mod tests {
         for path in ["Mods/../version.dll", "version.dll", "Mods/", "Mods\\Example.dll", "C:/Mods/x.dll", "/Mods/x.dll", "Mods//x.dll"] {
             assert!(with_mod(path, url).validate().is_err(), "{path} should be rejected");
         }
+        for path in ["UserData/HylandLink.json", "UserData/loader.cfg", "UserData/MelonPreferences.cfg"] {
+            assert!(with_mod(path, url).validate().is_err(), "{path} belongs to the launcher or the game");
+        }
+    }
+
+    #[test]
+    fn server_mod_paths_follow_the_same_rules() {
+        for dll in ["C:/Mods/x.dll", "version.dll", "Mods/../version.dll"] {
+            let mut manifest = baked();
+            manifest.mod_package.dll = dll.into();
+            assert!(manifest.validate().is_err(), "{dll} should be rejected");
+        }
+        let mut manifest = baked();
+        manifest.mod_package.remove_dlls = vec!["UserData/HylandLink.json".into()];
+        assert!(manifest.validate().is_err(), "removeDlls can't delete the launcher's marker");
     }
 
     #[test]

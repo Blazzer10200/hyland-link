@@ -35,7 +35,8 @@ const LINE = /^\[(\d\d:\d\d:\d\d)\.\d+\]\s?(?:\[([^\]]+)\]\s?)?(.*)$/;
 export function parseLine(raw: string, id: number): LogLine {
   const match = LINE.exec(raw);
   const [time, source, text] = match ? [match[1], match[2] ?? null, match[3]] : [null, null, raw];
-  const level: LogLevel = /\[(error|fatal)\]|exception\b/i.test(raw) ? "error" : /\[warn(ing)?\]/i.test(raw) ? "warn" : "info";
+  // Only tagged lines count: an exception's stack and "---> inner exception" lines belong to the [ERROR] above them.
+  const level: LogLevel = /\[(error|fatal)\]/i.test(raw) ? "error" : /\[warn(ing)?\]/i.test(raw) ? "warn" : "info";
   return { id, raw, time, source, text, level, rule: /^-{5,}$/.test(text.trim()) };
 }
 

@@ -6,6 +6,7 @@
 
   let {
     snapshot,
+    installing,
     logLines,
     logErrors,
     onOpenFolder,
@@ -18,6 +19,8 @@
     onClose,
   }: {
     snapshot: Snapshot;
+    /** Nothing in the game folder can change while an install runs. */
+    installing: boolean;
     logLines: number;
     logErrors: number;
     onOpenFolder: () => void;
@@ -34,6 +37,7 @@
 
   const install = $derived(snapshot.install);
   const running = $derived(snapshot.game.running);
+  const locked = $derived(running || installing);
   const extras = $derived(install ? install.mods.length + install.staleMods.length : 0);
   const modsWord = $derived(extras ? "Server mods" : "Server mod");
 
@@ -58,7 +62,7 @@
       title: modsWord,
       note: "Takes out what Hyland Link installed. Your own mods stay.",
       action: "Remove",
-      disabled: running || !install?.serverMod.installed,
+      disabled: locked || !install?.serverMod.installed,
       run: () => onUninstall(false),
     },
     {
@@ -66,7 +70,7 @@
       title: `${modsWord} + MelonLoader`,
       note: "Puts the game back the way Steam installed it.",
       action: "Remove",
-      disabled: running || !install?.melonloader.installed,
+      disabled: locked || !install?.melonloader.installed,
       run: () => onUninstall(true),
     },
     {
@@ -74,7 +78,7 @@
       title: "Uninstall Hyland Link",
       note: "Removes everything above, then asks before removing the launcher.",
       action: "Uninstall",
-      disabled: running,
+      disabled: locked,
       run: onUninstallLauncher,
     },
   ]);
@@ -94,7 +98,7 @@
           </div>
           <div class="buttons">
             <button type="button" class="btn" disabled={!snapshot.game.found} onclick={onOpenFolder}>Open</button>
-            <button type="button" class="btn" onclick={onChooseFolder}>Change…</button>
+            <button type="button" class="btn" disabled={installing} onclick={onChooseFolder}>Change…</button>
           </div>
         </div>
         <div class="row">
@@ -108,7 +112,7 @@
           </div>
           <button type="button" class="btn" onclick={onShowLog}>View</button>
         </div>
-        {#if extras}
+        {#if install?.mods.length}
           <div class="row">
             <div class="text">
               <span class="title">Server's mods</span>

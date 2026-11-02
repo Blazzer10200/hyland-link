@@ -110,7 +110,7 @@
       case 1:
         return shortPath(snapshot.game.path ?? "");
       case 2:
-        return `MelonLoader ${snapshot.manifest.melonloader.version} · mod ${snapshot.manifest.mod.version}${extras ? ` · +${extras.count} mods` : ""}`;
+        return `MelonLoader ${snapshot.manifest.melonloader.version} · mod ${snapshot.manifest.mod.version}${extras?.count ? ` · +${extras.count} mod${extras.count === 1 ? "" : "s"}` : ""}`;
       case 3:
         return "MelonLoader prepared the game";
       default:
@@ -170,7 +170,7 @@
               {#if phase === "closeGame"}
                 <p class="warn-text">Close Schedule I first. Its files can't change while it's running.</p>
               {:else if phase === "update"}
-                <p>The server got an update. One click brings you up to date, then you're back in.</p>
+                <p>Your mods don't match the server's. One click brings you up to date, then you're back in.</p>
               {:else}
                 <p>One click sets up everything. Nothing outside the game folder changes.</p>
               {/if}

@@ -61,8 +61,11 @@
           run: idle,
           kind: "work",
         };
+      // Same two-click close as "playing": a player on the server when the mods change can leave from here.
       case "closeGame":
-        return { label: "Close Schedule I to install", disabled: true, run: idle, kind: "wait" };
+        return quitArmed
+          ? { label: "Click again to close the game", disabled: false, run: quit, kind: "armed" }
+          : { label: "Close Schedule I to update", disabled: closingGame, run: quit, kind: "leave" };
       case "firstLaunch":
         return { label: "Launch Schedule I", disabled: false, run: onPlay, kind: "go" };
       case "firstLaunchRunning":

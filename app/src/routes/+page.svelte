@@ -23,7 +23,8 @@
       ? snapshot.manifestSource.reason
       : null,
   );
-  let noticeDismissed = $state(false);
+  /** The server notice the player clicked away; a different one from Blazzer still shows. */
+  let dismissedNotice = $state<string | null>(null);
   const logMessage = $derived(latestMessage(launcher.gameLog));
 </script>
 
@@ -68,10 +69,10 @@
           <button type="button" onclick={launcher.openLauncherDownload}>Get it</button>
         </div>
       {/if}
-      {#if snapshot?.manifest.notice && !noticeDismissed}
+      {#if snapshot?.manifest.notice && snapshot.manifest.notice !== dismissedNotice}
         <div class="toast accent" transition:fly={{ y: 16, duration: 260 }}>
           <p>{snapshot.manifest.notice}</p>
-          <button type="button" onclick={() => (noticeDismissed = true)}>OK</button>
+          <button type="button" onclick={() => (dismissedNotice = snapshot.manifest.notice)}>OK</button>
         </div>
       {/if}
     </div>
@@ -91,6 +92,7 @@
     {#if launcher.sheet === "settings" && snapshot}
       <SettingsSheet
         {snapshot}
+        installing={launcher.installing}
         logLines={launcher.gameLog.length}
         logErrors={launcher.logErrors}
         onOpenFolder={launcher.openGameFolder}
