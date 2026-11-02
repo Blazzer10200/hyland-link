@@ -1,0 +1,80 @@
+/* Hyland Link: Hyland Point after dark. Asphalt blues, one sodium-streetlamp amber, signal-green for "good".
+   Layout: a fixed 460×720 window with a title bar, the server card, a setup checklist and one docked action bar. */
+:root {
+  --asphalt: #101317;
+  --panel: #161a20;
+  --raised: #1d222a;
+  --line: #2a313b;
+  --ink: #e8ebee;
+  --muted: #8b95a1;
+  --faint: #5d6672;
+  --sodium: #f2a33a;
+  --sodium-hot: #ffbf5e;
+  --sodium-ink: #1b1205;
+  --sodium-glow: rgb(242 163 58 / 0.16);
+  --ok: #5ec48b;
+  --warn: #e8c169;
+  --bad: #ef6d6a;
+  --bad-wash: rgb(239 109 106 / 0.1);
+
+  --font-display: "Archivo Variable", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Public Sans Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--asphalt);
+  color: var(--ink);
+  font: 400 14px/1.5 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--sodium);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.selectable {
+  user-select: text;
+  cursor: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

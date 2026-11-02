@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "revision": 1,
+  "server": {
+    "name": "Blazzer's Schedule I",
+    "host": "69.50.245.12",
+    "port": 38465
+  },
+  "game": {
+    "appId": 3164500,
+    "version": "0.4.7f12"
+  },
+  "melonloader": {
+    "version": "0.7.2",
+    "url": "https://github.com/LavaGang/MelonLoader/releases/download/v0.7.2/MelonLoader.x64.zip",
+    "sha256": "5cedb66dc5595de19fd4dd6b4c178440da293c6d7f511e14bdf0fea407c9a1f7"
+  },
+  "mod": {
+    "version": "1.1.6",
+    "url": "https://github.com/ifBars/S1DedicatedServers/releases/download/v1.1.6/Il2cpp_Client.zip",
+    "sha256": "1625132eb48c28cc46c284fce3be43995b2973e82666e0966fa63a6e07499013",
+    "dll": "Mods/DedicatedServerMod_Il2cpp_Client.dll",
+    "dllSha256": "ea4f211322acc12c49d3a12584e71b2e94280074180c9828b0e086afece4073d",
+    "removeDlls": ["Mods/DedicatedServerMod_Mono_Client.dll"]
+  },
+  "launcher": {
+    "version": "0.1.0",
+    "downloadUrl": "https://github.com/Blazzer10200/hyland-link/releases/latest"
+  },
+  "notice": ""
+}

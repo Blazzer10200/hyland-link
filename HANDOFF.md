@@ -1,0 +1,57 @@
+---
+title: Hyland Link handoff
+tags: [project, handoff]
+status: ready-to-publish
+updated: 2026-11-02
+---
+
+# Hyland Link: handoff
+
+## Session 1 — 2026-11-02 (built, verified locally, not published)
+
+### Completed
+- Built the launcher (Tauri 2 + Svelte 5): 4-step stepper on one 460x720 screen with no scrolling (find game → install
+  MelonLoader 0.7.2 + IL2CPP client mod 1.1.6 + Favorite → first launch → join), live `DS_STATUS` ping, More menu
+  (open/choose folder, remove mod). All 12 mock states previewed (`pnpm --dir app dev`, `?s=<state>`).
+- Split out of `projects/schedule1-server` into this repo (`app/`, `manifest/`, `scripts/`), meant to be public.
+- Self-update: `tauri-plugin-updater`, backend commands `check_update` / `install_update` (`app/src-tauri/src/lib.rs`),
+  auto-runs on start with the "Updating Hyland Link" overlay (`app/src/routes/+page.svelte`). On failure: error toast
+  plus a "Get it" toast that opens the Releases page.
+- **Update loop verified end-to-end on this PC:** installed test 0.1.0 → localhost feed → it downloaded 0.1.1, verified
+  the signature, installed, reopened as 0.1.1, then made no second update. The test build was uninstalled afterwards.
+- `scripts/release.sh` builds, signs, writes `latest.json`, and with `--publish` creates the GitHub release.
+  Built `dist/v0.1.0/` with it; its signature key id matches the pubkey (54ae0a37e2f165c5).
+- Checks: `pnpm --dir app check` 0 errors; `cargo test` 7 passed, 1 ignored (network install test).
+
+### Key Decisions
+- Tauri updater over Velopack: it reuses the NSIS installer we already build, and exfil-v2 runs the same pattern.
+- Local release script, not GitHub Actions: the signing key never leaves this PC, and there are no repo secrets to set.
+- Same asset name every release (`Hyland-Link-Setup.exe`), so the friend link
+  `github.com/Blazzer10200/hyland-link/releases/latest/download/Hyland-Link-Setup.exe` never changes.
+- No bare-exe distribution anymore: a portable exe can't update itself. Always send the setup.
+
+### Hooks & Gotchas
+- `.secrets/env.sh` exports rift's `TAURI_SIGNING_PRIVATE_KEY`; `release.sh` overrides it. Never `pnpm tauri build` a
+  release by hand.
+- Long paths (the session scratchpad) break `Start-Process` (0xfffffffe) and GDI+. Use short `%TEMP%` paths.
+- `python` on this PC is the Store stub (exit 126). Use node for throwaway servers.
+- Until the GitHub repo exists, the launcher shows "Couldn't check for a Hyland Link update: …" on start. Expected; it
+  goes away once v0.1.0 is published.
+
+### Load-Bearing Invariants
+- `plugins.updater.pubkey` in `tauri.conf.json` ↔ `C:/AI Workflow/.secrets/hyland-link-updater.key`. Back the key up
+  off this PC.
+- `manifest.rs` `REMOTE_URL` and `include_str!("../../../manifest/manifest.json")`: the folder layout is part of the
+  build.
+
+### Next Steps
+1. Blazzer OKs creating the **public** repo `Blazzer10200/hyland-link`; then `gh repo create` + push `main`.
+2. `scripts/release.sh --notes "First release…" --publish` → v0.1.0 goes live; send friends the permanent link.
+3. Server side first, though (see `projects/schedule1-server/HANDOFF.md`): Steam login in CT 121 + port forwards,
+   or friends will see the server offline.
+4. Back up the updater key off this PC.
+
+### Files Modified
+- Everything under `app/`, `manifest/manifest.json`, `scripts/release.sh`, `README.md`, `CLAUDE.md`, `.claude/launch.json`
+
+---

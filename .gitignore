@@ -1,0 +1,2 @@
+# Release builds go to GitHub Releases (scripts/release.sh), not into history.
+dist/
