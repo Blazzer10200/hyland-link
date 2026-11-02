@@ -37,7 +37,7 @@ updated: 2026-11-02
 1. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
 2. First extra mod when one's picked: `pwsh scripts/mods.ps1 add <url>` → `publish`.
 3. Optional: router DHCP reservation for .180 so nothing else gets handed that address.
-4. schedule1-server HANDOFF step 1 (router check) is answered above; update it next time that repo is open.
+   (The server world is now PTO RETIRED: see schedule1-server HANDOFF.)
 
 ### Files Modified
 - `app/src-tauri/src/status.rs`, `app/src/lib/{api.ts,dev-mock.ts,launcher.svelte.ts}`, `app/package.json`,
