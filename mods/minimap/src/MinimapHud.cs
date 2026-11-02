@@ -65,6 +65,27 @@ internal sealed class MinimapHud : IDisposable
 
 	private bool loggedMapArt;
 
+	// Generated textures and sprites beyond the circle and arrow; destroyed with the HUD.
+	private readonly System.Collections.Generic.List<UnityEngine.Object> generated = new System.Collections.Generic.List<UnityEngine.Object>();
+
+	private readonly Image vignetteImage;
+
+	private readonly Sprite vignetteCircle;
+
+	private readonly Sprite vignetteSquare;
+
+	private readonly RectTransform cone;
+
+	private readonly RectTransform overlay;
+
+	private readonly RectTransform north;
+
+	private readonly EdgePins pins;
+
+	private bool showNorth;
+
+	private bool showPins;
+
 	private readonly CustomerMarkers customers;
 
 	private readonly WorldMarkers worldMarkers;
@@ -142,6 +163,12 @@ internal sealed class MinimapHud : IDisposable
 			rim = NewRect("Rim", root.transform);
 			rimImage = rim.gameObject.AddComponent<Image>();
 			rimImage.raycastTarget = false;
+			// Above the rim: edge pins and the north badge sit on the border.
+			overlay = NewRect("Overlay", root.transform);
+			(Texture2D, Sprite) pin = MakeMask(64, Shapes.InPin);
+			generated.Add(pin.Item1);
+			generated.Add(pin.Item2);
+			pins = new EdgePins(overlay, pin.Item2);
 			RectTransform rectTransform = NewRect("Backdrop", viewport);
 			Stretch(rectTransform);
 			Image image2 = rectTransform.gameObject.AddComponent<Image>();
@@ -153,6 +180,12 @@ internal sealed class MinimapHud : IDisposable
 			mapImage.color = Color.white;
 			mapImage.type = Image.Type.Simple;
 			mapImage.preserveAspect = false;
+			RectTransform vignetteRect = NewRect("Edge shading", viewport);
+			Stretch(vignetteRect);
+			vignetteImage = vignetteRect.gameObject.AddComponent<Image>();
+			vignetteImage.raycastTarget = false;
+			vignetteCircle = Generate(256, (double x, double y) => Dark(Shapes.Vignette(x, y, square: false)));
+			vignetteSquare = Generate(256, (double x, double y) => Dark(Shapes.Vignette(x, y, square: true)));
 			RectTransform parent = NewRect("Customers", viewport);
 			Font font = null;
 			if (source.LabelGroup != null)
@@ -171,17 +204,47 @@ internal sealed class MinimapHud : IDisposable
 			customers = new CustomerMarkers(parent, circleSprite, font);
 			worldMarkers = new WorldMarkers(viewport, circleSprite, font);
 			worldMarkers.PlaceVehiclesBehind(parent);
+			// "You" turns with your view; the cone under the arrow shows where you're looking.
 			arrow = NewRect("You", viewport);
-			arrow.sizeDelta = new Vector2(24f, 24f);
-			Image image3 = arrow.gameObject.AddComponent<Image>();
+			cone = NewRect("View cone", arrow);
+			Image coneImage = cone.gameObject.AddComponent<Image>();
+			coneImage.sprite = Generate(256, (double x, double y) => new Rgba(1f, 0.94f, 0.67f, Shapes.Cone(x, y)));
+			coneImage.raycastTarget = false;
+			RectTransform glyph = NewRect("Arrow", arrow);
+			glyph.sizeDelta = new Vector2(24f, 24f);
+			Image image3 = glyph.gameObject.AddComponent<Image>();
 			image3.sprite = arrowSprite;
 			image3.color = new Color(1f, 0.9f, 0.32f, 1f);
 			image3.raycastTarget = false;
+			MarkerOutline.AddTo(glyph.gameObject, 1.4f);
+			north = NewRect("North", overlay);
+			north.sizeDelta = new Vector2(19f, 19f);
+			Image northRing = north.gameObject.AddComponent<Image>();
+			northRing.sprite = circleSprite;
+			northRing.raycastTarget = false;
+			RectTransform northFace = NewRect("Face", north);
+			northFace.sizeDelta = new Vector2(15f, 15f);
+			Image northFill = northFace.gameObject.AddComponent<Image>();
+			northFill.sprite = circleSprite;
+			northFill.color = new Color(0.043f, 0.055f, 0.07f, 1f);
+			northFill.raycastTarget = false;
+			RectTransform northLabel = NewRect("N", north);
+			Stretch(northLabel);
+			Text northText = northLabel.gameObject.AddComponent<Text>();
+			northText.font = font;
+			northText.text = "N";
+			northText.fontSize = 11;
+			northText.alignment = TextAnchor.MiddleCenter;
+			northText.horizontalOverflow = HorizontalWrapMode.Overflow;
+			northText.verticalOverflow = VerticalWrapMode.Overflow;
+			northText.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+			northText.raycastTarget = false;
 			root.SetActive(value: false);
 		}
 		catch
 		{
 			UnityEngine.Object.Destroy(root);
+			DestroyGenerated();
 			if (customers != null)
 			{
 				customers.Dispose();
@@ -242,8 +305,17 @@ internal sealed class MinimapHud : IDisposable
 		Place(frame, anchor, position, size + 2f * num);
 		Place(outline, anchor, position, size + 2f * (num + num2));
 		Place(rim, anchor, position, size + 2f * RimBand());
+		Place(overlay, anchor, position, size);
 		rimScale = 0f;
 		RebuildRim();
+		mapImage.color = (settings.MapGrading.Value ? new Color(0.8f, 0.82f, 0.86f, 1f) : Color.white);
+		vignetteImage.sprite = (circular ? vignetteCircle : vignetteSquare);
+		vignetteImage.gameObject.SetActive(settings.Vignette.Value);
+		cone.sizeDelta = new Vector2(size * 0.55f, size * 0.55f);
+		cone.gameObject.SetActive(settings.ViewCone.Value);
+		north.GetComponent<Image>().color = ((num > 0f) ? borderColor : outlineColor);
+		showNorth = settings.CompassNorth.Value;
+		showPins = settings.EdgePins.Value;
 		nextPeerRefresh = 0f;
 		customers.Apply(settings);
 		worldMarkers.Apply(settings);
@@ -329,8 +401,19 @@ internal sealed class MinimapHud : IDisposable
 		mapImage.rectTransform.anchoredPosition = -vector * z;
 		arrow.localRotation = Quaternion.Euler(0f, 0f, num2 - num);
 		worldMarkers.RefreshSources();
-		customers.Update(settings, projection2, vector, z, num2, size, circular, worldMarkers.DealerNpcIds);
-		worldMarkers.Update(player, settings.ShowCoop.Value, projection2, vector, z, num2, size, circular, customers.OccupiedLabels);
+		// Pins and the N ride the middle of the border band (or the thin rim when the border is off).
+		float edge = size / 2f + ((borderWidth > 0f) ? (borderWidth / 2f) : (RimBand() / 2f));
+		pins.Begin(showPins, edge, circular);
+		customers.Update(settings, projection2, vector, z, num2, size, circular, worldMarkers.DealerNpcIds, pins);
+		worldMarkers.Update(player, settings.ShowCoop.Value, projection2, vector, z, num2, size, circular, customers.OccupiedLabels, pins);
+		pins.End();
+		north.gameObject.SetActive(showNorth);
+		if (showNorth)
+		{
+			// Map north is up, turned with the map when it rotates.
+			(double, double) northPoint = MapMath.EdgePoint((90.0 + num2) * Math.PI / 180.0, edge, circular);
+			north.anchoredPosition = new Vector2((float)northPoint.Item1, (float)northPoint.Item2);
+		}
 		RefreshPeers(player, settings.ShowCoop.Value);
 		foreach (var value in peers.Values)
 		{
@@ -387,6 +470,7 @@ internal sealed class MinimapHud : IDisposable
 							image.sprite = circleSprite;
 							image.color = new Color(0.2f, 0.87f, 1f, 1f);
 							image.raycastTarget = false;
+							MarkerOutline.AddTo(rectTransform.gameObject);
 							peers.Add(instanceID, (player, rectTransform));
 						}
 					}
@@ -515,6 +599,46 @@ internal sealed class MinimapHud : IDisposable
 		rimTexture = texture;
 	}
 
+	/// <summary>A sprite from a pixel function over -1..1 (y up), tracked for cleanup.</summary>
+	private Sprite Generate(int size, Func<double, double, Rgba> pixel)
+	{
+		Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, mipChain: false);
+		generated.Add(texture);
+		texture.wrapMode = TextureWrapMode.Clamp;
+		texture.filterMode = FilterMode.Bilinear;
+		Color[] pixels = new Color[size * size];
+		for (int i = 0; i < size; i++)
+		{
+			for (int j = 0; j < size; j++)
+			{
+				Rgba p = pixel((j + 0.5) / size * 2.0 - 1.0, (i + 0.5) / size * 2.0 - 1.0);
+				pixels[i * size + j] = new Color(p.R, p.G, p.B, p.A);
+			}
+		}
+		texture.SetPixels(pixels);
+		texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+		Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+		generated.Add(sprite);
+		return sprite;
+	}
+
+	private static Rgba Dark(float alpha)
+	{
+		return new Rgba(0.043f, 0.055f, 0.07f, alpha);
+	}
+
+	private void DestroyGenerated()
+	{
+		foreach (UnityEngine.Object item in generated)
+		{
+			if (item != null)
+			{
+				UnityEngine.Object.Destroy(item);
+			}
+		}
+		generated.Clear();
+	}
+
 	private static Rgba ToRgba(Color color)
 	{
 		return new Rgba(color.r, color.g, color.b, color.a);
@@ -587,6 +711,7 @@ internal sealed class MinimapHud : IDisposable
 			{
 				UnityEngine.Object.Destroy(rimTexture);
 			}
+			DestroyGenerated();
 		}
 	}
 }

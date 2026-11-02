@@ -64,6 +64,15 @@ internal static class MapMath
 		return x * x + y * y <= halfSize * halfSize;
 	}
 
+	/// <summary>Point on the map's edge (circle, or the square's border) in the direction of <paramref name="radians"/>.</summary>
+	internal static (double X, double Y) EdgePoint(double radians, double radius, bool circle)
+	{
+		double cos = Math.Cos(radians);
+		double sin = Math.Sin(radians);
+		double t = (circle ? radius : (radius / Math.Max(Math.Abs(cos), Math.Abs(sin))));
+		return (X: cos * t, Y: sin * t);
+	}
+
 	internal static (double X, double Y, double Width, double Height) FitAspect(double x, double y, double width, double height, double aspect, double pivotX, double pivotY)
 	{
 		if (width <= 0.0 || height <= 0.0 || aspect <= 0.0 || !double.IsFinite(aspect))

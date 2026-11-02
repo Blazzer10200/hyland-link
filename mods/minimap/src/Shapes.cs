@@ -64,6 +64,35 @@ internal static class Shapes
 		return body && !notch;
 	}
 
+	/// <summary>Edge pin: a triangle pointing right (+x), turned toward its target when placed.</summary>
+	internal static bool InPin(double x, double y)
+	{
+		return x >= -0.6 && x <= 0.8 && Math.Abs(y) <= (0.8 - x) / 1.4 * 0.62;
+	}
+
+	internal static double SmoothStep(double edge0, double edge1, double x)
+	{
+		double t = Math.Clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+		return t * t * (3.0 - 2.0 * t);
+	}
+
+	/// <summary>Darkening toward the rim (alpha only; the sprite is near-black), so the map sits inside the bezel.</summary>
+	internal static float Vignette(double x, double y, bool square)
+	{
+		return square
+			? (float)(0.45 * SmoothStep(0.75, 1.0, Math.Max(Math.Abs(x), Math.Abs(y))))
+			: (float)(0.55 * SmoothStep(0.62, 1.0, Math.Sqrt(x * x + y * y)));
+	}
+
+	/// <summary>Soft wedge pointing up (+y) from the center: where the player is looking. Fades with distance and toward
+	/// its sides.</summary>
+	internal static float Cone(double x, double y)
+	{
+		double r = Math.Sqrt(x * x + y * y);
+		double sideways = Math.Abs(Math.Atan2(x, y));
+		return (float)(0.32 * SmoothStep(0.62, 0.48, sideways) * Math.Pow(Math.Clamp(1.0 - r, 0.0, 1.0), 1.3));
+	}
+
 	/// <summary>How much of a pixel at distance <paramref name="r"/> lies between <paramref name="inner"/> and
 	/// <paramref name="outer"/> (all in pixels): a one-pixel ramp on each edge.</summary>
 	internal static float Band(double r, double inner, double outer)

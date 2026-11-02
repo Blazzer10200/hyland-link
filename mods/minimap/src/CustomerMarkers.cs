@@ -76,7 +76,7 @@ internal sealed class CustomerMarkers : IDisposable
 
 	private float nextRefresh;
 
-	private float markerSize = 24f;
+	private float markerSize = 20f;
 
 	private int nameSize = 11;
 
@@ -144,7 +144,7 @@ internal sealed class CustomerMarkers : IDisposable
 		showActiveDeals = settings.ShowActiveDeals.Value;
 		showRegionLockedCustomers = settings.ShowRegionLockedCustomers.Value;
 		style = (Enum.IsDefined(typeof(CustomerMarkerStyle), settings.CustomerStyle.Value) ? settings.CustomerStyle.Value : CustomerMarkerStyle.Portraits);
-		markerSize = (float)MapMath.ClampFinite(settings.CustomerMarkerSize.Value, 12.0, 40.0, 24.0);
+		markerSize = (float)MapMath.ClampFinite(settings.CustomerMarkerSize.Value, 12.0, 40.0, 20.0);
 		nameSize = (int)MapMath.ClampFinite(settings.CustomerNameSize.Value, 8.0, 18.0, 11.0);
 		customerColor = ClampColor(settings.CustomerColor.Value, new Color(0.25f, 0.9f, 0.65f, 1f));
 		potentialColor = ClampColor(settings.PotentialCustomerColor.Value, new Color(0.75f, 0.35f, 1f, 1f));
@@ -159,7 +159,7 @@ internal sealed class CustomerMarkers : IDisposable
 		nextRefresh = 0f;
 	}
 
-	internal void Update(Settings settings, MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, IReadOnlySet<int>? dealerNpcIds = null)
+	internal void Update(Settings settings, MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, IReadOnlySet<int>? dealerNpcIds = null, EdgePins? pins = null)
 	{
 		this.dealerNpcIds = dealerNpcIds;
 		occupiedLabels.Clear();
@@ -187,6 +187,10 @@ internal sealed class CustomerMarkers : IDisposable
 			(double, double) tuple = MapMath.RelativePoint(vector.x, vector.y, center.x, center.y, zoom, rotation);
 			bool flag = num > value.Radius && MapMath.IsInside(tuple.Item1, tuple.Item2, num - value.Radius, circle);
 			value.Root.gameObject.SetActive(flag);
+			if (!flag && (value.Status & CustomerStatus.ActiveDeal) != 0)
+			{
+				pins?.Add(tuple.Item1, tuple.Item2, dealColor);
+			}
 			if (flag)
 			{
 				value.Root.anchoredPosition = new Vector2((float)tuple.Item1, (float)tuple.Item2);
@@ -315,6 +319,7 @@ internal sealed class CustomerMarkers : IDisposable
 			Image image2 = rectTransform3.gameObject.AddComponent<Image>();
 			image2.sprite = circleSprite;
 			image2.raycastTarget = false;
+			MarkerOutline.AddTo(rectTransform3.gameObject);
 			RectTransform rectTransform4 = NewRect("Portrait clip", rectTransform);
 			Image image3 = rectTransform4.gameObject.AddComponent<Image>();
 			image3.sprite = circleSprite;

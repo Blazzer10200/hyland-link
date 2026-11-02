@@ -123,7 +123,7 @@ internal sealed class WorldMarkers : IDisposable
 		showVehicles = settings.ShowVehicles.Value;
 		showVehicleNames = settings.ShowVehicleNames.Value;
 		dealerStyle = (Enum.IsDefined(typeof(CustomerMarkerStyle), settings.DealerStyle.Value) ? settings.DealerStyle.Value : CustomerMarkerStyle.Portraits);
-		dealerSize = (float)MapMath.ClampFinite(settings.DealerMarkerSize.Value, 12.0, 40.0, 24.0);
+		dealerSize = (float)MapMath.ClampFinite(settings.DealerMarkerSize.Value, 12.0, 40.0, 20.0);
 		vehicleSize = (float)MapMath.ClampFinite(settings.VehicleMarkerSize.Value, 12.0, 32.0, 18.0);
 		dealerNameSize = (int)MapMath.ClampFinite(settings.DealerNameSize.Value, 8.0, 18.0, 11.0);
 		vehicleNameSize = (int)MapMath.ClampFinite(settings.VehicleNameSize.Value, 8.0, 18.0, 11.0);
@@ -208,7 +208,7 @@ internal sealed class WorldMarkers : IDisposable
 		}
 	}
 
-	internal void Update(Player localPlayer, bool showCoop, MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, List<Rect> occupiedLabels)
+	internal void Update(Player localPlayer, bool showCoop, MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, List<Rect> occupiedLabels, EdgePins? pins = null)
 	{
 		if (disposed || (!showDealers && !showVehicles))
 		{
@@ -223,7 +223,7 @@ internal sealed class WorldMarkers : IDisposable
 		{
 			if (value.Source.Kind == WorldMarkerKind.Dealer)
 			{
-				UpdateMarker(value, projection, center, zoom, rotation, viewportSize, circle, occupiedLabels, occupiedVehicleIds);
+				UpdateMarker(value, projection, center, zoom, rotation, viewportSize, circle, occupiedLabels, occupiedVehicleIds, pins);
 			}
 		}
 		foreach (Marker value2 in markers.Values)
@@ -235,7 +235,7 @@ internal sealed class WorldMarkers : IDisposable
 		}
 	}
 
-	private void UpdateMarker(Marker marker, MapProjection projection, Vector2 center, float zoom, float rotation, float size, bool circle, List<Rect> occupiedLabels, HashSet<int>? occupiedVehicles)
+	private void UpdateMarker(Marker marker, MapProjection projection, Vector2 center, float zoom, float rotation, float size, bool circle, List<Rect> occupiedLabels, HashSet<int>? occupiedVehicles, EdgePins? pins = null)
 	{
 		try
 		{
@@ -254,6 +254,10 @@ internal sealed class WorldMarkers : IDisposable
 			float num = size / 2f;
 			bool flag = num > marker.Radius && MapMath.IsInside(tuple.Item1, tuple.Item2, num - marker.Radius, circle);
 			marker.Root.gameObject.SetActive(flag);
+			if (!flag && source.Kind == WorldMarkerKind.Dealer)
+			{
+				pins?.Add(tuple.Item1, tuple.Item2, dealerColor);
+			}
 			if (flag)
 			{
 				marker.Root.anchoredPosition = new Vector2((float)tuple.Item1, (float)tuple.Item2);
@@ -279,6 +283,7 @@ internal sealed class WorldMarkers : IDisposable
 			Image image = rectTransform.gameObject.AddComponent<Image>();
 			image.sprite = circleSprite;
 			image.raycastTarget = false;
+			MarkerOutline.AddTo(rectTransform.gameObject);
 			RectTransform rectTransform2 = NewRect("Portrait clip", rectTransform);
 			Image image2 = rectTransform2.gameObject.AddComponent<Image>();
 			image2.sprite = circleSprite;
@@ -291,6 +296,7 @@ internal sealed class WorldMarkers : IDisposable
 			RectTransform rectTransform4 = NewRect("Vehicle icon", rectTransform);
 			Image image4 = rectTransform4.gameObject.AddComponent<Image>();
 			image4.raycastTarget = false;
+			MarkerOutline.AddTo(rectTransform4.gameObject);
 			RectTransform rectTransform5 = NewRect("Dealer badge", rectTransform);
 			Image image5 = rectTransform5.gameObject.AddComponent<Image>();
 			image5.sprite = circleSprite;

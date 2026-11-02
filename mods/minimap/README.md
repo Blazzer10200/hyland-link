@@ -13,6 +13,13 @@ commit is our change.
 - **Zoom follows the map art's resolution.** `Zoom = 1` means one pixel of the game's map per screen pixel, the
   sharpest it can look. The range is 0.25–4, and each PageUp/PageDown multiplies or divides the zoom by `ZoomStep`
   (1.25). The original default was 3.0 on the phone map's scale, which magnified the art until it blurred.
+- **The Bezel look**, chosen in a design preview. Each part is a setting, and all are on by default:
+  - `MapGrading`: the map art is slightly darker and cooler, so the markers stand out.
+  - `Vignette`: the map shades toward the rim.
+  - `ViewCone`: a soft wedge under the arrow shows where you're looking.
+  - `CompassNorth`: an N badge on the border turns with the map.
+  - `EdgePins`: active deals and hired dealers that are off the map show as arrows on the border, pointing at them.
+  - Markers and the arrow have thin dark outlines, and portraits default to 20 instead of 24.
 - **Its own identity.** It's named Hyland Minimap, the DLL is `HylandMinimap.dll`, and its settings live under
   `[HylandMinimap]` in `UserData/MelonPreferences.cfg`, so it never fights the original.
 

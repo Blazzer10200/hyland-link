@@ -53,6 +53,16 @@ internal sealed class Settings
 
 	internal readonly MelonPreferences_Entry<Color> OutlineColor;
 
+	internal readonly MelonPreferences_Entry<bool> MapGrading;
+
+	internal readonly MelonPreferences_Entry<bool> Vignette;
+
+	internal readonly MelonPreferences_Entry<bool> ViewCone;
+
+	internal readonly MelonPreferences_Entry<bool> CompassNorth;
+
+	internal readonly MelonPreferences_Entry<bool> EdgePins;
+
 	internal readonly MelonPreferences_Entry<bool> ShowCustomers;
 
 	internal readonly MelonPreferences_Entry<CustomerMarkerStyle> CustomerStyle;
@@ -125,9 +135,14 @@ internal sealed class Settings
 		OutlineEnabled = Add("OutlineEnabled", defaultValue: true, "Show outer outline", "Draw an outer outline around the border.", changed);
 		OutlineWidth = Add("OutlineWidth", 2, "Outline thickness", "0–12 reference HUD units.", changed);
 		OutlineColor = Add("OutlineColor", new Color(0.02f, 0.025f, 0.03f, 1f), "Outline color", "Color and transparency of the outer outline.", changed);
+		MapGrading = Add("MapGrading", defaultValue: true, "Muted map colors", "Darken and cool the map art a little so markers stand out.", changed);
+		Vignette = Add("Vignette", defaultValue: true, "Edge shading", "Darken the map toward its edge so it sits inside the border.", changed);
+		ViewCone = Add("ViewCone", defaultValue: true, "View cone", "Show where you're looking, not just which way you face.", changed);
+		CompassNorth = Add("CompassNorth", defaultValue: true, "North badge", "Show an N on the border pointing north.", changed);
+		EdgePins = Add("EdgePins", defaultValue: true, "Edge pins", "Pin active deals and hired dealers to the edge when they're off the map.", changed);
 		ShowCustomers = Add("ShowCustomers", defaultValue: true, "Show customers", "Show customers and eligible potential customers on the map.", changed);
 		CustomerStyle = Add("CustomerStyle", CustomerMarkerStyle.Portraits, "Customer marker style", "Small faces or dots with names. Missing faces use named dots.", changed);
-		CustomerMarkerSize = Add("CustomerMarkerSize", 24, "Customer marker size", "12–40 reference HUD units for portraits. Dots are smaller.", changed);
+		CustomerMarkerSize = Add("CustomerMarkerSize", 20, "Customer marker size", "12–40 reference HUD units for portraits. Dots are smaller.", changed);
 		CustomerNameSize = Add("CustomerNameSize", 11, "Customer name size", "8–18 reference HUD units.", changed);
 		ShowPotentialCustomers = Add("ShowPotentialCustomers", defaultValue: true, "Show potential customers", "Show the potential customers identified by the game's map.", changed);
 		HighlightPotentialCustomers = Add("HighlightPotentialCustomers", defaultValue: true, "Highlight potential customers", "Give potential customers a colored halo.", changed);
@@ -141,7 +156,7 @@ internal sealed class Settings
 		RegionLockedColor = Add("RegionLockedColor", new Color(0.7f, 0.72f, 0.77f, 1f), "Region lock color", "Color of locked-region customer markers and lock badges.", changed);
 		ShowDealers = Add("ShowDealers", defaultValue: true, "Show dealers", "Show hired dealers on the minimap.", changed);
 		DealerStyle = Add("DealerStyle", CustomerMarkerStyle.Portraits, "Dealer marker style", "Portraits or dots with names, plus a dealer badge. Missing faces use named dots.", changed);
-		DealerMarkerSize = Add("DealerMarkerSize", 24, "Dealer marker size", "12–40 reference HUD units for portraits. Dots are smaller.", changed);
+		DealerMarkerSize = Add("DealerMarkerSize", 20, "Dealer marker size", "12–40 reference HUD units for portraits. Dots are smaller.", changed);
 		DealerNameSize = Add("DealerNameSize", 11, "Dealer name size", "8–18 reference HUD units for dealer names.", changed);
 		DealerColor = Add("DealerColor", new Color(1f, 0.7f, 0.2f, 1f), "Dealer color", "Color of dealer dots, portrait borders, and dealer badges.", changed);
 		ShowVehicles = Add("ShowVehicles", defaultValue: true, "Show owned vehicles", "Show owned vehicles. Hide your current vehicle, and occupied co-op vehicles while co-op markers are shown.", changed);
