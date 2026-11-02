@@ -118,9 +118,9 @@ internal sealed class Settings
 		Shape = Add("Shape", MapShape.Circle, "Map shape", "Circle or square clipping.", changed);
 		Corner = Add("Corner", MapCorner.TopRight, "Screen corner", "Choose a corner to avoid other HUD mods.", changed);
 		Size = Add("Size", 240, "Map size", "120–480 units, relative to a 1920x1080 HUD.", changed);
-		Zoom = Add("Zoom", 1f, "Zoom", "0.25–4. 1 = sharpest (one map pixel per screen pixel); lower shows more of the town, higher only blurs.", changed);
+		Zoom = Add("Zoom", 1f, "Zoom", "0.6–4. 1 = sharpest (one map pixel per screen pixel); lower shows more of the town, higher only blurs.", changed);
 		Opacity = Add("Opacity", 0.95f, "Opacity", "0.1–1. Applies to the entire minimap.", changed);
-		Rotate = Add("Rotate", defaultValue: false, "Rotate with view", "Keep your viewing direction at the top.", changed);
+		Rotate = Add("Rotate", defaultValue: true, "Rotate with view", "Keep your viewing direction at the top.", changed);
 		HideInMenus = Add("HideInMenus", defaultValue: true, "Hide during menus", "Hide while the phone, pause menu or another game UI is open.", changed);
 		ShowCoop = Add("ShowCoop", defaultValue: true, "Show co-op players", "Show nearby connected players in cyan.", changed);
 		Margin = Add("Margin", 24, "Corner margin", "0–200 units from the screen edges.", changed);
@@ -164,8 +164,23 @@ internal sealed class Settings
 		VehicleMarkerSize = Add("VehicleMarkerSize", 18, "Vehicle marker size", "12–32 reference HUD units for car and bike icons.", changed);
 		VehicleNameSize = Add("VehicleNameSize", 11, "Vehicle name size", "8–18 reference HUD units for vehicle names.", changed);
 		VehicleColor = Add("VehicleColor", new Color(0.5f, 0.8f, 1f, 1f), "Vehicle color", "Color of owned vehicle icons.", changed);
+		Migrate();
 		category.SaveToFile(printmsg: false);
 	}
+
+	// Saved values beat defaults, so a changed default only reaches existing players through a one-time step here.
+	private void Migrate()
+	{
+		MelonPreferences_Entry<int> version = category.CreateEntry("SettingsVersion", 0, "Settings version", "Set by the mod; don't edit.", is_hidden: true);
+		if (version.Value < 2)
+		{
+			// 1.2.0: rotate with view is on for everyone (1.1.0 saved it as off).
+			Rotate.Value = true;
+		}
+		version.Value = CurrentSettingsVersion;
+	}
+
+	private const int CurrentSettingsVersion = 2;
 
 	internal void Save()
 	{

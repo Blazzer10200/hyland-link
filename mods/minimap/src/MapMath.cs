@@ -5,7 +5,8 @@ namespace HylandMinimap;
 internal static class MapMath
 {
 	// Zoom is screen pixels per pixel of the game's map art: 1 is the sharpest it gets.
-	internal const double MinimumZoom = 0.25;
+	// The art has no mipmaps, so below ~0.6 it shimmers.
+	internal const double MinimumZoom = 0.6;
 
 	internal const double MaximumZoom = 4.0;
 
@@ -44,6 +45,18 @@ internal static class MapMath
 	internal static double Heading(double dx, double dy)
 	{
 		return Math.Atan2(dx, dy) * 180.0 / Math.PI;
+	}
+
+	/// <summary>Moves <paramref name="current"/> toward <paramref name="target"/> the short way round (degrees, wraps at ±180),
+	/// covering the same share of the gap per second at any frame rate.</summary>
+	internal static double SmoothAngle(double current, double target, double perSecond, double deltaTime)
+	{
+		double gap = target - current;
+		gap -= 360.0 * Math.Round(gap / 360.0);
+		double t = 1.0 - Math.Exp(-perSecond * Math.Max(deltaTime, 0.0));
+		double next = current + gap * t;
+		next -= 360.0 * Math.Round(next / 360.0);
+		return next;
 	}
 
 	internal static (double X, double Y) RelativePoint(double x, double y, double centerX, double centerY, double zoom, double rotation)

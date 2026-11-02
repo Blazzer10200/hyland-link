@@ -102,6 +102,11 @@ internal sealed class MinimapHud : IDisposable
 
 	private float zoom;
 
+	private float? mapHeading;
+
+	// Share of the remaining turn the map covers per second: ~70 ms to settle most of a flick.
+	private const double HeadingSmoothing = 14.0;
+
 	private bool circular;
 
 	private bool disposed;
@@ -396,7 +401,17 @@ internal sealed class MinimapHud : IDisposable
 		}
 		Vector2 vector3 = projection2.Project(position + vector2) - vector;
 		float num = (float)MapMath.Heading(vector3.x, vector3.y);
-		float num2 = (settings.Rotate.Value ? num : 0f);
+		float num2 = 0f;
+		if (settings.Rotate.Value)
+		{
+			// Ease the map's turn so a fast mouse flick doesn't snap it; the arrow shows the true heading meanwhile.
+			mapHeading = (mapHeading is float last) ? (float)MapMath.SmoothAngle(last, num, HeadingSmoothing, Time.unscaledDeltaTime) : num;
+			num2 = mapHeading.Value;
+		}
+		else
+		{
+			mapHeading = null;
+		}
 		mapLayer.localRotation = Quaternion.Euler(0f, 0f, num2);
 		mapImage.rectTransform.anchoredPosition = -vector * z;
 		arrow.localRotation = Quaternion.Euler(0f, 0f, num2 - num);

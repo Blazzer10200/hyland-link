@@ -11,7 +11,7 @@ commit is our change.
   pixel size (`Shapes.RimPixel`) is drawn over that edge, instead of the plain discs drawn behind it. The circle and
   arrow sprites use 4×4 supersampling and mipmaps.
 - **Zoom follows the map art's resolution.** `Zoom = 1` means one pixel of the game's map per screen pixel, the
-  sharpest it can look. The range is 0.25–4, and each PageUp/PageDown multiplies or divides the zoom by `ZoomStep`
+  sharpest it can look. The range is 0.6–4, and each PageUp/PageDown multiplies or divides the zoom by `ZoomStep`
   (1.25). The original default was 3.0 on the phone map's scale, which magnified the art until it blurred.
 - **The Bezel look**, chosen in a design preview. Each part is a setting, and all are on by default:
   - `MapGrading`: the map art is slightly darker and cooler, so the markers stand out.

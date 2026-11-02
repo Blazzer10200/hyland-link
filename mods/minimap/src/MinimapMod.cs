@@ -31,7 +31,7 @@ public sealed class MinimapMod : MelonMod
 		{
 			settingsDirty = true;
 		});
-		LoggerInstance.Msg("Hyland Minimap 1.1.0 (based on nacho's Schedule I Minimap 1.0.1). Settings: [HylandMinimap] in UserData/MelonPreferences.cfg.");
+		LoggerInstance.Msg("Hyland Minimap 1.2.0 (based on nacho's Schedule I Minimap 1.0.1). Settings: [HylandMinimap] in UserData/MelonPreferences.cfg.");
 	}
 
 	public override void OnLateUpdate()
