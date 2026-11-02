@@ -7,6 +7,56 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 3 — 2026-11-02 03:25 (built + real-app verified, not released)
+
+### Completed
+- Log review of Blazzer's first real join/leave: clean on client and server (join, 3 saves, clean leave). The game
+  joined through the public IP, so the router passed UDP 38465 back in (NAT loopback).
+- **Console gone:** Play sets `hide_console = true` in `UserData/Loader.cfg` (`game_log.rs`); a write failure only
+  warns. **Live game log** (`read_game_log`, offset tail with run id = first line), `GameStatus` card (starting →
+  preparing → loading → menu → connecting → joined → closing, from DedicatedServerClient 1.1.6 strings), `LogSheet`.
+- **Gear → `SettingsSheet`** replaces the More menu: folder, game log, launcher log folder, two-click removals,
+  "Uninstall Hyland Link" (strips mods + MelonLoader, runs `uninstall.exe` next to the exe, exits).
+- **Leave server & close game** (two clicks while playing): WM_CLOSE to `UnityWndClass` windows only, never kills.
+  Play locks to "Starting Schedule I…" until the game shows up (45 s cap).
+- **Launcher log** (tauri-plugin-log): `%LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log`, `[app]/[ui]`
+  lines; `bash scripts/logs.sh` prints it plus the game log, error counts and `hide_console`.
+- Code review (fresh agent) → fixed: Loader.cfg failure blocked Play, stage lost after 600 lines, WM_CLOSE could hit
+  the console, `get_state` hashing on the UI thread, double log parsing, unkeyed log rows, toasts under sheets, sheet
+  focus, quit timer leak, double detect, duplicate `shortPath`, old clippy warning.
+- Checks: `cargo test` 14 passed, clippy 0 warnings, svelte-check 0/0, `pnpm build` clean. **Real app**
+  (`pnpm tauri build --no-bundle`): console hidden (no MelonLoader window), status card live, Leave & close → mod's
+  normal shutdown lines and exit, Uninstall without `uninstall.exe` refuses and touches nothing.
+
+### Key Decisions
+- Hide the console via Loader.cfg, not by reparenting the window: Play goes through `steam://`, so no launch args,
+  and Windows Terminal can't be embedded.
+- Settings replaces More (one place for folder/logs/removal). Big button while playing = Leave & close, not "In game".
+- No force-kill anywhere: a stuck game gets a notice after 30 s, not TerminateProcess.
+
+### Hooks & Gotchas
+- Testing the real exe while the installed launcher runs: both share the WebView2 profile, so the DevTools flag is
+  ignored. Start the test exe with `WEBVIEW2_USER_DATA_FOLDER=%TEMP%\hl-test-webview` too.
+- `app/node_modules/.modules.yaml` pointed at the pre-split `schedule1-server/hyland-link` store; repointed it by
+  hand (pnpm add failed with ERR_PNPM_UNEXPECTED_VIRTUAL_STORE).
+- Stage detection matches client-mod log strings (`game-log.ts` MARKERS): recheck them on every S1DS mod update.
+
+### Next Steps
+1. Blazzer OKs v0.1.1: bump the 3 versions, `scripts/release.sh --notes "…" --publish`. Installed launchers pick it up.
+2. Push `main` (2 commits ahead of origin). Safe for friends: no manifest change.
+3. Test Leave & close while joined to the server (only tested at the main menu).
+4. Open from earlier: router TCP/UDP + .180 reservation check, back up the updater key, first extra mod.
+5. Leftover to delete if wanted: `%TEMP%\hl-test-webview` (test WebView2 profile).
+
+### Files Modified
+- New: `app/src-tauri/src/game_log.rs`, `app/src/lib/game-log.ts`, `components/{Sheet,LogSheet,GameStatus,
+  SettingsSheet}.svelte`, `scripts/logs.sh`
+- Changed: `lib.rs`, `game.rs`, `Cargo.toml` (tauri-plugin-log, log, WindowsAndMessaging), `capabilities/default.json`,
+  `launcher.svelte.ts`, `api.ts`, `dev-mock.ts`, `ActionBar`, `ModsSheet`, `Steps`, `TitleBar`, `+page.svelte`,
+  `app/package.json`, CLAUDE.md, README.md, app/README.md
+
+---
+
 ## Session 2 — 2026-11-02 02:45 (live: released, server online, self-running)
 
 ### Completed

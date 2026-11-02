@@ -325,7 +325,19 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .max_file_size(1_000_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
-                .timezone_strategy(TimezoneStrategy::UseLocal)
+                // "[2026-11-02][03:19:27][INFO][ui] Game: menu": short source tags instead of module paths and bundle URLs.
+                .format(|out, message, record| {
+                    let now = TimezoneStrategy::UseLocal.get_now();
+                    let source = if record.target().starts_with("webview") { "ui" } else { "app" };
+                    out.finish(format_args!(
+                        "[{}][{:02}:{:02}:{:02}][{}][{source}] {message}",
+                        now.date(),
+                        now.hour(),
+                        now.minute(),
+                        now.second(),
+                        record.level()
+                    ))
+                })
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
