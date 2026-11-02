@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 2,
+  "revision": 3,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -21,9 +21,28 @@
     "sha256": "1625132eb48c28cc46c284fce3be43995b2973e82666e0966fa63a6e07499013",
     "dll": "Mods/DedicatedServerMod_Il2cpp_Client.dll",
     "dllSha256": "ea4f211322acc12c49d3a12584e71b2e94280074180c9828b0e086afece4073d",
-    "removeDlls": ["Mods/DedicatedServerMod_Mono_Client.dll"]
+    "removeDlls": [
+      "Mods/DedicatedServerMod_Mono_Client.dll"
+    ]
   },
-  "mods": [],
+  "mods": [
+    {
+      "id": "schedule-i-minimap",
+      "name": "Schedule I Minimap",
+      "version": "1.0.2",
+      "blurb": "Minimap with customers, dealers, vehicles and players. PageUp/Down to zoom.",
+      "side": "client",
+      "url": "https://thunderstore.io/package/download/nachorn/Schedule_I_Minimap/1.0.2/",
+      "sha256": "4b325d28fd788dc89b90e5d31eb3066f3d900ad2ea532ccf3540d8d18ad7857b",
+      "files": [
+        {
+          "source": "Mods/ScheduleIMinimap.dll",
+          "path": "Mods/ScheduleIMinimap.dll",
+          "sha256": "92631174cf2e5e882a6afc9f9536e1d1369983b86e067b7e478e2145d70bfa96"
+        }
+      ]
+    }
+  ],
   "launcher": {
     "version": "0.1.0",
     "downloadUrl": "https://github.com/Blazzer10200/hyland-link/releases/latest"
