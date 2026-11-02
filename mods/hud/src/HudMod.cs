@@ -70,7 +70,7 @@ public sealed class HudMod : MelonMod
 			}
 			if (compass == null && settings.Compass.Value && compassManager != null)
 			{
-				compass = new CompassSkin(compassManager, sprites, font, settings, LoggerInstance.Msg);
+				compass = new CompassSkin(compassManager, hud, sprites, font, settings, LoggerInstance.Msg);
 			}
 			float dt = Time.unscaledDeltaTime;
 			hotbar?.Update(dt);

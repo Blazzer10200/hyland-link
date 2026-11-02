@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.UI;
 using Il2CppTMPro;
@@ -20,6 +21,9 @@ internal sealed class HotbarSkin : IDisposable
 	private sealed class Slot
 	{
 		internal ItemSlotUI Ui;
+
+		/// <summary>The slot's game slot, cast once: a slot UI keeps its slot for life (PlayerInventory.SetupInventoryUI).</summary>
+		internal HotbarSlot? Hotbar;
 
 		internal Sprite Sprite;
 
@@ -105,7 +109,17 @@ internal sealed class HotbarSkin : IDisposable
 
 	private string labelName = "";
 
+	/// <summary>The slot and item the name pill was last read from, so the name (a new string per read) and its width are
+	/// only fetched when either changes.</summary>
+	private Slot? labelSlot;
+
+	private IntPtr labelItem;
+
+	private float labelWidth;
+
 	private float labelIn;
+
+	private readonly List<Slot> rowSlots = new List<Slot>();
 
 	private float underlineX;
 
@@ -187,14 +201,15 @@ internal sealed class HotbarSkin : IDisposable
 			{
 				hud.onlineBalanceContainer.gameObject.SetActive(false);
 			}
+			// One line per session about the real layout, so the first in-game run tells us what the prefab looks like.
+			// Inside the try: it's the first touch of the cash and clipboard containers, and a throw here must still undo.
+			log($"Hotbar: slot {slotWidth:F0}x{slots[0].Ui.Rect.rect.height:F0}, cash slot under '{hud.cashSlotContainer.parent?.name}', clipboard under '{hud.managementSlotContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
 		}
 		catch
 		{
 			Dispose();
 			throw;
 		}
-		// One line per session about the real layout, so the first in-game run tells us what the prefab looks like.
-		log($"Hotbar: slot {slotWidth:F0}x{slots[0].Ui.Rect.rect.height:F0}, cash slot under '{hud.cashSlotContainer.parent?.name}', clipboard under '{hud.managementSlotContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
 	}
 
 	internal bool IsBoundTo(HUD instance)
@@ -240,34 +255,35 @@ internal sealed class HotbarSkin : IDisposable
 		// The baked sprite is a white stroke over a third-strength fill, so these give the concept's
 		// rgba(255,255,255,.04)/.08 at rest and .13/.42 when selected.
 		HotbarSlot? hotbarSlot = ui.assignedSlot?.TryCast<HotbarSlot>();
+		slot.Hotbar = hotbarSlot;
 		ui.SetNormalColor(new Color(1f, 1f, 1f, 0.12f));
 		ui.SetHighlightColor(new Color(1f, 1f, 1f, 0.4f));
 		ui.SetHighlighted(hotbarSlot != null && hotbarSlot.IsSelected);
 		return slot;
 	}
 
-	private IEnumerable<Slot> Row()
+	/// <summary>The slots in the row right now (the clipboard only once unlocked), in one reused list.</summary>
+	private List<Slot> Row()
 	{
-		foreach (Slot slot in slots)
-		{
-			yield return slot;
-		}
+		rowSlots.Clear();
+		rowSlots.AddRange(slots);
 		if (management != null && hud.managementSlotContainer.gameObject.activeSelf)
 		{
-			yield return management;
+			rowSlots.Add(management);
 		}
-		yield return cash;
+		rowSlots.Add(cash);
+		return rowSlots;
 	}
 
 	internal void Update(float dt)
 	{
 		float gap = Mathf.Clamp(settings.SlotGap.Value, 0, 20);
 		Layout(gap);
+		List<Slot> row = Row();
 		Slot? now = null;
-		foreach (Slot slot in Row())
+		foreach (Slot slot in row)
 		{
-			HotbarSlot? hotbarSlot = slot.Ui.assignedSlot?.TryCast<HotbarSlot>();
-			if (hotbarSlot != null && hotbarSlot.IsSelected)
+			if (slot.Hotbar != null && slot.Hotbar.IsSelected)
 			{
 				now = slot;
 			}
@@ -275,7 +291,7 @@ internal sealed class HotbarSkin : IDisposable
 		bool changed = now != selected;
 		selected = now;
 		float height = 0f;
-		foreach (Slot slot in Row())
+		foreach (Slot slot in row)
 		{
 			height = Mathf.Max(height, slot.Ui.Rect.rect.height);
 			slot.Lift = Motion.Approach(slot.Lift, slot == selected ? 1f : 0f, SelectSeconds, dt);
@@ -307,18 +323,26 @@ internal sealed class HotbarSkin : IDisposable
 		underlineAlpha = Motion.Approach(underlineAlpha, selected != null ? 1f : 0f, SelectSeconds, dt);
 		underline.rectTransform.localPosition = new Vector3(underlineX, bottom + 7.5f, 0f);
 		underline.color = new Color(1f, 1f, 1f, underlineAlpha);
-		string name = selected == null ? "" : (selected.Ui.assignedSlot?.ItemInstance?.Name ?? "Empty");
-		if (name != labelName)
+		ItemInstance? item = selected?.Hotbar?.ItemInstance;
+		IntPtr itemPointer = item?.Pointer ?? IntPtr.Zero;
+		if (selected != labelSlot || itemPointer != labelItem)
 		{
-			labelName = name;
-			labelText.text = name;
-			labelIn = 0f;
+			labelSlot = selected;
+			labelItem = itemPointer;
+			string name = selected == null ? "" : (item?.Name ?? "Empty");
+			if (name != labelName)
+			{
+				labelName = name;
+				labelText.text = name;
+				labelWidth = labelText.preferredWidth;
+				labelIn = 0f;
+			}
 		}
 		labelIn = Mathf.Min(1f, labelIn + dt / 0.22f);
 		float rise = (1f - Motion.EaseOutCubic(labelIn)) * 6f;
-		label.sizeDelta = new Vector2(labelText.preferredWidth + 24f, 26f);
+		label.sizeDelta = new Vector2(labelWidth + 24f, 26f);
 		label.localPosition = new Vector3(underlineX, top + 21f - rise, 0f);
-		labelGroup.alpha = name.Length == 0 ? 0f : Motion.EaseOutCubic(labelIn);
+		labelGroup.alpha = labelName.Length == 0 ? 0f : Motion.EaseOutCubic(labelIn);
 		money?.Update(new Vector2(right + 12f, bottom), dt);
 		UpdateIdle(changed, dt);
 	}
@@ -363,6 +387,15 @@ internal sealed class HotbarSkin : IDisposable
 		{
 			input = true;
 		}
+		// Controller buttons count too (not the sticks: looking around isn't hotbar use, same as the mouse).
+		Gamepad gamepad = Gamepad.current;
+		if (gamepad != null && (gamepad.buttonSouth.wasPressedThisFrame || gamepad.buttonEast.wasPressedThisFrame || gamepad.buttonWest.wasPressedThisFrame
+			|| gamepad.buttonNorth.wasPressedThisFrame || gamepad.leftShoulder.wasPressedThisFrame || gamepad.rightShoulder.wasPressedThisFrame
+			|| gamepad.leftTrigger.wasPressedThisFrame || gamepad.rightTrigger.wasPressedThisFrame || gamepad.dpad.up.wasPressedThisFrame
+			|| gamepad.dpad.down.wasPressedThisFrame || gamepad.dpad.left.wasPressedThisFrame || gamepad.dpad.right.wasPressedThisFrame))
+		{
+			input = true;
+		}
 		idleFor = input ? 0f : idleFor + dt;
 		bool idle = settings.IdleFade.Value && idleFor >= Mathf.Clamp(settings.IdleSeconds.Value, 1f, 30f);
 		float target = idle ? Mathf.Clamp(settings.IdleOpacity.Value, 0.1f, 1f) : 1f;
@@ -392,7 +425,7 @@ internal sealed class HotbarSkin : IDisposable
 			{
 				continue;
 			}
-			HotbarSlot? hotbarSlot = slot.Ui.assignedSlot?.TryCast<HotbarSlot>();
+			HotbarSlot? hotbarSlot = slot.Hotbar;
 			slot.Ui.Background.sprite = slot.Sprite;
 			slot.Ui.Background.type = slot.Type;
 			slot.Ui.Background.pixelsPerUnitMultiplier = slot.PixelsPerUnitMultiplier;
@@ -415,7 +448,9 @@ internal sealed class HotbarSkin : IDisposable
 		{
 			if (fadeAdded)
 			{
-				UnityEngine.Object.Destroy(fade);
+				// Immediately: a settings change rebuilds the skin in this same frame, and a merely queued Destroy would
+				// still be found (and kept) by the new skin's GetComponent, then throw on the next frame.
+				UnityEngine.Object.DestroyImmediate(fade);
 			}
 			else
 			{

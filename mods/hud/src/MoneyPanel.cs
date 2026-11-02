@@ -22,6 +22,9 @@ internal sealed class MoneyPanel
 
 		private float t = 1f;
 
+		/// <summary>The text's width, measured only when the text changes (TMP re-measures on every read).</summary>
+		internal float Width { get; private set; }
+
 		internal Row(TextMeshProUGUI text)
 		{
 			Text = text;
@@ -32,7 +35,7 @@ internal sealed class MoneyPanel
 			if (float.IsNaN(shown))
 			{
 				shown = from = to = value;
-				Text.text = MoneyManager.FormatAmount(value, false, false);
+				Show(value);
 			}
 			else if (value != to)
 			{
@@ -44,8 +47,14 @@ internal sealed class MoneyPanel
 			{
 				t = Mathf.Min(1f, t + dt / 0.4f);
 				shown = Mathf.Lerp(from, to, Motion.EaseOutCubic(t));
-				Text.text = MoneyManager.FormatAmount(Mathf.Round(shown), false, false);
+				Show(Mathf.Round(shown));
 			}
+		}
+
+		private void Show(float amount)
+		{
+			Text.text = MoneyManager.FormatAmount(amount, false, false);
+			Width = Text.preferredWidth;
 		}
 	}
 
@@ -103,7 +112,7 @@ internal sealed class MoneyPanel
 			cash.Update(money.cashBalance, dt);
 			bank.Update(money.sync___get_value_onlineBalance(), dt);
 		}
-		float textWidth = Mathf.Max(62f, Mathf.Max(cash.Text.preferredWidth, bank.Text.preferredWidth));
+		float textWidth = Mathf.Max(62f, Mathf.Max(cash.Width, bank.Width));
 		float width = PadX + IconSize + 8f + textWidth + PadX;
 		float height = PadY + RowHeight + 6f + 1f + 6f + RowHeight + PadY;
 		Ui.Place(root, bottomLeft + new Vector2(width / 2f, height / 2f), new Vector2(width, height));

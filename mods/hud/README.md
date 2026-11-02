@@ -22,6 +22,15 @@ item icons, quantities, number keys and controller support keep working, and que
 | Idle fade | keyboard, mouse buttons, scroll | 55% after 4 s, back in 0.12 s; never while an inventory screen is open |
 | HUD hide | `HUD.canvas.enabled`, `CompassManager.SetVisible` | Inherited: everything lives in the game's own containers |
 
+Beyond the concept:
+
+| Feature | Game source | How |
+|---|---|---|
+| Curfew and sleep warnings | `CurfewManager.IsEnabled` / `IsCurrentlyActive` (curfew 21:00–05:00), `TimeManager.CurrentTime` (time stops at 04:00 until everyone sleeps) | A tag on the clock pill (`TimeWarnings.For`): "CURFEW 25M" amber from 20:00, "CURFEW" red, "SLEEP 45M" from 03:00, "SLEEP NOW" at 04:00. The game's own `HUD.CurfewPrompt` and `SleepPrompt` say the same thing, so they're switched off (their graphics, since the game toggles the objects every frame) and put back on disable |
+| Friends on the compass | `Player.PlayerList`, `Player.PlayerName`, `UnitsUtility.FormatShortDistance` | A cyan dot (the minimap's co-op color) with "Name · 140m" under it per co-op player, clamped to the strip's ends when behind you; metres or feet follow the game's setting |
+
+Left out on purpose: deal countdowns. The game's HUD quest list already shows "(Expires in N hrs)" on tracked deals, red under 2 hours (`Contract.UpdateTiming`), and replacing it would also drop the quest objectives that share that list.
+
 Turning it off (`Enabled = false`) or any error puts the game's HUD back exactly (every change is recorded and restored),
 then retries after 5, 10, 20, 40, then 60 s.
 
@@ -38,7 +47,7 @@ then retries after 5, 10, 20, 40, then 60 s.
 ## Settings
 
 `[HylandHud]` in `UserData/MelonPreferences.cfg`: `Enabled`, `Hotbar`, `SlotGap` (6), `MoneyPanel`, `IdleFade`,
-`IdleSeconds` (4), `IdleOpacity` (0.55), `Compass`, `CompassSmoothing` (0.08 s), `Clock`.
+`IdleSeconds` (4), `IdleOpacity` (0.55), `Compass`, `CompassSmoothing` (0.08 s), `Clock`, `TimeWarnings`, `Friends`.
 
 ## Build
 

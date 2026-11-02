@@ -30,6 +30,10 @@ internal sealed class Settings
 
 	internal readonly MelonPreferences_Entry<bool> Clock;
 
+	internal readonly MelonPreferences_Entry<bool> TimeWarnings;
+
+	internal readonly MelonPreferences_Entry<bool> Friends;
+
 	internal Settings(Action changed)
 	{
 		category = MelonPreferences.CreateCategory("HylandHud", "Hyland HUD");
@@ -43,6 +47,8 @@ internal sealed class Settings
 		Compass = Add("Compass", defaultValue: true, "Compass strip", "Restyle the compass: N/E/S/W strip with a heading marker. Quest markers stay.", changed);
 		CompassSmoothing = Add("CompassSmoothing", 0.08f, "Compass smoothing", "0–0.5 seconds to catch up with the camera. 0 follows it exactly.", changed);
 		Clock = Add("Clock", defaultValue: true, "Clock", "In-game time with a day, dusk or night icon under the compass.", changed);
+		TimeWarnings = Add("TimeWarnings", defaultValue: true, "Curfew and sleep warnings", "A tag on the clock: curfew in N min (from 8 PM), curfew (9 PM–5 AM), sleep in N min (from 3 AM), sleep now (4 AM, when time stops). Replaces the game's own curfew and 4 AM text.", changed);
+		Friends = Add("Friends", defaultValue: true, "Friends on the compass", "A cyan marker with name and distance for each co-op player.", changed);
 		category.SaveToFile(printmsg: false);
 	}
 

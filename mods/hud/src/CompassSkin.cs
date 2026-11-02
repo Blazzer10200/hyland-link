@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.GameTime;
+using Il2CppScheduleOne.Law;
 using Il2CppScheduleOne.PlayerScripts;
+using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Compass;
 using Il2CppTMPro;
 using UnityEngine;
@@ -13,7 +15,8 @@ namespace HylandHud;
 /// <summary>
 /// Restyles the game's compass: its notches are hidden and a 480-wide N/E/S/W strip with a heading marker takes their
 /// place inside the same container, so it slides in and out and hides exactly like the game's. Quest and waypoint
-/// markers stay the game's; they're re-placed on the strip's scale and faded at its ends. The clock pill hangs under it.
+/// markers stay the game's; they're re-placed on the strip's scale and faded at its ends. Co-op friends get their own
+/// markers, and the clock pill hangs under it.
 /// </summary>
 internal sealed class CompassSkin : IDisposable
 {
@@ -21,6 +24,9 @@ internal sealed class CompassSkin : IDisposable
 
 	/// <summary>The concept spaces cardinals 160 units apart: 90° per 160 units, so the strip spans ±135°.</summary>
 	private const float UnitsPerDegree = 160f / 90f;
+
+	/// <summary>The strip's top edge in its own local space (the root is 36 tall, centered).</summary>
+	private const float Top = 18f;
 
 	private readonly struct Mark
 	{
@@ -54,11 +60,13 @@ internal sealed class CompassSkin : IDisposable
 
 	private readonly Clock? clock;
 
+	private readonly Friends? friends;
+
 	private float heading = float.NaN;
 
 	private bool disposed;
 
-	internal CompassSkin(CompassManager compass, Sprites sprites, TMP_FontAsset font, Settings settings, Action<string> log)
+	internal CompassSkin(CompassManager compass, HUD hud, Sprites sprites, TMP_FontAsset font, Settings settings, Action<string> log)
 	{
 		this.compass = compass;
 		this.settings = settings;
@@ -96,36 +104,54 @@ internal sealed class CompassSkin : IDisposable
 				bool north = i == 0;
 				TextMeshProUGUI letter = Ui.Text(letters[i], root, font, north ? 24f : 18f, Color.white, 8f);
 				letter.rectTransform.sizeDelta = new Vector2(40f, 28f);
-				letter.rectTransform.localPosition = new Vector3(0f, 18f - 14f, 0f);
+				letter.rectTransform.localPosition = new Vector3(0f, Top - 14f, 0f);
 				marks.Add(new Mark(i * 90f, letter, north ? 1f : 0.72f));
 				Image d = Ui.Image("Dot", root, dot, Color.white);
 				d.rectTransform.sizeDelta = new Vector2(4f, 4f);
-				d.rectTransform.localPosition = new Vector3(0f, 18f - 14f, 0f);
+				d.rectTransform.localPosition = new Vector3(0f, Top - 14f, 0f);
 				marks.Add(new Mark(i * 90f + 45f, d, 0.45f));
 			}
 			Image line = Ui.Image("Baseline", root, sprites.Get("fadeline", Art.FadeLine), new Color(1f, 1f, 1f, 0.35f));
-			Ui.Place(line.rectTransform, new Vector2(0f, 18f - 33.5f), new Vector2(Width, 1f));
+			Ui.Place(line.rectTransform, new Vector2(0f, Top - 33.5f), new Vector2(Width, 1f));
+			if (settings.Friends.Value)
+			{
+				friends = new Friends(root, dot, font);
+			}
+			// After the friends, so the heading marker draws over a friend straight ahead.
 			Image pointer = Ui.Image("Heading", root, sprites.Get("pointer", () => Art.Pointer(Theme.Accent)), Color.white);
-			Ui.Place(pointer.rectTransform, new Vector2(0f, 18f - 38f), new Vector2(24f, 18f));
+			Ui.Place(pointer.rectTransform, new Vector2(0f, Top - 38f), new Vector2(24f, 18f));
 			if (settings.Clock.Value)
 			{
-				clock = new Clock(root, sprites, font);
+				clock = new Clock(root, sprites, font, settings.TimeWarnings.Value ? hud : null);
 			}
 			// The game's own markers land on the same scale even on frames before ours runs.
 			compass.CompassUIRange = Width;
 			compass.AngleDivisor = Width / 2f / UnitsPerDegree;
+			// Inside the try: it's the first touch of Container and Canvas, and a throw here must still undo the above.
+			log($"Compass: {notches.Count} notches hidden, container '{compass.Container.name}' at {compass.Container.anchoredPosition}, notch anchor {like.anchorMin}, canvas scale {compass.Canvas.scaleFactor:F2}.");
 		}
 		catch
 		{
 			Dispose();
 			throw;
 		}
-		log($"Compass: {notches.Count} notches hidden, container '{compass.Container.name}' at {compass.Container.anchoredPosition}, notch anchor {like.anchorMin}, canvas scale {compass.Canvas.scaleFactor:F2}.");
 	}
 
 	internal bool IsBoundTo(CompassManager instance)
 	{
 		return compass == instance && root != null;
+	}
+
+	/// <summary>Strip x for a world bearing, clamped to its ends.</summary>
+	private float StripX(float bearing)
+	{
+		return Mathf.Clamp(Mathf.DeltaAngle(heading, bearing) * UnitsPerDegree, -Width / 2f, Width / 2f);
+	}
+
+	private static float Bearing(Vector3 from, Vector3 to)
+	{
+		Vector3 d = to - from;
+		return Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
 	}
 
 	internal void Update(float dt)
@@ -157,12 +183,11 @@ internal sealed class CompassSkin : IDisposable
 			{
 				continue;
 			}
-			Vector3 to = element.TargetTransform.position - cam.position;
-			float bearing = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
-			float x = Mathf.Clamp(Mathf.DeltaAngle(heading, bearing) * UnitsPerDegree, -Width / 2f, Width / 2f);
+			float x = StripX(Bearing(cam.position, element.TargetTransform.position));
 			element.Rect.anchoredPosition = new Vector2(x, element.Rect.anchoredPosition.y);
 			element.Group.alpha = Mathf.Max(0.25f, Art.EdgeMask((x + Width / 2f) / Width));
 		}
+		friends?.Update(this, cam.position);
 		clock?.Update(dt);
 	}
 
@@ -173,6 +198,8 @@ internal sealed class CompassSkin : IDisposable
 			return;
 		}
 		disposed = true;
+		clock?.Dispose();
+		friends?.Dispose();
 		foreach (GameObject notch in hiddenNotches)
 		{
 			if (notch != null)
@@ -184,6 +211,17 @@ internal sealed class CompassSkin : IDisposable
 		{
 			compass.CompassUIRange = range;
 			compass.AngleDivisor = divisor;
+			// We faded markers toward the strip's ends; the game only sets their alpha when one is shown again, so put it
+			// back for the ones on screen now.
+			Il2CppSystem.Collections.Generic.List<CompassManager.Element> elements = compass.elements;
+			for (int i = 0; elements != null && i < elements.Count; i++)
+			{
+				CompassManager.Element element = elements[i];
+				if (element != null && element.Visible && element.Group != null)
+				{
+					element.Group.alpha = 1f;
+				}
+			}
 		}
 		if (root != null)
 		{
@@ -191,10 +229,20 @@ internal sealed class CompassSkin : IDisposable
 		}
 	}
 
-	/// <summary>The pill under the compass: a day, dusk or night icon (crossfading over 0.3 s) and the in-game time.</summary>
-	private sealed class Clock
+	/// <summary>
+	/// The pill under the compass: a day, dusk or night icon (crossfading over 0.3 s), the in-game time and, when there is
+	/// one, a warning tag (<see cref="TimeWarnings"/>). With warnings on, the game's own curfew and 4 AM text prompts are
+	/// hidden, since the tag says the same thing.
+	/// </summary>
+	private sealed class Clock : IDisposable
 	{
+		private static readonly Color Amber = new Color(1f, 0.71f, 0.28f, 1f);
+
+		private static readonly Color Red = new Color(1f, 0.42f, 0.37f, 1f);
+
 		private readonly RectTransform pill;
+
+		private readonly RectTransform icon;
 
 		private readonly RectTransform rays;
 
@@ -210,9 +258,36 @@ internal sealed class CompassSkin : IDisposable
 
 		private readonly TextMeshProUGUI text;
 
+		private readonly RectTransform? tag;
+
+		private readonly CanvasGroup? tagGroup;
+
+		private readonly Image? tagBack;
+
+		private readonly TextMeshProUGUI? tagText;
+
+		/// <summary>The game's prompts we switched off, with whether each was on, to put back.</summary>
+		private readonly List<(Graphic Graphic, bool Enabled)> hiddenPrompts = new List<(Graphic, bool)>();
+
 		private int shownTime = -1;
 
-		internal Clock(Transform parent, Sprites sprites, TMP_FontAsset font)
+		/// <summary>Widths measured only when their text changes (TMP re-measures on every read).</summary>
+		private float timeWidth;
+
+		private float tagWidth;
+
+		/// <summary>The inputs the warning was last worked out from; it's only redone (a new string) when one changes.</summary>
+		private (int Now, bool Enabled, bool Active) warningFor = (-1, false, false);
+
+		private TimeWarning? warning;
+
+		private string tagShown = "";
+
+		private float tagIn;
+
+		private float width;
+
+		internal Clock(Transform parent, Sprites sprites, TMP_FontAsset font, HUD? hudForWarnings)
 		{
 			pill = Ui.Rect("Clock", parent);
 			RectTransform glass = Ui.Image("Glass", pill, sprites.Glass(15), Color.white, sliced: true).rectTransform;
@@ -220,7 +295,7 @@ internal sealed class CompassSkin : IDisposable
 			glass.anchorMax = Vector2.one;
 			glass.offsetMin = Vector2.zero;
 			glass.offsetMax = Vector2.zero;
-			RectTransform icon = Ui.Rect("Icon", pill);
+			icon = Ui.Rect("Icon", pill);
 			icon.sizeDelta = new Vector2(22f, 22f);
 			day = Layer("Day", icon);
 			Ui.Image("Core", day.transform, sprites.Icon(Art.Icon.SunCore), Color.white);
@@ -242,6 +317,38 @@ internal sealed class CompassSkin : IDisposable
 			text.alignment = TextAlignmentOptions.Left;
 			text.rectTransform.pivot = new Vector2(0f, 0.5f);
 			text.rectTransform.sizeDelta = new Vector2(120f, 24f);
+			if (hudForWarnings != null)
+			{
+				tag = Ui.Rect("Warning", pill);
+				tagGroup = Ui.Group(tag.gameObject);
+				tagGroup.alpha = 0f;
+				// The white slot panel, tinted: an amber or red stroke over a third-strength fill.
+				tagBack = Ui.Image("Back", tag, sprites.Slot(9), Amber, sliced: true);
+				RectTransform back = tagBack.rectTransform;
+				back.anchorMin = Vector2.zero;
+				back.anchorMax = Vector2.one;
+				back.offsetMin = Vector2.zero;
+				back.offsetMax = Vector2.zero;
+				tagText = Ui.Text("Text", tag, font, 13f, Color.white, 6f);
+				tagText.rectTransform.sizeDelta = new Vector2(160f, 20f);
+				Hide(hudForWarnings.CurfewPrompt);
+				Hide(hudForWarnings.SleepPrompt);
+			}
+		}
+
+		/// <summary>The game turns these prompts' objects on and off every frame (HUD.Update), so switch off what draws
+		/// them instead: that sticks until <see cref="Dispose"/>.</summary>
+		private void Hide(TextMeshProUGUI prompt)
+		{
+			if (prompt == null)
+			{
+				return;
+			}
+			foreach (Graphic graphic in prompt.GetComponentsInChildren<Graphic>(true))
+			{
+				hiddenPrompts.Add((graphic, graphic.enabled));
+				graphic.enabled = false;
+			}
 		}
 
 		private static CanvasGroup Layer(string name, Transform parent)
@@ -264,6 +371,7 @@ internal sealed class CompassSkin : IDisposable
 			{
 				shownTime = now;
 				text.text = TimeManager.Get12HourTime(now, true);
+				timeWidth = text.preferredWidth;
 			}
 			// The game's night is 18:00–06:00; the last daylight hour gets the setting sun.
 			bool isNight = time.IsNight;
@@ -276,12 +384,198 @@ internal sealed class CompassSkin : IDisposable
 			rays.localEulerAngles = new Vector3(0f, 0f, -(t / 24f % 1f) * 360f);
 			duskSun.localPosition = new Vector3(0f, -(1f - Mathf.Cos(t / 4f * Mathf.PI * 2f)), 0f);
 			moon.color = new Color(1f, 1f, 1f, 0.875f + 0.125f * Mathf.Cos(t / 3f * Mathf.PI * 2f));
-			// Pill: 8 | icon 22 | 8 | time (at least 64) | 12, 30 tall, centered 69 below the strip's top.
-			float textWidth = Mathf.Max(64f, text.preferredWidth);
-			float width = 8f + 22f + 8f + textWidth + 12f;
-			Ui.Place(pill, new Vector2(0f, 18f - 69f), new Vector2(width, 30f));
-			pill.GetChild(1).localPosition = new Vector3(-width / 2f + 8f + 11f, 0f, 0f);
+			float tagWidth = UpdateTag(now, dt);
+			// Pill: 8 | icon 22 | 8 | time (at least 64) | [8 | tag] | 12, 30 tall, centered 69 below the strip's top. The
+			// width eases, so a tag appearing grows the pill instead of snapping it.
+			float target = 8f + 22f + 8f + Mathf.Max(64f, timeWidth) + 12f + (tagWidth > 0f ? 8f + tagWidth : 0f);
+			width = width <= 0f ? target : Motion.Approach(width, target, 0.18f, dt);
+			Ui.Place(pill, new Vector2(0f, Top - 69f), new Vector2(width, 30f));
+			icon.localPosition = new Vector3(-width / 2f + 8f + 11f, 0f, 0f);
 			text.rectTransform.localPosition = new Vector3(-width / 2f + 38f, 0f, 0f);
+			if (tag != null)
+			{
+				Ui.Place(tag, new Vector2(width / 2f - 7f - tagWidth / 2f, 0f), new Vector2(tagWidth, 20f));
+			}
+		}
+
+		/// <summary>Shows the current warning (fading in over 0.22 s) and returns its width, or 0 for none.</summary>
+		private float UpdateTag(int now, float dt)
+		{
+			if (tag == null || tagText == null || tagBack == null || tagGroup == null)
+			{
+				return 0f;
+			}
+			CurfewManager curfew = NetworkSingleton<CurfewManager>.Instance;
+			(int, bool, bool) inputs = (now, curfew != null && curfew.IsEnabled, curfew != null && curfew.IsCurrentlyActive);
+			if (inputs != warningFor)
+			{
+				warningFor = inputs;
+				warning = TimeWarnings.For(inputs.Item1, inputs.Item2, inputs.Item3);
+				string shown = warning?.Text ?? "";
+				if (shown != tagShown)
+				{
+					if (tagShown.Length == 0)
+					{
+						tagIn = 0f;
+					}
+					tagShown = shown;
+					tagText.text = shown;
+					tagWidth = tagText.preferredWidth + 16f;
+				}
+			}
+			if (warning == null)
+			{
+				tagGroup.alpha = 0f;
+				return 0f;
+			}
+			tagBack.color = warning.Value.Urgent ? Red : Amber;
+			tagIn = Mathf.Min(1f, tagIn + dt / 0.22f);
+			tagGroup.alpha = Motion.EaseOutCubic(tagIn);
+			return tagWidth;
+		}
+
+		public void Dispose()
+		{
+			foreach ((Graphic graphic, bool enabled) in hiddenPrompts)
+			{
+				if (graphic != null)
+				{
+					graphic.enabled = enabled;
+				}
+			}
+			hiddenPrompts.Clear();
+		}
+	}
+
+	/// <summary>A cyan dot on the baseline and "Name · 140m" under it for each co-op player (the minimap's co-op color),
+	/// clamped to the strip's ends when they're behind you. The distance uses the game's own formatter, so it follows the
+	/// player's metric or imperial setting.</summary>
+	private sealed class Friends : IDisposable
+	{
+		private sealed class Marker
+		{
+			internal Player Player;
+
+			internal RectTransform Root;
+
+			internal CanvasGroup Group;
+
+			internal TextMeshProUGUI Label;
+
+			/// <summary>The name and whole metres the label was last built from; it's only rebuilt when one changes.</summary>
+			internal string? Name;
+
+			internal int Metres = -1;
+		}
+
+		private static readonly Color Cyan = new Color(0.2f, 0.87f, 1f, 1f);
+
+		private readonly RectTransform parent;
+
+		private readonly Sprite dot;
+
+		private readonly TMP_FontAsset font;
+
+		private readonly Dictionary<int, Marker> markers = new Dictionary<int, Marker>();
+
+		private readonly HashSet<int> live = new HashSet<int>();
+
+		private readonly List<int> stale = new List<int>();
+
+		private float nextRefresh;
+
+		internal Friends(RectTransform parent, Sprite dot, TMP_FontAsset font)
+		{
+			this.parent = parent;
+			this.dot = dot;
+			this.font = font;
+		}
+
+		internal void Update(CompassSkin strip, Vector3 from)
+		{
+			if (Time.unscaledTime >= nextRefresh)
+			{
+				nextRefresh = Time.unscaledTime + 1f;
+				Refresh();
+			}
+			foreach (Marker marker in markers.Values)
+			{
+				Player player = marker.Player;
+				if (player == null)
+				{
+					marker.Root.gameObject.SetActive(false);
+					continue;
+				}
+				marker.Root.gameObject.SetActive(true);
+				Vector3 at = (player.IsInVehicle && player.CurrentVehicle != null ? player.CurrentVehicle.transform : player.transform).position;
+				float x = strip.StripX(Bearing(from, at));
+				// Dot on the baseline (33.5 from the top), name under it at 48, between the marker and the clock pill.
+				marker.Root.localPosition = new Vector3(x, Top - 33.5f, 0f);
+				marker.Group.alpha = Mathf.Max(0.35f, Art.EdgeMask((x + Width / 2f) / Width));
+				string name = player.PlayerName;
+				float distance = Vector3.Distance(from, at);
+				int metres = Mathf.RoundToInt(distance);
+				if (metres != marker.Metres || name != marker.Name)
+				{
+					marker.Metres = metres;
+					marker.Name = name;
+					marker.Label.text = (string.IsNullOrEmpty(name) ? "Friend" : name) + " · " + UnitsUtility.FormatShortDistance(distance, UnitsUtility.ERoundingType.Nearest, 0);
+				}
+			}
+		}
+
+		private void Refresh()
+		{
+			live.Clear();
+			Player local = Player.Local;
+			Il2CppSystem.Collections.Generic.List<Player> players = Player.PlayerList;
+			for (int i = 0; players != null && i < players.Count; i++)
+			{
+				Player player = players[i];
+				if (player == null || player == local)
+				{
+					continue;
+				}
+				int id = player.GetInstanceID();
+				live.Add(id);
+				if (!markers.ContainsKey(id))
+				{
+					markers.Add(id, Create(player));
+				}
+			}
+			stale.Clear();
+			foreach (int id in markers.Keys)
+			{
+				if (!live.Contains(id))
+				{
+					stale.Add(id);
+				}
+			}
+			foreach (int id in stale)
+			{
+				if (markers[id].Root != null)
+				{
+					UnityEngine.Object.Destroy(markers[id].Root.gameObject);
+				}
+				markers.Remove(id);
+			}
+		}
+
+		private Marker Create(Player player)
+		{
+			RectTransform root = Ui.Rect("Friend", parent);
+			Image d = Ui.Image("Dot", root, dot, Cyan);
+			d.rectTransform.sizeDelta = new Vector2(8f, 8f);
+			TextMeshProUGUI label = Ui.Text("Name", root, font, 12f, new Color(0.85f, 0.97f, 1f, 1f), 2f);
+			label.rectTransform.sizeDelta = new Vector2(200f, 16f);
+			label.rectTransform.localPosition = new Vector3(0f, -14.5f, 0f);
+			return new Marker { Player = player, Root = root, Group = Ui.Group(root.gameObject), Label = label };
+		}
+
+		public void Dispose()
+		{
+			// The markers live under the strip, which is destroyed with it.
+			markers.Clear();
 		}
 	}
 }
