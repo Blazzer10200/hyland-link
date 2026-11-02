@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 6,
+  "revision": 7,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -29,16 +29,16 @@
     {
       "id": "hyland-minimap",
       "name": "Hyland Minimap",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "blurb": "Minimap with customers, dealers, vehicles and players. PageUp/Down to zoom.",
       "side": "client",
-      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/minimap-v1.2.0/HylandMinimap.zip",
-      "sha256": "2e81157e93fdeac635766af63899aba4abfdfa9e51b5e3bf48718cf88ac2d514",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/minimap-v1.2.1/HylandMinimap.zip",
+      "sha256": "11e14ec2aa0969b788d4592d0b52878f72ccdcea191a776c1b7cf0af88c902f1",
       "files": [
         {
           "source": "Mods/HylandMinimap.dll",
           "path": "Mods/HylandMinimap.dll",
-          "sha256": "fde8bbb31e355b74f7fbefc7a4a25a79e97f746939275c529ae044120bdda424"
+          "sha256": "e224d88739225f5fa2c7c12a9f450c03fa3f0529cbd47aef214bdc10fe9022e6"
         }
       ]
     }
