@@ -7,6 +7,58 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 9 — 2026-11-02 (deep review: launcher, HUD, minimap, scripts; all local, nothing shipped)
+
+### Completed
+- Cleanup (Blazzer's OK): old `dist/v0.1.0–v0.1.2`, `dist/minimap-v1.1.0/1.2.0` and every `%TEMP%\hl*`/`hlmm*` leftover
+  deleted. The artifact can't be deleted from here (needs Blazzer's confirmation in the app; `/artifacts` → d).
+- Four fresh-eyes reviews (Rust, UI, HUD, scripts) and then a second pass on the fixes. Every finding was checked in
+  the code before fixing. Commits **5623c0c** and **afac2ce** (local, **nothing pushed**). The full list is in the
+  commit messages. The ones that matter most:
+  - **Launcher:**
+    - A stale CDN copy can no longer roll the mod list back (an older online revision is refused, the same one is accepted).
+    - Play waits for a running mod check.
+    - Update stays locked while Steam starts the game.
+    - Removals lock the UI.
+    - The marker is written atomically, and a damaged one is moved aside.
+    - The close guard is soft: a second close within 10 s quits.
+    - The self-update is skipped if a mod install started meanwhile.
+  - **HUD:**
+    - The hotbar and compass fail separately.
+    - The backoff only resets after 5 clean minutes (same fix in the minimap source, not released).
+    - Restore steps can't skip each other.
+    - Label and balance states are recorded first.
+    - Transforms are cached (far fewer IL2CPP wrappers per frame).
+    - The game's curfew prompts show whenever our pill is hidden (the phone, menus).
+  - **Scripts:**
+    - `release.sh` compares the `.sig` key id with the pubkey (tested on v0.1.3: `54ae0a37e2f165c5`).
+    - gh errors no longer pass for "not found".
+    - `--target` pins the tag to the checked commit.
+    - `mod-release.ps1` can stack two mods into one publish.
+    - `mods.ps1` handles wrapper-folder zips.
+  - `.gitignore` covers `.claude/settings.local.json`, `.secrets/`, `.env` and `*.key`.
+- Checks: cargo 18/18 plus the real-download install test, clippy 0, svelte-check 0/0, hud/minimap/preview 0 warnings,
+  scripts parse. The browser mock confirmed "Removing mods…" locks every button.
+- HUD re-staged: `dist/hud-v0.1.0/HylandHud.zip`, sha256 `743a656e…84ea4d9` (replaces session 8's `577b9ac7…`).
+
+### Not done (needs Blazzer or another repo)
+- **HANDOFF.md is public** (tracked and pushed). It names CT 121, the `.180` LAN reservation, router NAT and the
+  `blazzer-labs` SSH alias. These aren't secrets, but it goes against "nothing from schedule1-server in here". Untracking it is
+  Blazzer's call (it stays in history either way).
+- `mods.ps1 publish` runs `ssh -t` for the server's whole wait-until-empty step. A dropped connection can kill
+  `s1ds mods apply` midway. The fix belongs in schedule1-server (run the apply detached, poll for the result).
+- The three-place manifest rules share two small gaps: trailing dot/space/`~` in a path segment (Windows strips them, which gets around the
+  reserved-path check), and Unicode vs ASCII case folding (Python vs Rust). The change has to land in all three places, plus a server deploy.
+- Launcher fixes reach friends only with a launcher release (0.1.4 via `scripts/release.sh`). The minimap's backoff
+  fix needs a minimap version bump plus `mod-release.ps1 minimap -Publish`.
+
+### Next Steps
+1. Session 8's step 1 still stands: run the HUD in a test copy of the game.
+2. On Blazzer's go-ahead: push main; launcher 0.1.4 (bump the 3 versions, `scripts/release.sh --notes ... --publish`);
+   then the HUD (and optionally minimap 1.2.2) via `mod-release.ps1 ... -Publish` and one `mods.ps1 publish`.
+
+---
+
 ## Session 8 — 2026-11-02 (Hyland HUD 0.1.0 built and staged, not shipped)
 
 ### Completed
@@ -19,7 +71,7 @@ updated: 2026-11-02
   `src/AssemblyInfo.cs`. Without `-Publish` it builds and stages `dist/<tag>/<Mod>.zip`, checks the forward-slash
   entries and prints the sha256. `-Publish` refuses a dirty or unpushed tree and an existing tag, runs
   `gh release create --latest=false`, checks that `releases/latest` is still a `v*` tag, then runs `mods.ps1 add`.
-- Staged: `dist/hud-v0.1.0/HylandHud.zip` (entry `Mods/HylandHud.dll`, sha256 `577b9ac7…d91a`).
+- Staged: `dist/hud-v0.1.0/HylandHud.zip` (entry `Mods/HylandHud.dll`; re-staged in session 9).
 - Dropped the GIF/artifact demo work (server focus only): `mods/hud/preview` writes just the layout and sprite PNGs.
 
 ### Next Steps
@@ -28,8 +80,7 @@ updated: 2026-11-02
    prefab's slot "bop" animation fights the selected-slot lift.
 2. On Blazzer's go-ahead only: push main, `pwsh scripts/mod-release.ps1 hud -Publish`, `pwsh scripts/mods.ps1 publish`,
    then confirm `Mod list: revision N from Online` in `bash scripts/logs.sh`.
-3. Awaiting Blazzer's OK to delete: old launcher builds `dist/v0.1.0`–`v0.1.2`; `%TEMP%\hlmm-1.2.0`, `hlmm-1.2.1`,
-   `hl-verify-013`, `hl-test-webview`. Artifact `Ud8ETT6ri6ta6HMK9VvLHx` stays up until Blazzer decides.
+3. (Done in session 9: leftovers deleted.)
 
 ### Files Modified
 - `mods/hud/**` (new), `scripts/mod-release.ps1` (new), `CLAUDE.md` (map), `mods/minimap/README.md` (ship line)
