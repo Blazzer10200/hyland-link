@@ -1,6 +1,6 @@
 {
-  "schema": 1,
-  "revision": 1,
+  "schema": 2,
+  "revision": 2,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -23,6 +23,7 @@
     "dllSha256": "ea4f211322acc12c49d3a12584e71b2e94280074180c9828b0e086afece4073d",
     "removeDlls": ["Mods/DedicatedServerMod_Mono_Client.dll"]
   },
+  "mods": [],
   "launcher": {
     "version": "0.1.0",
     "downloadUrl": "https://github.com/Blazzer10200/hyland-link/releases/latest"

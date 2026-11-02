@@ -8,14 +8,18 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 
 ## Map
 - `app/src-tauri/src/lib.rs`: every Tauri command (state, install, play, status, updater) + plugin setup.
-- `app/src-tauri/src/{game,install,favorites,status,manifest}.rs`: Steam detection, install/uninstall, the mod's
-  favorites file, the `DS_STATUS` query, the version file (built-in vs online by `revision`).
-- `app/src/lib/launcher.svelte.ts`: the whole UI state machine (phases, current step, self-update).
-- `app/src/lib/components/`: `Steps` (the stepper), `ActionBar` (big button + More menu), `ServerCard`, `TitleBar`.
+- `app/src-tauri/src/{game,install,favorites,status,manifest}.rs`: Steam detection, install/uninstall (incl. extra
+  mods, tracked per file in `UserData/HylandLink.json`), the mod's favorites file, the `DS_STATUS` query, the version
+  file (built-in vs online by `revision`, schema 2).
+- `app/src/lib/launcher.svelte.ts`: the whole UI state machine (phases, current step, self-update, mod-list rechecks
+  every 5 min / on focus / before Play).
+- `app/src/lib/components/`: `Steps` (the stepper), `ActionBar` (big button + More menu), `ModsSheet` (the server's
+  mod list), `ServerCard`, `TitleBar`.
 - `app/src/routes/+page.svelte`: layout, toasts, the self-update overlay. `app/src/app.css`: design tokens.
 - `app/src/lib/dev-mock.ts`: fake backend for the browser preview (`.claude/launch.json` → `hyland-link-ui`, port 1420,
   viewport 460x720).
-- `manifest/manifest.json`: what friends install. `scripts/release.sh`: the only way to ship a launcher build.
+- `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
+  mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 
 ## Never break
 - **Updater key:** `C:/AI Workflow/.secrets/hyland-link-updater.key` (minisign, empty password). Its pubkey is in
@@ -26,6 +30,10 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   fails verification on every friend's PC.
 - **Versions:** `app/package.json`, `app/src-tauri/Cargo.toml` and `tauri.conf.json` must match. The script refuses a
   mismatch.
+- **One rule set, three places:** manifest validation (allowed hosts, `Mods/ Plugins/ UserLibs/ UserData/` paths,
+  ids, hashes) is mirrored in `manifest.rs`, `scripts/mods.ps1` and schedule1-server's `s1ds-mods`. Change one,
+  change all three, or the server and players can disagree about the same file.
+- **Mods flow one way:** server first, then `main`. Never push a manifest whose mods the server doesn't run yet.
 - **Public repo hygiene:** nothing from `schedule1-server` goes in here (the ntfy topic lives in its scripts). The
   server IP in `manifest/manifest.json` is public on purpose.
 - **Releases move only when published:** a draft doesn't update `releases/latest`. The asset is always named

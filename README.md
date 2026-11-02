@@ -17,13 +17,26 @@ You need Schedule I on Steam, on the normal version (not a beta branch).
 
 - **The launcher:** on every start it checks this repo's newest release. If there's a newer one, it downloads it,
   checks the signature, installs it and reopens. You don't click anything.
-- **The server mod:** [`manifest/manifest.json`](manifest/manifest.json) says which MelonLoader and mod versions the
-  server runs. When it changes, the launcher shows **Update** and installs the new files in one click.
+- **The server's mods:** [`manifest/manifest.json`](manifest/manifest.json) lists the MelonLoader version, the server
+  mod and every extra mod the server runs. The launcher re-reads it every few minutes; when it changes, the button
+  turns into **Update** and installs exactly what the server has, in one click. It only removes mods it installed
+  itself, never your own.
 
 ## For Blazzer: shipping changes
 
-Mod or server change (new mod version, new IP, a notice for everyone): edit `manifest/manifest.json`, raise its
-`revision`, and push `main`. Every launcher reads it on its next start.
+Mods (new S1DS version, extra mods), all from this folder:
+
+```bash
+pwsh scripts/mods.ps1 add <Thunderstore or GitHub zip URL>   # or: remove <id> · server-mod <tag> · list
+pwsh scripts/mods.ps1 publish                                # server applies it first, then main is pushed
+```
+
+`publish` checks the file with the launcher's own rules, applies it on the server (waiting until nobody's online
+unless `-Now`), confirms the server booted on the same MelonLoader players get, and only then pushes `main`. Each mod
+has a `side`: `both` (default), `server` (never reaches players) or `client` (players only).
+
+Other manifest changes (new IP, a notice for everyone): edit `manifest/manifest.json`, raise its `revision`, and push
+`main`.
 
 Launcher change:
 
@@ -39,6 +52,7 @@ installed launchers can't verify another update, and everyone has to reinstall o
 
 ```
 app/                 the Tauri 2 + Svelte 5 app (see app/README.md)
-manifest/            the version file the launcher reads (built in, and fetched from main)
+manifest/            the version file the launcher and the server both follow (built in, and fetched from main)
+scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/release.sh   build, sign and publish a release
 ```

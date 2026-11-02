@@ -26,7 +26,7 @@ Removing the mod from the More menu leaves other mods and `UserData` alone.
 
 ```bash
 pnpm install
-pnpm dev                      # UI in a browser with a fake backend: ?s=setup|update|installing|closegame|firstlaunch|firstrun|ready|playing|offline|branch|nogame|selfupdate
+pnpm dev                      # UI in a browser with a fake backend: ?s=setup|update|mods|nomods|installing|closegame|firstlaunch|firstrun|ready|playing|offline|branch|nogame|selfupdate
 pnpm tauri dev                # the real app
 pnpm check                    # svelte-check
 cd src-tauri && cargo test    # unit tests; add `-- --ignored` for the real download + install into a temp folder

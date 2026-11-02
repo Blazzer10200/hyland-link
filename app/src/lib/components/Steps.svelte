@@ -8,7 +8,14 @@
     step,
     phase,
     progress,
-  }: { snapshot: Snapshot | null; step: StepNumber; phase: Phase; progress: InstallProgress | null } = $props();
+    onShowMods,
+  }: {
+    snapshot: Snapshot | null;
+    step: StepNumber;
+    phase: Phase;
+    progress: InstallProgress | null;
+    onShowMods: () => void;
+  } = $props();
 
   type ItemState = "done" | "active" | "pending";
 
@@ -28,31 +35,70 @@
   const installing = $derived(phase === "installing");
   const percent = $derived(progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null);
 
+  /** The server's extra mods, summed up for one line: "3 mods, all set", "1 new · 1 update · 1 to remove". */
+  const extras = $derived.by(() => {
+    const install = snapshot?.install;
+    if (!install || (install.mods.length === 0 && install.staleMods.length === 0)) return null;
+    const fresh = install.mods.filter((m) => !m.installed).length;
+    const updates = install.mods.filter((m) => m.installed && !m.upToDate).length;
+    const removals = install.staleMods.length;
+    const parts = [fresh && `${fresh} new`, updates && `${updates} update${updates > 1 ? "s" : ""}`, removals && `${removals} to remove`];
+    const changes = parts.filter(Boolean).join(" · ");
+    return { count: install.mods.length, current: changes === "", note: changes || `${install.mods.length} mod${install.mods.length === 1 ? "" : "s"}, all set` };
+  });
+
   const items = $derived.by(() => {
     if (!snapshot?.install) return [];
     const { melonloader, serverMod } = snapshot.install;
     const downloading = progress?.step ?? "melonloader";
-    const mlState: ItemState =
-      melonloader.upToDate || (installing && downloading === "mod") ? "done" : installing && downloading === "melonloader" ? "active" : "pending";
-    const modState: ItemState = serverMod.upToDate ? "done" : installing && downloading === "mod" ? "active" : "pending";
+    // The snapshot only refreshes after the whole install, so a later download step means the earlier ones are done.
+    const order = ["melonloader", "mod", "mods"];
+    const passed = (step: string) => installing && order.indexOf(downloading) > order.indexOf(step);
+    const itemState = (upToDate: boolean, step: string): ItemState =>
+      upToDate || passed(step) ? "done" : installing && downloading === step ? "active" : "pending";
     // An outdated copy says which version it replaces, so an update reads as an update.
     const note = (c: Component, fallback: string) => (c.installed && !c.upToDate && c.version ? `you have ${c.version}` : fallback);
-    return [
+    const list = [
       {
         id: "ml",
         label: `MelonLoader ${snapshot.manifest.melonloader.version}`,
         note: note(melonloader, "lets the game load mods"),
-        state: mlState,
+        state: itemState(melonloader.upToDate, "melonloader"),
+        showList: false,
       },
-      { id: "mod", label: `Server mod ${snapshot.manifest.mod.version}`, note: note(serverMod, "connects you to the server"), state: modState },
       {
-        id: "fav",
-        label: "Server saved to Favorites",
-        note: "so you never type an address",
-        state: (snapshot.favoriteAdded ? "done" : "pending") as ItemState,
+        id: "mod",
+        label: `Server mod ${snapshot.manifest.mod.version}`,
+        note: note(serverMod, "connects you to the server"),
+        state: itemState(serverMod.upToDate, "mod"),
+        showList: false,
       },
     ];
+    if (extras) {
+      list.push({
+        id: "mods",
+        label: "Server's mods",
+        note: installing && downloading === "mods" && progress ? `${progress.item} of ${progress.items}` : extras.note,
+        state: itemState(extras.current, "mods"),
+        showList: true,
+      });
+    }
+    list.push({
+      id: "fav",
+      label: "Server saved to Favorites",
+      note: "so you never type an address",
+      state: snapshot.favoriteAdded ? "done" : "pending",
+      showList: false,
+    });
+    return list;
   });
+
+  /** Step 2 says "mods" once the server runs extras besides the server mod. */
+  function modTitle(done: boolean) {
+    const mods = `server mod${extras ? "s" : ""}`;
+    if (done) return `${mods[0].toUpperCase()}${mods.slice(1)} installed`;
+    return `${phase === "update" ? "Update" : "Install"} the ${mods}`;
+  }
 
   function summary(n: number) {
     if (!snapshot) return "";
@@ -60,7 +106,7 @@
       case 1:
         return shortPath(snapshot.game.path ?? "");
       case 2:
-        return `MelonLoader ${snapshot.manifest.melonloader.version} · mod ${snapshot.manifest.mod.version}`;
+        return `MelonLoader ${snapshot.manifest.melonloader.version} · mod ${snapshot.manifest.mod.version}${extras ? ` · +${extras.count} mods` : ""}`;
       case 3:
         return "MelonLoader prepared the game";
       default:
@@ -89,7 +135,7 @@
 
       <div class="content">
         <div class="head">
-          <span class="title">{state === "done" ? s.doneTitle : s.n === 2 && phase === "update" ? "Update the server mod" : s.title}</span>
+          <span class="title">{s.n === 2 ? modTitle(state === "done") : state === "done" ? s.doneTitle : s.title}</span>
           {#if state === "done"}
             <span class="summary" class:mono={s.n === 1} title={s.n === 1 ? (snapshot?.game.path ?? "") : ""} in:fade={{ duration: 300 }}
               >{summary(s.n)}</span
@@ -136,8 +182,13 @@
                     </span>
                     <span class="item-label">{item.label}</span>
                     <span class="item-note">
-                      {#if item.state === "active" && percent !== null}<span class="mono">{percent}%</span>{:else}{item.note}{/if}
+                      {#if item.state === "active" && item.showList}{item.note}{#if percent !== null}<span class="mono"> · {percent}%</span
+                          >{/if}{:else if item.state === "active" && percent !== null}<span class="mono">{percent}%</span
+                        >{:else}{item.note}{/if}
                     </span>
+                    {#if item.showList}
+                      <button type="button" class="see-list" onclick={onShowMods}>See list</button>
+                    {/if}
                   </li>
                 {/each}
               </ul>
@@ -344,9 +395,21 @@
   }
   .items li {
     display: grid;
-    grid-template-columns: 18px auto 1fr;
+    grid-template-columns: 18px auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 9px;
+  }
+  .see-list {
+    border: 0;
+    background: transparent;
+    padding: 2px 0;
+    color: var(--sodium);
+    font-size: 11.5px;
+    font-weight: 650;
+  }
+  .see-list:hover {
+    color: var(--sodium-hot);
+    text-decoration: underline;
   }
   .dot {
     width: 18px;

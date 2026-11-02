@@ -22,6 +22,10 @@ export type StepNumber = 1 | 2 | 3 | 4;
 
 const SERVER_POLL_MS = 15_000;
 const GAME_POLL_MS = 4_000;
+/** How often the server's mod list is re-read from GitHub while the launcher is open. */
+const MANIFEST_POLL_MS = 5 * 60_000;
+/** A focus or Play reuses a mod-list check younger than this instead of asking GitHub again. */
+const MANIFEST_FRESH_MS = 60_000;
 
 function message(error: unknown): string {
   return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
@@ -37,8 +41,9 @@ class Launcher {
   step = $derived.by<StepNumber>(() => {
     const s = this.snapshot;
     if (!s || !s.game.found || !s.install || s.game.branch) return 1;
-    const { melonloader, serverMod, firstLaunchDone } = s.install;
-    if (this.installing || !(melonloader.upToDate && serverMod.upToDate && s.favoriteAdded)) return 2;
+    const { melonloader, serverMod, mods, staleMods, firstLaunchDone } = s.install;
+    const modsCurrent = mods.every((m) => m.upToDate) && staleMods.length === 0;
+    if (this.installing || !(melonloader.upToDate && serverMod.upToDate && modsCurrent && s.favoriteAdded)) return 2;
     return firstLaunchDone ? 4 : 3;
   });
 
@@ -66,6 +71,11 @@ class Launcher {
   selfUpdate = $state<{ version: string; percent: number | null } | null>(null);
   /** A launcher version that failed to auto-install, offered as a manual download instead. */
   launcherUpdate = $state<string | null>(null);
+  /** The "Mods on this server" sheet. */
+  modsOpen = $state(false);
+  /** Says why a ready player is suddenly back at "Update". */
+  notice = $state<string | null>(null);
+  private manifestCheckedAt = 0;
 
   async load() {
     try {
@@ -110,7 +120,34 @@ class Launcher {
       }
     });
 
-  play = () => this.act(() => api.play());
+  /** Re-reads the server's mod list, then the game folder. Skipped while installing or when checked < maxAgeMs ago. */
+  private async syncManifest(maxAgeMs = 0) {
+    if (this.installing || Date.now() - this.manifestCheckedAt < maxAgeMs) return;
+    this.manifestCheckedAt = Date.now();
+    const wasReady = this.step >= 3;
+    const revision = this.snapshot?.manifest.revision;
+    try {
+      await api.refreshManifest();
+      await this.load();
+    } catch (e) {
+      this.error = message(e);
+      return;
+    }
+    if (wasReady && this.step === 2 && this.snapshot?.manifest.revision !== revision) {
+      this.notice = "The server's mods just changed. Update to keep playing.";
+    }
+  }
+
+  play = () =>
+    this.act(async () => {
+      // Never launch on mods the server just replaced: the button turns into Update instead.
+      await this.syncManifest(MANIFEST_FRESH_MS);
+      if (this.step < 3) {
+        this.notice ??= "The server's mods just changed. Update first, then play.";
+        return;
+      }
+      await api.play();
+    });
   openGameFolder = () => this.act(() => api.openGameFolder());
   openLauncherDownload = () => this.act(() => api.openLauncherDownload());
   uninstall = (melonloader: boolean) => this.act(() => api.uninstall(melonloader));
@@ -123,6 +160,18 @@ class Launcher {
 
   dismissError = () => {
     this.error = null;
+  };
+
+  dismissNotice = () => {
+    this.notice = null;
+  };
+
+  showMods = () => {
+    this.modsOpen = true;
+  };
+
+  hideMods = () => {
+    this.modsOpen = false;
   };
 
   /** Friends never update the launcher by hand: a newer signed build on GitHub installs itself on start. */
@@ -156,20 +205,19 @@ class Launcher {
     await this.load();
     void this.checkServer();
     void this.updateLauncher();
-    // Pick up the online version file without holding up the first paint.
-    api
-      .refreshManifest()
-      .then(() => this.load())
-      .catch((e) => {
-        this.error = message(e);
-      });
+    // Pick up the online version file without holding up the first paint, then keep following it:
+    // whatever the server runs, every open launcher matches within minutes.
+    void this.syncManifest();
+    setInterval(() => void this.syncManifest(), MANIFEST_POLL_MS);
 
     setInterval(() => void this.checkServer(), SERVER_POLL_MS);
     setInterval(() => {
       if (!this.installing) void this.load();
     }, GAME_POLL_MS);
     await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused && !this.installing) void this.load();
+      if (!focused || this.installing) return;
+      void this.load();
+      void this.syncManifest(MANIFEST_FRESH_MS);
     });
   }
 }

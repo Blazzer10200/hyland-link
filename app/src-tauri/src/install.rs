@@ -1,5 +1,6 @@
-//! Installing / checking MelonLoader and the server client mod in the game folder.
+//! Installing / checking MelonLoader, the server client mod and the server's extra mods in the game folder.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
@@ -8,7 +9,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::manifest::Manifest;
+use crate::manifest::{ExtraMod, Manifest};
 
 const MARKER: &str = "UserData/HylandLink.json";
 const MAX_DOWNLOAD: u64 = 256 * 1024 * 1024;
@@ -26,8 +27,34 @@ pub struct Component {
 pub struct InstallState {
     pub melonloader: Component,
     pub server_mod: Component,
+    /// The server's extra mods this PC needs, in manifest order.
+    pub mods: Vec<ModStatus>,
+    /// Mods this launcher installed that the server dropped; the next install removes them.
+    pub stale_mods: Vec<StaleMod>,
     /// MelonLoader finished its slow first IL2CPP setup (it writes Il2CppAssemblies on the first launch).
     pub first_launch_done: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModStatus {
+    pub id: String,
+    pub name: String,
+    pub blurb: String,
+    /// The version the server runs.
+    pub version: String,
+    pub installed: bool,
+    /// The version on this PC, when known.
+    pub installed_version: Option<String>,
+    pub up_to_date: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StaleMod {
+    pub id: String,
+    pub name: String,
+    pub version: String,
 }
 
 /// What this launcher installed last time, kept next to the mod's own data.
@@ -36,6 +63,16 @@ pub struct InstallState {
 struct Marker {
     melonloader: Option<String>,
     server_mod: Option<String>,
+    /// Extra mods by id, with every file written, so removal never touches anything else.
+    #[serde(default)]
+    mods: BTreeMap<String, InstalledMod>,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+struct InstalledMod {
+    name: String,
+    version: String,
+    files: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -43,6 +80,9 @@ struct Marker {
 pub struct Progress<'a> {
     pub step: &'a str,
     pub label: &'a str,
+    /// 1-based position among this step's downloads (extra mods come several to a step).
+    pub item: usize,
+    pub items: usize,
     pub done: u64,
     pub total: u64,
 }
@@ -57,6 +97,56 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 fn game_file(game: &Path, relative: &str) -> PathBuf {
     relative.split('/').fold(game.to_path_buf(), |path, part| path.join(part))
+}
+
+fn file_matches(path: &Path, sha256: &str) -> bool {
+    fs::read(path).map(|b| sha256_hex(&b) == sha256).unwrap_or(false)
+}
+
+fn write_game_file(game: &Path, relative: &str, data: &[u8]) -> Result<(), String> {
+    let target = game_file(game, relative);
+    fs::create_dir_all(target.parent().expect("game file has a parent")).map_err(|e| e.to_string())?;
+    fs::write(&target, data).map_err(|e| format!("Couldn't write {relative}: {e}"))
+}
+
+fn remove_game_file(game: &Path, relative: &str) -> Result<(), String> {
+    let path = game_file(game, relative);
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("Couldn't remove {relative}: {e}"))?;
+    }
+    Ok(())
+}
+
+fn mod_status(game: &Path, m: &ExtraMod, marker: &Marker) -> ModStatus {
+    let previous = marker.mods.get(&m.id);
+    let exists = |relative: &String| game_file(game, relative).is_file();
+    let installed = m.files.iter().any(|f| exists(&f.path)) || previous.is_some_and(|p| p.files.iter().any(exists));
+    // A file an older version shipped that this one doesn't still has to go.
+    let leftovers =
+        previous.is_some_and(|p| p.files.iter().any(|old| m.files.iter().all(|f| &f.path != old) && exists(old)));
+    let up_to_date = !leftovers && m.files.iter().all(|f| file_matches(&game_file(game, &f.path), &f.sha256));
+    ModStatus {
+        id: m.id.clone(),
+        name: m.name.clone(),
+        blurb: m.blurb.clone(),
+        version: m.version.clone(),
+        installed,
+        installed_version: if up_to_date { Some(m.version.clone()) } else { previous.map(|p| p.version.clone()) },
+        up_to_date,
+    }
+}
+
+fn is_stale(manifest: &Manifest, id: &str) -> bool {
+    !manifest.client_mods().any(|m| m.id == id)
+}
+
+fn stale_mods(game: &Path, manifest: &Manifest, marker: &Marker) -> Vec<StaleMod> {
+    marker
+        .mods
+        .iter()
+        .filter(|(id, m)| is_stale(manifest, id) && m.files.iter().any(|f| game_file(game, f).is_file()))
+        .map(|(id, m)| StaleMod { id: id.clone(), name: m.name.clone(), version: m.version.clone() })
+        .collect()
 }
 
 /// MelonLoader writes "MelonLoader v0.7.2 Open-Beta" near the top of Latest.log on every launch.
@@ -92,6 +182,8 @@ pub fn state(game: &Path, manifest: &Manifest) -> InstallState {
     InstallState {
         melonloader: Component { installed: ml_installed, version: ml_version, up_to_date: ml_installed && ml_current },
         server_mod: Component { installed: mod_installed, version: mod_version, up_to_date: mod_current },
+        mods: manifest.client_mods().map(|m| mod_status(game, m, &marker)).collect(),
+        stale_mods: stale_mods(game, manifest, &marker),
         first_launch_done,
     }
 }
@@ -100,10 +192,11 @@ fn download(
     on_progress: &dyn Fn(Progress),
     step: &str,
     label: &str,
+    (item, items): (usize, usize),
     url: &str,
     expected_sha256: &str,
 ) -> Result<Vec<u8>, String> {
-    let emit = |done, total| on_progress(Progress { step, label, done, total });
+    let emit = |done, total| on_progress(Progress { step, label, item, items, done, total });
     emit(0, 0);
     let mut response = ureq::get(url)
         .config()
@@ -161,20 +254,62 @@ fn extract_all(bytes: &[u8], dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Reads the named entries out of a zip, checking each against its hash before anything is written.
+fn extract_verified(bytes: &[u8], what: &str, wanted: &[(&str, &str)]) -> Result<Vec<Vec<u8>>, String> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Bad {what} archive: {e}"))?;
+    let mut contents = Vec::with_capacity(wanted.len());
+    for (name, sha256) in wanted {
+        let mut entry = archive.by_name(name).map_err(|_| format!("The {what} archive is missing {name}"))?;
+        let mut data = Vec::with_capacity(entry.size() as usize);
+        entry.read_to_end(&mut data).map_err(|e| e.to_string())?;
+        if sha256_hex(&data) != *sha256 {
+            return Err(format!("{what}: {name} didn't match its checksum, so I didn't install it. Tell Blazzer."));
+        }
+        contents.push(data);
+    }
+    Ok(contents)
+}
+
 /// Pulls just the client DLL out of the mod archive and checks it against the expected hash.
 fn extract_dll(bytes: &[u8], manifest: &Manifest, game: &Path) -> Result<(), String> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Bad mod archive: {e}"))?;
-    let mut entry = archive
-        .by_name(&manifest.mod_package.dll)
-        .map_err(|_| format!("The mod archive is missing {}", manifest.mod_package.dll))?;
-    let mut dll = Vec::with_capacity(entry.size() as usize);
-    entry.read_to_end(&mut dll).map_err(|e| e.to_string())?;
-    if sha256_hex(&dll) != manifest.mod_package.dll_sha256 {
-        return Err("The server mod DLL didn't match its checksum, so I didn't install it. Tell Blazzer.".into());
+    let package = &manifest.mod_package;
+    let dll = extract_verified(bytes, "server mod", &[(package.dll.as_str(), package.dll_sha256.as_str())])?.remove(0);
+    write_game_file(game, &package.dll, &dll)
+}
+
+/// Writes one verified extra mod, dropping files an older version of it shipped that this one doesn't.
+fn install_mod(game: &Path, m: &ExtraMod, bytes: &[u8], marker: &mut Marker) -> Result<(), String> {
+    let wanted: Vec<(&str, &str)> = m.files.iter().map(|f| (f.source.as_str(), f.sha256.as_str())).collect();
+    let contents = extract_verified(bytes, &m.name, &wanted)?;
+    if let Some(previous) = marker.mods.get(&m.id) {
+        for old in previous.files.iter().filter(|old| m.files.iter().all(|f| &f.path != *old)) {
+            remove_game_file(game, old)?;
+        }
     }
-    let target = game_file(game, &manifest.mod_package.dll);
-    fs::create_dir_all(target.parent().expect("mod dll has a parent")).map_err(|e| e.to_string())?;
-    fs::write(&target, dll).map_err(|e| format!("Couldn't write the server mod: {e}"))
+    for (file, data) in m.files.iter().zip(&contents) {
+        write_game_file(game, &file.path, data)?;
+    }
+    marker.mods.insert(
+        m.id.clone(),
+        InstalledMod {
+            name: m.name.clone(),
+            version: m.version.clone(),
+            files: m.files.iter().map(|f| f.path.clone()).collect(),
+        },
+    );
+    Ok(())
+}
+
+/// Removes the mods this launcher installed that the server no longer runs, file by file from the marker.
+fn remove_stale(game: &Path, manifest: &Manifest, marker: &mut Marker) -> Result<(), String> {
+    let stale: Vec<String> = marker.mods.keys().filter(|id| is_stale(manifest, id)).cloned().collect();
+    for id in stale {
+        for file in &marker.mods[&id].files {
+            remove_game_file(game, file)?;
+        }
+        marker.mods.remove(&id);
+    }
+    Ok(())
 }
 
 fn write_marker(game: &Path, marker: &Marker) -> Result<(), String> {
@@ -190,7 +325,8 @@ pub fn install(game: &Path, manifest: &Manifest, on_progress: &dyn Fn(Progress))
 
     if !current.melonloader.up_to_date {
         let label = format!("MelonLoader {}", manifest.melonloader.version);
-        let bytes = download(on_progress, "melonloader", &label, &manifest.melonloader.url, &manifest.melonloader.sha256)?;
+        let bytes =
+            download(on_progress, "melonloader", &label, (1, 1), &manifest.melonloader.url, &manifest.melonloader.sha256)?;
         extract_all(&bytes, game)?;
         marker.melonloader = Some(manifest.melonloader.version.clone());
         write_marker(game, &marker)?;
@@ -199,33 +335,51 @@ pub fn install(game: &Path, manifest: &Manifest, on_progress: &dyn Fn(Progress))
     if !current.server_mod.up_to_date {
         let mod_package = &manifest.mod_package;
         let label = format!("server mod {}", mod_package.version);
-        let bytes = download(on_progress, "mod", &label, &mod_package.url, &mod_package.sha256)?;
+        let bytes = download(on_progress, "mod", &label, (1, 1), &mod_package.url, &mod_package.sha256)?;
         extract_dll(&bytes, manifest, game)?;
         for stale in &mod_package.remove_dlls {
-            let path = game_file(game, stale);
-            if path.is_file() {
-                fs::remove_file(&path).map_err(|e| format!("Couldn't remove the old {stale}: {e}"))?;
-            }
+            remove_game_file(game, stale)?;
         }
         marker.server_mod = Some(mod_package.version.clone());
+        write_marker(game, &marker)?;
+    }
+
+    let tracked = marker.mods.len();
+    remove_stale(game, manifest, &mut marker)?;
+    if marker.mods.len() != tracked {
+        write_marker(game, &marker)?;
+    }
+
+    let pending: Vec<&ExtraMod> = manifest
+        .client_mods()
+        .filter(|m| !current.mods.iter().any(|s| s.id == m.id && s.up_to_date))
+        .collect();
+    for (i, m) in pending.iter().enumerate() {
+        let label = format!("{} {}", m.name, m.version);
+        let bytes = download(on_progress, "mods", &label, (i + 1, pending.len()), &m.url, &m.sha256)?;
+        install_mod(game, m, &bytes, &mut marker)?;
         write_marker(game, &marker)?;
     }
     Ok(())
 }
 
-/// Removes the server mod and this launcher's marker; with `melonloader`, also MelonLoader's loader files.
-/// Leaves Mods/, UserData/ and anything else the player added.
+/// Removes the server mod, the server's extra mods and this launcher's marker; with `melonloader`, also
+/// MelonLoader's loader files. Leaves UserData/ and every mod the player added themselves.
 pub fn uninstall(game: &Path, manifest: &Manifest, melonloader: bool) -> Result<(), String> {
-    let remove_file = |path: PathBuf| -> Result<(), String> {
-        if path.is_file() {
-            fs::remove_file(&path).map_err(|e| format!("Couldn't remove {}: {e}", path.display()))?;
+    let marker = read_marker(game);
+    for file in marker.mods.values().flat_map(|m| &m.files) {
+        remove_game_file(game, file)?;
+    }
+    // Files that match the current list byte for byte came from this launcher too, even without a marker entry.
+    for file in manifest.client_mods().flat_map(|m| &m.files) {
+        if file_matches(&game_file(game, &file.path), &file.sha256) {
+            remove_game_file(game, &file.path)?;
         }
-        Ok(())
-    };
-    remove_file(game_file(game, &manifest.mod_package.dll))?;
-    remove_file(game.join(MARKER))?;
+    }
+    remove_game_file(game, &manifest.mod_package.dll)?;
+    remove_game_file(game, MARKER)?;
     if melonloader {
-        remove_file(game.join("version.dll"))?;
+        remove_game_file(game, "version.dll")?;
         let loader = game.join("MelonLoader");
         if loader.is_dir() {
             fs::remove_dir_all(&loader).map_err(|e| format!("Couldn't remove MelonLoader: {e}"))?;
@@ -237,7 +391,84 @@ pub fn uninstall(game: &Path, manifest: &Manifest, melonloader: bool) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::{ModFile, Side};
     use std::cell::Cell;
+
+    fn zip_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        for (name, data) in files {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(data).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+
+    fn extra(id: &str, side: Side, archive: &[u8], files: &[(&str, &str, &[u8])]) -> ExtraMod {
+        ExtraMod {
+            id: id.into(),
+            name: format!("Mod {id}"),
+            version: "1.0.0".into(),
+            blurb: String::new(),
+            side,
+            url: "https://thunderstore.io/package/download/x/y/1.0.0/".into(),
+            sha256: sha256_hex(archive),
+            files: files
+                .iter()
+                .map(|(source, path, data)| ModFile { source: (*source).into(), path: (*path).into(), sha256: sha256_hex(data) })
+                .collect(),
+        }
+    }
+
+    /// Install, update (with a renamed file), refuse a tampered archive, then remove when the server drops it.
+    #[test]
+    fn installs_updates_and_removes_extra_mods() {
+        let game = std::env::temp_dir().join(format!("hyland-link-mods-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&game);
+        fs::create_dir_all(game.join("Mods")).unwrap();
+        fs::write(game.join("Mods").join("Mine.dll"), b"a friend's own mod").unwrap();
+        let mut manifest = crate::manifest::baked();
+
+        let v1 = zip_of(&[("Mods/Example.dll", b"v1"), ("README.md", b"hi")]);
+        let mut example = extra("example", Side::Both, &v1, &[("Mods/Example.dll", "Mods/Example.dll", b"v1")]);
+        let server_only = extra("admin", Side::Server, &v1, &[("Mods/Example.dll", "Mods/Admin.dll", b"v1")]);
+        manifest.mods = vec![example.clone(), server_only];
+
+        let fresh = state(&game, &manifest);
+        assert_eq!(fresh.mods.len(), 1, "server-only mods never reach players");
+        assert!(!fresh.mods[0].installed && !fresh.mods[0].up_to_date);
+
+        let mut marker = read_marker(&game);
+        install_mod(&game, &example, &v1, &mut marker).unwrap();
+        write_marker(&game, &marker).unwrap();
+        assert!(state(&game, &manifest).mods[0].up_to_date);
+
+        let v2 = zip_of(&[("Example2.dll", b"v2")]);
+        example = ExtraMod { version: "2.0.0".into(), ..extra("example", Side::Both, &v2, &[("Example2.dll", "Mods/Example2.dll", b"v2")]) };
+        manifest.mods = vec![example.clone()];
+        let outdated = state(&game, &manifest);
+        assert!(outdated.mods[0].installed && !outdated.mods[0].up_to_date);
+        assert_eq!(outdated.mods[0].installed_version.as_deref(), Some("1.0.0"));
+
+        install_mod(&game, &example, &v2, &mut marker).unwrap();
+        write_marker(&game, &marker).unwrap();
+        assert!(!game.join("Mods").join("Example.dll").exists(), "the old version's file is gone");
+        assert!(state(&game, &manifest).mods[0].up_to_date);
+
+        let tampered = zip_of(&[("Example2.dll", b"not what the manifest says")]);
+        assert!(install_mod(&game, &example, &tampered, &mut marker).is_err());
+        assert_eq!(fs::read(game.join("Mods").join("Example2.dll")).unwrap(), b"v2", "nothing written on a bad hash");
+
+        manifest.mods.clear();
+        assert_eq!(state(&game, &manifest).stale_mods.len(), 1);
+        remove_stale(&game, &manifest, &mut marker).unwrap();
+        write_marker(&game, &marker).unwrap();
+        assert!(!game.join("Mods").join("Example2.dll").exists());
+        assert!(state(&game, &manifest).stale_mods.is_empty());
+        assert!(game.join("Mods").join("Mine.dll").exists(), "a friend's own mod is never touched");
+        fs::remove_dir_all(&game).unwrap();
+    }
 
     /// Real downloads from GitHub into a fake game folder: `cargo test -- --ignored`.
     #[test]

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { fade, fly } from "svelte/transition";
   import ActionBar from "$lib/components/ActionBar.svelte";
+  import ModsSheet from "$lib/components/ModsSheet.svelte";
   import ServerCard from "$lib/components/ServerCard.svelte";
   import Steps from "$lib/components/Steps.svelte";
   import TitleBar from "$lib/components/TitleBar.svelte";
@@ -31,10 +32,16 @@
       <div in:fly={{ y: 10, duration: 420 }}>
         <ServerCard server={snapshot.manifest.server} status={launcher.server} checking={launcher.checkingServer} />
       </div>
-      <Steps {snapshot} step={launcher.step} phase={launcher.phase} progress={launcher.progress} />
+      <Steps {snapshot} step={launcher.step} phase={launcher.phase} progress={launcher.progress} onShowMods={launcher.showMods} />
     {/if}
 
     <div class="toasts" aria-live="polite">
+      {#if launcher.notice}
+        <div class="toast accent" transition:fly={{ y: 16, duration: 260 }}>
+          <p>{launcher.notice}</p>
+          <button type="button" onclick={launcher.dismissNotice}>OK</button>
+        </div>
+      {/if}
       {#if launcher.error}
         <div class="toast bad" role="alert" transition:fly={{ y: 16, duration: 260 }}>
           <p>{launcher.error}</p>
@@ -54,6 +61,10 @@
         </div>
       {/if}
     </div>
+
+    {#if launcher.modsOpen && snapshot?.install}
+      <ModsSheet install={snapshot.install} installing={launcher.installing} progress={launcher.progress} onClose={launcher.hideMods} />
+    {/if}
   </main>
 
   <ActionBar
@@ -65,6 +76,7 @@
     onPlay={launcher.play}
     onChooseFolder={launcher.chooseGameFolder}
     onOpenFolder={launcher.openGameFolder}
+    onShowMods={launcher.showMods}
     onUninstall={launcher.uninstall}
   />
 

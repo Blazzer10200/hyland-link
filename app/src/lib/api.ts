@@ -7,8 +7,20 @@ export type Manifest = {
   game: { appId: number; version: string };
   melonloader: { version: string; url: string; sha256: string };
   mod: { version: string; url: string; sha256: string; dll: string; dllSha256: string; removeDlls: string[] };
+  mods: ExtraMod[];
   launcher: { version: string; downloadUrl: string };
   notice: string;
+};
+
+export type ExtraMod = {
+  id: string;
+  name: string;
+  version: string;
+  blurb: string;
+  side: "both" | "client" | "server";
+  url: string;
+  sha256: string;
+  files: { source: string; path: string; sha256: string }[];
 };
 
 export type ManifestSource = { kind: "online" } | { kind: "builtIn"; reason: string };
@@ -23,9 +35,23 @@ export type GameInfo = {
 
 export type Component = { installed: boolean; version: string | null; upToDate: boolean };
 
+export type ModStatus = {
+  id: string;
+  name: string;
+  blurb: string;
+  version: string;
+  installed: boolean;
+  installedVersion: string | null;
+  upToDate: boolean;
+};
+
+export type StaleMod = { id: string; name: string; version: string };
+
 export type InstallState = {
   melonloader: Component;
   serverMod: Component;
+  mods: ModStatus[];
+  staleMods: StaleMod[];
   firstLaunchDone: boolean;
 };
 
@@ -48,7 +74,14 @@ export type ServerStatus = {
   error: string | null;
 };
 
-export type InstallProgress = { step: "melonloader" | "mod"; label: string; done: number; total: number };
+export type InstallProgress = {
+  step: "melonloader" | "mod" | "mods";
+  label: string;
+  item: number;
+  items: number;
+  done: number;
+  total: number;
+};
 
 export const api = {
   getState: () => invoke<Snapshot>("get_state"),

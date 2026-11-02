@@ -12,6 +12,7 @@
     onPlay,
     onChooseFolder,
     onOpenFolder,
+    onShowMods,
     onUninstall,
   }: {
     phase: Phase;
@@ -22,8 +23,11 @@
     onPlay: () => void;
     onChooseFolder: () => void;
     onOpenFolder: () => void;
+    onShowMods: () => void;
     onUninstall: (melonloader: boolean) => void;
   } = $props();
+
+  const hasExtras = $derived(!!snapshot?.install && snapshot.install.mods.length + snapshot.install.staleMods.length > 0);
 
   let menuOpen = $state(false);
   let confirming = $state<"mod" | "all" | null>(null);
@@ -135,6 +139,9 @@
             >Open game folder</button
           >
           <button type="button" role="menuitem" onclick={() => choose(onChooseFolder)}>Choose game folder…</button>
+          {#if hasExtras}
+            <button type="button" role="menuitem" onclick={() => choose(onShowMods)}>Server's mods</button>
+          {/if}
           <hr />
           <button
             type="button"
@@ -142,7 +149,9 @@
             class="danger"
             disabled={!snapshot?.install?.serverMod.installed || snapshot?.game.running}
             onclick={() => uninstall("mod")}
-            >{confirming === "mod" ? "Click again to remove the server mod" : "Remove server mod"}</button
+            >{confirming === "mod"
+              ? `Click again to remove the server mod${hasExtras ? "s" : ""}`
+              : `Remove server mod${hasExtras ? "s" : ""}`}</button
           >
           <button
             type="button"
@@ -150,7 +159,7 @@
             class="danger"
             disabled={!snapshot?.install?.melonloader.installed || snapshot?.game.running}
             onclick={() => uninstall("all")}
-            >{confirming === "all" ? "Click again to remove both" : "Remove server mod + MelonLoader"}</button
+            >{confirming === "all" ? "Click again to remove both" : `Remove server mod${hasExtras ? "s" : ""} + MelonLoader`}</button
           >
         </div>
       {/if}
