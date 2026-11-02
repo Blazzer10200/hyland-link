@@ -99,13 +99,12 @@ function snapshot(): Snapshot {
 const online: ServerStatus = {
   online: true,
   name: shipped.server.name,
-  description: "Blazzer and friends",
   players: 2,
   maxPlayers: 8,
   pingMs: 38,
   error: null,
 };
-const offline: ServerStatus = { online: false, name: null, description: null, players: null, maxPlayers: null, pingMs: null, error: "no answer" };
+const offline: ServerStatus = { online: false, name: null, players: null, maxPlayers: null, pingMs: null, error: "no answer" };
 
 // Fake Latest.log lines as [ms after page load, line], shaped like a real MelonLoader 0.7.2 + client mod 1.1.6 run.
 const header = (t: string): [number, string][] => [

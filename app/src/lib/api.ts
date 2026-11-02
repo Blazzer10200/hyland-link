@@ -66,7 +66,6 @@ export type Snapshot = {
 export type ServerStatus = {
   online: boolean;
   name: string | null;
-  description: string | null;
   players: number | null;
   maxPlayers: number | null;
   pingMs: number | null;

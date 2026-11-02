@@ -19,7 +19,7 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `app/src/lib/launcher.svelte.ts`: the whole UI state machine (phases, current step, self-update, mod-list rechecks
   every 5 min / on focus / before Play, the game log poll every 800 ms while the game runs or the log is open).
 - `app/src/lib/game-log.ts`: parses log lines and reads the game's stage off them (starting → preparing → loading → menu
-  → connecting → joined). The client-mod strings it matches come from DedicatedServerClient 1.1.6: recheck on a mod update.
+  → connecting → joined → closing). The client-mod strings it matches come from DedicatedServerClient 1.1.6: recheck on a mod update.
 - `app/src/lib/components/`: `Steps` (the stepper), `ActionBar` (the one big button; two-click "Leave server & close
   game" while playing), `GameStatus` (live stage + newest log line), `Sheet` (shared bottom sheet, one open at a time)
   under `ModsSheet` (the server's mod list), `LogSheet` (the game log) and `SettingsSheet` (the gear: game folder,

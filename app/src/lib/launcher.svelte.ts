@@ -150,7 +150,7 @@ class Launcher {
     try {
       this.server = await api.queryServer();
     } catch (e) {
-      this.server = { online: false, name: null, description: null, players: null, maxPlayers: null, pingMs: null, error: message(e) };
+      this.server = { online: false, name: null, players: null, maxPlayers: null, pingMs: null, error: message(e) };
     } finally {
       this.checkingServer = false;
     }

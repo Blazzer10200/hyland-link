@@ -1,7 +1,7 @@
 # Hyland Link
 
 The friend launcher for Blazzer's Schedule I server. It walks a friend through four steps on one screen, with no
-scrolling: **Find Schedule I → Install the server mods → Launch once to finish setup → Join the server**. Done steps
+scrolling: **Find Schedule I → Install the server mod → Launch once to finish setup → Join the server**. Done steps
 collapse to a check and a one-line summary. Only the current step opens up, and one big button at the bottom always
 does the next thing.
 

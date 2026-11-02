@@ -16,7 +16,6 @@ const MAX_RESPONSE: u64 = 16 * 1024;
 pub struct ServerStatus {
     pub online: bool,
     pub name: Option<String>,
-    pub description: Option<String>,
     pub players: Option<i64>,
     pub max_players: Option<i64>,
     pub ping_ms: Option<u128>,
@@ -47,7 +46,6 @@ fn try_query(host: &str, port: u16) -> Result<ServerStatus, String> {
     Ok(ServerStatus {
         online: true,
         name: text("ServerName"),
-        description: text("ServerDescription"),
         players: number("CurrentPlayers"),
         max_players: number("MaxPlayers"),
         ping_ms: Some(ping_ms),
