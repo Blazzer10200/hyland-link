@@ -492,7 +492,7 @@ mod tests {
         let after = state(&game, &manifest);
         assert!(after.melonloader.up_to_date, "{:?}", after.melonloader);
         assert!(after.server_mod.up_to_date, "{:?}", after.server_mod);
-        assert_eq!(after.melonloader.version.as_deref(), Some("0.7.2"));
+        assert_eq!(after.melonloader.version.as_deref(), Some(manifest.melonloader.version.as_str()));
         assert!(!game.join("Mods").join("DedicatedServerMod_Mono_Client.dll").exists(), "wrong-runtime DLL removed");
         assert!(game.join("Mods").join("SomeoneElsesMod.dll").exists(), "other mods untouched");
         let extra_files: Vec<_> =
@@ -505,6 +505,15 @@ mod tests {
         events.set(0);
         install(&game, &manifest, &|_| events.set(events.get() + 1)).unwrap();
         assert_eq!(events.get(), 0);
+
+        // An older MelonLoader (every player when the manifest moves on) gets the new one over it.
+        let mut marker = read_marker(&game);
+        marker.melonloader = Some("0.7.2".into());
+        write_marker(&game, &marker).unwrap();
+        assert!(!state(&game, &manifest).melonloader.up_to_date);
+        install(&game, &manifest, &|_| {}).unwrap();
+        let upgraded = state(&game, &manifest);
+        assert!(upgraded.melonloader.up_to_date && upgraded.server_mod.up_to_date, "{:?}", upgraded.melonloader);
 
         uninstall(&game, &manifest, true).unwrap();
         let removed = state(&game, &manifest);
