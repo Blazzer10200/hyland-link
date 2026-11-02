@@ -1,6 +1,6 @@
 [package]
 name = "hyland-link"
-version = "0.1.1"
+version = "0.1.2"
 description = "Join Blazzer's Schedule I server"
 authors = ["Blazzer"]
 edition = "2024"
