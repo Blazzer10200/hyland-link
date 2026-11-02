@@ -7,7 +7,7 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
-## Session 4 — 2026-11-02 03:35 (v0.1.1 released and verified)
+## Session 4 — 2026-11-02 04:01 (v0.1.1 released, Leave & close verified on the server)
 
 ### Completed
 - **v0.1.1 released** (session 3's console hide, live game status + log, Settings gear, Leave & close, launcher log).
@@ -25,13 +25,19 @@ updated: 2026-11-02
 - Kept in-file-only type exports and module-wide `pub` as they are: churn, not cleanup.
 - Manifest `launcher.version` stays `0.1.0`: nothing reads it, and bumping means a revision push for no effect.
 
+- **Leave & close while joined: passed** (03:59). Game had one `UnityWndClass` window and no console; WM_CLOSE →
+  mod "Notifying client mods of shutdown" → "Preferences Saved!" → process gone in 2 s; server dropped to 0 players
+  and kept running (same uptime).
+- Blazzer's PC hard-froze ~1 min into an earlier join (Kernel-Power 41, bugcheck 0, no power button): hardware/driver
+  class, not the launcher. A `hyland-link.exe` 0.1.0 `c0000409` at 03:18:01 predates the launcher log's first line
+  (03:18:32), so it was a pre-log session-3 dev build; nothing ties it to shipped code. `request_close`'s callback
+  can't panic.
+
 ### Next Steps
-1. Leave & close while **joined** (only tested at the main menu). Blazzer can do it solo: Play → join → Leave & close,
-   then `bash scripts/logs.sh` should show the mod's save + disconnect lines.
-2. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
-3. First extra mod when one's picked: `pwsh scripts/mods.ps1 add <url>` → `publish`.
-4. Optional: router DHCP reservation for .180 so nothing else gets handed that address.
-5. schedule1-server HANDOFF step 1 (router check) is answered above; update it next time that repo is open.
+1. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
+2. First extra mod when one's picked: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+3. Optional: router DHCP reservation for .180 so nothing else gets handed that address.
+4. schedule1-server HANDOFF step 1 (router check) is answered above; update it next time that repo is open.
 
 ### Files Modified
 - `app/src-tauri/src/status.rs`, `app/src/lib/{api.ts,dev-mock.ts,launcher.svelte.ts}`, `app/package.json`,
