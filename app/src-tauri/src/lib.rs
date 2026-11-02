@@ -132,12 +132,20 @@ async fn get_state(app: AppHandle, shared: State<'_, Shared>) -> Result<Snapshot
 async fn refresh_manifest(shared: State<'_, Shared>) -> Result<(), String> {
     let resolved = tauri::async_runtime::spawn_blocking(manifest::resolve).await.map_err(|e| e.to_string())?;
     let mut current = shared.manifest.lock().expect("manifest lock");
-    // A failed recheck keeps the online list already in use: falling back to the older built-in one would tell the
-    // player their mods changed, and Update would install the old ones.
-    if let (Source::BuiltIn { reason }, Source::Online) = (&resolved.1, &current.1)
-        && current.0.revision >= resolved.0.revision
-    {
-        warn!("Mod list recheck failed ({reason}); keeping revision {} from Online", current.0.revision);
+    // A recheck never goes back from the online list in use to an older one: a failed check falls back to the built-in
+    // list, and a CDN edge can serve the previous revision for a few minutes after a publish. Either way the player
+    // would be told their mods changed, and Update would install the old ones.
+    if matches!(current.1, Source::Online) && current.0.revision >= resolved.0.revision {
+        match &resolved.1 {
+            Source::BuiltIn { reason } => {
+                warn!("Mod list recheck failed ({reason}); keeping revision {} from Online", current.0.revision)
+            }
+            Source::Online if resolved.0.revision < current.0.revision => warn!(
+                "Mod list recheck got revision {} (an old cached copy); keeping revision {}",
+                resolved.0.revision, current.0.revision
+            ),
+            Source::Online => {}
+        }
         return Ok(());
     }
     let describe = |(m, s): &(Manifest, Source)| format!("revision {} from {s:?}", m.revision);
@@ -167,7 +175,11 @@ async fn run_install(app: AppHandle, shared: State<'_, Shared>) -> Result<(), St
             }
             let _ = emitter.emit("install-progress", p);
         })?;
-        favorites::ensure(&dir, &manifest.server.name, &manifest.server.host, manifest.server.port)
+        // Like Play: joining works without the favorite, so a file that can't be written doesn't fail the install.
+        if let Err(e) = favorites::ensure(&dir, &manifest.server.name, &manifest.server.host, manifest.server.port) {
+            warn!("Couldn't add the server to Favorites: {e}");
+        }
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -189,6 +201,9 @@ async fn query_server(shared: State<'_, Shared>) -> Result<status::ServerStatus,
 /// Hides MelonLoader's console first (the launcher shows its log instead), then starts the game through Steam.
 #[tauri::command]
 fn play(app: AppHandle, shared: State<Shared>) -> Result<(), String> {
+    if shared.busy.load(Ordering::Acquire) {
+        return Err("Hyland Link is still busy with the game folder. Wait for it to finish, then press Play.".into());
+    }
     let manifest = manifest(&shared);
     let (dir, _) = require_game(&app, &manifest)?;
     // Puts the server back in Favorites if the player removed it in game; joining still works without it.
@@ -226,9 +241,9 @@ fn open_launcher_logs(app: AppHandle) -> Result<(), String> {
 }
 
 /// Takes the server mods and MelonLoader out of the game, then hands over to Hyland Link's own uninstaller
-/// (which asks for confirmation itself) and closes the launcher.
+/// (which asks for confirmation itself) and closes the launcher. Off the main thread, like `uninstall`.
 #[tauri::command]
-fn uninstall_launcher(app: AppHandle, shared: State<Shared>) -> Result<(), String> {
+async fn uninstall_launcher(app: AppHandle, shared: State<'_, Shared>) -> Result<(), String> {
     let uninstaller = std::env::current_exe()
         .map_err(|e| e.to_string())?
         .parent()
@@ -242,7 +257,10 @@ fn uninstall_launcher(app: AppHandle, shared: State<Shared>) -> Result<(), Strin
         if game.running {
             return Err("Schedule I is running. Close the game first, then try again.".into());
         }
-        install::uninstall(&PathBuf::from(path), &manifest, true)?;
+        let dir = PathBuf::from(path);
+        tauri::async_runtime::spawn_blocking(move || install::uninstall(&dir, &manifest, true))
+            .await
+            .map_err(|e| e.to_string())??;
         info!("Removed the server mods and MelonLoader before uninstalling");
     }
     info!("Starting the Hyland Link uninstaller");
@@ -296,11 +314,13 @@ async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
     Ok(update.map(|u| u.version))
 }
 
-/// Downloads the new launcher, streaming "update-progress" (0..=100). The plugin checks the minisign signature
-/// against the pubkey in tauri.conf.json first. On Windows the NSIS installer then closes this app and reopens
-/// the new one; restart() only runs where that doesn't happen.
+/// Downloads the new launcher, streaming "update-progress" (0..=100, or null when the size is unknown: then one event
+/// per MiB, so the UI can still tell a slow download from a stalled one). The plugin checks the minisign signature
+/// against the pubkey in tauri.conf.json. On Windows the NSIS installer then closes this app and reopens the new one;
+/// restart() only runs where that doesn't happen. The install waits for nothing: if the UI gave up on a slow download
+/// and a mod install started meanwhile, the update is skipped rather than closing the launcher mid-install.
 #[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
+async fn install_update(app: AppHandle, shared: State<'_, Shared>) -> Result<(), String> {
     let update = app
         .updater()
         .map_err(|e| e.to_string())?
@@ -311,18 +331,25 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     info!("Installing launcher {}", update.version);
     let progress = app.clone();
     let mut downloaded: u64 = 0;
-    update
-        .download_and_install(
+    let mut last_mark = None;
+    let bytes = update
+        .download(
             move |chunk, total| {
                 downloaded += chunk as u64;
-                if let Some(total) = total.filter(|t| *t > 0) {
-                    let _ = progress.emit("update-progress", ((downloaded * 100) / total).min(100));
+                let percent = total.filter(|t| *t > 0).map(|t| ((downloaded * 100) / t).min(100));
+                let mark = percent.unwrap_or(downloaded >> 20);
+                if last_mark != Some(mark) {
+                    last_mark = Some(mark);
+                    let _ = progress.emit("update-progress", percent);
                 }
             },
             || {},
         )
         .await
         .map_err(|e| e.to_string())?;
+    let _busy = claim_game_folder(&shared.busy)
+        .map_err(|_| "Hyland Link is installing mods, so the update waits for the next start.".to_string())?;
+    update.install(bytes).map_err(|e| e.to_string())?;
     app.restart();
 }
 
@@ -393,6 +420,16 @@ pub fn run() {
                 style_window_frame(&window);
             }
             Ok(())
+        })
+        // Closing mid-install would leave the game folder half written; the UI says why the window stayed open.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && window.state::<Shared>().busy.load(Ordering::Acquire)
+            {
+                api.prevent_close();
+                info!("Close blocked: the game folder is still being changed");
+                let _ = window.emit("close-blocked", ());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_state,

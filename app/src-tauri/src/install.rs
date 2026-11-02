@@ -4,8 +4,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use log::warn;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -87,8 +88,20 @@ pub struct Progress<'a> {
     pub total: u64,
 }
 
+/// A damaged marker is moved aside (never deleted) and read as empty, so the next install writes a fresh one and the
+/// launcher log says what happened.
 fn read_marker(game: &Path) -> Marker {
-    fs::read_to_string(game.join(MARKER)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    let path = game.join(MARKER);
+    let Ok(text) = fs::read_to_string(&path) else { return Marker::default() };
+    serde_json::from_str(&text).unwrap_or_else(|e| {
+        let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let backup = path.with_extension(format!("json.unreadable-{secs}"));
+        match fs::rename(&path, &backup) {
+            Ok(()) => warn!("{MARKER} was damaged ({e}); moved it to {}", backup.display()),
+            Err(r) => warn!("{MARKER} is damaged ({e}) and couldn't be moved aside ({r})"),
+        }
+        Marker::default()
+    })
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -110,6 +123,10 @@ fn write_game_file(game: &Path, relative: &str, data: &[u8]) -> Result<(), Strin
 }
 
 fn remove_game_file(game: &Path, relative: &str) -> Result<(), String> {
+    // Paths also come back from the marker, which isn't validated like the manifest: never leave the game folder.
+    if relative.split('/').any(|part| part.is_empty() || part == "." || part == ".." || part.contains(['\\', ':'])) {
+        return Err(format!("Refused to remove {relative}: it isn't a plain path inside the game folder."));
+    }
     let path = game_file(game, relative);
     if path.is_file() {
         fs::remove_file(&path).map_err(|e| format!("Couldn't remove {relative}: {e}"))?;
@@ -323,7 +340,10 @@ fn remove_stale(game: &Path, manifest: &Manifest, marker: &mut Marker) -> Result
 fn write_marker(game: &Path, marker: &Marker) -> Result<(), String> {
     let path = game.join(MARKER);
     fs::create_dir_all(path.parent().expect("marker has a parent")).map_err(|e| e.to_string())?;
-    fs::write(&path, serde_json::to_string_pretty(marker).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    // Written next to it, then swapped in: a crash mid-write never leaves a half file that forgets what's installed.
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, serde_json::to_string_pretty(marker).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| format!("Couldn't save {MARKER}: {e}"))
 }
 
 /// Installs whatever is missing or outdated. Each package is downloaded and verified before anything is written.
@@ -384,6 +404,10 @@ pub fn uninstall(game: &Path, manifest: &Manifest, melonloader: bool) -> Result<
         }
     }
     remove_game_file(game, &manifest.mod_package.dll)?;
+    if !melonloader && marker.melonloader.is_some() {
+        // MelonLoader stays, and so does the record of its version (its log only says so after the next launch).
+        return write_marker(game, &Marker { melonloader: marker.melonloader, ..Marker::default() });
+    }
     remove_game_file(game, MARKER)?;
     if melonloader {
         remove_game_file(game, "version.dll")?;
@@ -426,6 +450,35 @@ mod tests {
                 .map(|(source, path, data)| ModFile { source: (*source).into(), path: (*path).into(), sha256: sha256_hex(data) })
                 .collect(),
         }
+    }
+
+    /// Removing only the mods keeps MelonLoader's version on record; a damaged marker is moved aside, not lost; a
+    /// marker path that leaves the game folder is refused.
+    #[test]
+    fn marker_survives_mods_only_removal_and_damage() {
+        let game = std::env::temp_dir().join(format!("hyland-link-marker-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&game);
+        fs::create_dir_all(game.join("UserData")).unwrap();
+        let manifest = crate::manifest::baked();
+        let marker = Marker { melonloader: Some("0.7.3".into()), server_mod: Some("1.1.6".into()), ..Marker::default() };
+        write_marker(&game, &marker).unwrap();
+
+        uninstall(&game, &manifest, false).unwrap();
+        let kept = read_marker(&game);
+        assert_eq!(kept.melonloader.as_deref(), Some("0.7.3"));
+        assert!(kept.server_mod.is_none() && kept.mods.is_empty());
+
+        fs::write(game.join(MARKER), b"{ half a file").unwrap();
+        assert!(read_marker(&game).melonloader.is_none());
+        let aside = fs::read_dir(game.join("UserData"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().starts_with("HylandLink.json.unreadable-"));
+        assert!(aside && !game.join(MARKER).exists(), "the damaged marker was moved aside");
+
+        assert!(remove_game_file(&game, "Mods/../../outside.dll").is_err());
+        assert!(remove_game_file(&game, "Mods/missing.dll").is_ok());
+        fs::remove_dir_all(&game).unwrap();
     }
 
     /// Install, update (with a renamed file), refuse a tampered archive, then remove when the server drops it.

@@ -11,6 +11,7 @@
 # add and remove only edit the file (rerun add with the new URL to update a mod). publish bumps `revision`, checks the
 # file with the launcher's own rules (cargo test), runs `hl s1 mods apply` on the server over SSH, then commits and
 # pushes. The server waits until nobody's online unless you pass -Now.
+#Requires -Version 7
 param(
     [Parameter(Position = 0, Mandatory)]
     [ValidateSet("list", "add", "remove", "server-mod", "publish")]
@@ -73,6 +74,10 @@ function Read-Entry($entry) {
 # everything else (readme, icon, Thunderstore's manifest.json) is skipped.
 function Get-GamePath([string] $entryName) {
     $parts = $entryName.Replace('\', '/').Split('/')
+    # A GitHub zip often wraps everything in one folder ("MyMod-1.0/Mods/x.dll"): look through it.
+    if ($parts.Count -gt 2 -and -not ($ModDirs -icontains $parts[0]) -and ($ModDirs -icontains $parts[1])) {
+        $parts = $parts[1..($parts.Count - 1)]
+    }
     $dir = $ModDirs | Where-Object { $_ -ieq $parts[0] } | Select-Object -First 1
     if ($dir -and $parts.Count -gt 1) { return (@($dir) + $parts[1..($parts.Count - 1)]) -join '/' }
     if ($entryName.EndsWith(".dll", [StringComparison]::OrdinalIgnoreCase)) { return "Mods/$($parts[-1])" }
@@ -109,13 +114,15 @@ function Add-Mod {
     finally { $zip.Dispose() }
 
     if ($files.Count -eq 0) { throw "Nothing to install in that zip (no .dll and no $($ModDirs -join '/') folders)." }
-    $modName = if ($Name) { $Name } elseif ($info) { $info.name -replace '_', ' ' } else { throw "No Thunderstore manifest.json in the zip: pass -Name and -Version." }
-    $modVersion = if ($Version) { $Version } elseif ($info) { $info.version_number } else { throw "Pass -Version for a GitHub zip." }
+    # StrictMode throws on a missing property, and a GitHub zip's manifest.json may not be a Thunderstore one.
+    $field = { param($n) if ($info -and $info.PSObject.Properties[$n]) { $info.$n } }
+    $modName = if ($Name) { $Name } elseif (& $field name) { (& $field name) -replace '_', ' ' } else { throw "No Thunderstore manifest.json in the zip: pass -Name and -Version." }
+    $modVersion = if ($Version) { $Version } elseif (& $field version_number) { & $field version_number } else { throw "Pass -Version for a GitHub zip." }
     $modId = if ($Id) { $Id } else { ($modName.ToLowerInvariant() -replace '[^a-z0-9_-]+', '-').Trim('-') }
     $existing = @($manifest.mods | Where-Object { $_.id -eq $modId })
     $modSide = if ($Side) { $Side } elseif ($existing) { $existing[0].side } else { "both" }
-    $modBlurb = if ($BlurbGiven) { $Blurb } elseif ($existing) { $existing[0].blurb } elseif ($info -and $info.description) {
-        $d = [string]$info.description; if ($d.Length -gt 80) { $d.Substring(0, 77) + "..." } else { $d }
+    $modBlurb = if ($BlurbGiven) { $Blurb } elseif ($existing) { $existing[0].blurb } elseif (& $field description) {
+        $d = [string](& $field description); if ($d.Length -gt 80) { $d.Substring(0, 77) + "..." } else { $d }
     } else { "" }
 
     $entry = [ordered]@{

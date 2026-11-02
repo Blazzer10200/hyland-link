@@ -92,7 +92,7 @@
     {#if launcher.sheet === "settings" && snapshot}
       <SettingsSheet
         {snapshot}
-        installing={launcher.installing}
+        installing={launcher.installing || launcher.removing}
         logLines={launcher.gameLog.length}
         logErrors={launcher.logErrors}
         onOpenFolder={launcher.openGameFolder}

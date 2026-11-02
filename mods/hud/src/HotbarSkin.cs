@@ -22,6 +22,9 @@ internal sealed class HotbarSkin : IDisposable
 	{
 		internal ItemSlotUI Ui;
 
+		/// <summary>The slot UI's RectTransform, fetched once: every read through IL2CPP makes a new wrapper object.</summary>
+		internal RectTransform Rect;
+
 		/// <summary>The slot's game slot, cast once: a slot UI keeps its slot for life (PlayerInventory.SetupInventoryUI).</summary>
 		internal HotbarSlot? Hotbar;
 
@@ -64,6 +67,15 @@ internal sealed class HotbarSkin : IDisposable
 	private readonly PlayerInventory inventory;
 
 	private readonly Settings settings;
+
+	/// <summary>The game's slot row and the containers laid out in it, fetched once (see <see cref="Slot.Rect"/>).</summary>
+	private readonly RectTransform slotRow;
+
+	private readonly RectTransform cashContainer;
+
+	private readonly RectTransform managementContainer;
+
+	private readonly GameObject managementObject;
 
 	private readonly List<Slot> slots = new List<Slot>();
 
@@ -140,7 +152,14 @@ internal sealed class HotbarSkin : IDisposable
 		{
 			throw new InvalidOperationException("Hotbar has " + (uis?.Count ?? 0) + " slot UIs, expected 10.");
 		}
-		RectTransform row = hud.SlotContainer;
+		slotRow = hud.SlotContainer;
+		cashContainer = hud.cashSlotContainer;
+		managementContainer = hud.managementSlotContainer;
+		managementObject = managementContainer.gameObject;
+		// Recorded before anything changes, so a build that fails part way puts these back as they really were.
+		labelWasActive = hud.selectedItemLabel.gameObject.activeSelf;
+		balanceWasActive = hud.onlineBalanceContainer.gameObject.activeSelf;
+		RectTransform row = slotRow;
 		float slotWidth;
 		try
 		{
@@ -151,7 +170,7 @@ internal sealed class HotbarSkin : IDisposable
 			}
 			management = Restyle(hud.managementSlotUI, slotSprite);
 			cash = Restyle(hud.cashSlotUI.GetComponent<ItemSlotUI>(), slotSprite);
-			Transform sep = slots[7].Ui.Rect.Find("Seperator");
+			Transform sep = slots[7].Rect.Find("Seperator");
 			separator = sep != null ? sep.Cast<RectTransform>() : null;
 			if (separator != null)
 			{
@@ -160,13 +179,13 @@ internal sealed class HotbarSkin : IDisposable
 			}
 			// Two layers inside the slot row, so they share its coordinates: the rail behind the slots, the underline,
 			// name pill and money panel in front.
-			back = Layer("Hyland rail (back)", row, slots[0].Ui.Rect);
+			back = Layer("Hyland rail (back)", row, slots[0].Rect);
 			back.SetAsFirstSibling();
-			front = Layer("Hyland rail (front)", row, slots[0].Ui.Rect);
+			front = Layer("Hyland rail (front)", row, slots[0].Rect);
 			front.SetAsLastSibling();
 			railShadow = Ui.Image("Shadow", back, sprites.Shadow(22, 16), Color.white, sliced: true).rectTransform;
 			rail = Ui.Image("Glass", back, sprites.Glass(22), Color.white, sliced: true).rectTransform;
-			slotWidth = slots[0].Ui.Rect.rect.width;
+			slotWidth = slots[0].Rect.rect.width;
 			float barWidth = slotWidth;
 			underline = Ui.Image("Underline", front, sprites.Get("underline" + barWidth, () => Art.GlowBar(barWidth, Theme.Accent)), Color.white);
 			underline.rectTransform.sizeDelta = new Vector2(barWidth + 16f, 19f);
@@ -194,16 +213,14 @@ internal sealed class HotbarSkin : IDisposable
 				fade = row.gameObject.AddComponent<CanvasGroup>();
 			}
 			fadeAlpha = fade.alpha;
-			labelWasActive = hud.selectedItemLabel.gameObject.activeSelf;
 			hud.selectedItemLabel.gameObject.SetActive(false);
-			balanceWasActive = hud.onlineBalanceContainer.gameObject.activeSelf;
 			if (money != null)
 			{
 				hud.onlineBalanceContainer.gameObject.SetActive(false);
 			}
 			// One line per session about the real layout, so the first in-game run tells us what the prefab looks like.
 			// Inside the try: it's the first touch of the cash and clipboard containers, and a throw here must still undo.
-			log($"Hotbar: slot {slotWidth:F0}x{slots[0].Ui.Rect.rect.height:F0}, cash slot under '{hud.cashSlotContainer.parent?.name}', clipboard under '{hud.managementSlotContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
+			log($"Hotbar: slot {slotWidth:F0}x{slots[0].Rect.rect.height:F0}, cash slot under '{cashContainer.parent?.name}', clipboard under '{managementContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
 		}
 		catch
 		{
@@ -232,18 +249,20 @@ internal sealed class HotbarSkin : IDisposable
 		{
 			throw new InvalidOperationException("A hotbar slot has no background image.");
 		}
+		RectTransform rect = ui.Rect;
 		Slot slot = new Slot
 		{
 			Ui = ui,
+			Rect = rect,
 			Sprite = ui.Background.sprite,
 			Type = ui.Background.type,
 			PixelsPerUnitMultiplier = ui.Background.pixelsPerUnitMultiplier,
 			Normal = ui.normalColor,
 			Highlight = ui.highlightColor,
-			Scale = ui.Rect.localScale,
-			BaseY = ui.Rect.anchoredPosition.y
+			Scale = rect.localScale,
+			BaseY = rect.anchoredPosition.y
 		};
-		Transform index = ui.Rect.Find("Background/Index");
+		Transform index = rect.Find("Background/Index");
 		slot.Index = index != null ? index.GetComponent<TextMeshProUGUI>() : null;
 		if (slot.Index != null)
 		{
@@ -267,7 +286,7 @@ internal sealed class HotbarSkin : IDisposable
 	{
 		rowSlots.Clear();
 		rowSlots.AddRange(slots);
-		if (management != null && hud.managementSlotContainer.gameObject.activeSelf)
+		if (management != null && managementObject.activeSelf)
 		{
 			rowSlots.Add(management);
 		}
@@ -293,11 +312,11 @@ internal sealed class HotbarSkin : IDisposable
 		float height = 0f;
 		foreach (Slot slot in row)
 		{
-			height = Mathf.Max(height, slot.Ui.Rect.rect.height);
+			height = Mathf.Max(height, slot.Rect.rect.height);
 			slot.Lift = Motion.Approach(slot.Lift, slot == selected ? 1f : 0f, SelectSeconds, dt);
-			slot.Ui.Rect.localScale = slot.Scale * (1f + LiftScale * slot.Lift);
-			Vector2 position = slot.Ui.Rect.anchoredPosition;
-			slot.Ui.Rect.anchoredPosition = new Vector2(position.x, slot.BaseY + LiftUnits * slot.Lift);
+			slot.Rect.localScale = slot.Scale * (1f + LiftScale * slot.Lift);
+			Vector2 position = slot.Rect.anchoredPosition;
+			slot.Rect.anchoredPosition = new Vector2(position.x, slot.BaseY + LiftUnits * slot.Lift);
 			if (slot.Index != null)
 			{
 				slot.Index.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.4f, 1f, slot.Lift));
@@ -312,7 +331,7 @@ internal sealed class HotbarSkin : IDisposable
 		}
 		// The rail spans the row from the first slot to the cash slot (the layout starts at x = gap).
 		float left = gap - Padding;
-		float right = cash.X + cash.Ui.Rect.rect.width / 2f + Padding;
+		float right = cash.X + cash.Rect.rect.width / 2f + Padding;
 		float bottom = -height / 2f - PaddingY;
 		float top = height / 2f + PaddingY;
 		Ui.Place(rail, new Vector2((left + right) / 2f, 0f), new Vector2(right - left, top - bottom));
@@ -354,43 +373,39 @@ internal sealed class HotbarSkin : IDisposable
 		float x = 0f;
 		foreach (Slot slot in slots)
 		{
-			float w = slot.Ui.Rect.rect.width;
+			float w = slot.Rect.rect.width;
 			slot.X = x + w / 2f + gap;
-			slot.Ui.Rect.anchoredPosition = new Vector2(slot.X, slot.Ui.Rect.anchoredPosition.y);
+			slot.Rect.anchoredPosition = new Vector2(slot.X, slot.Rect.anchoredPosition.y);
 			x += w + gap;
 		}
 		x += gap;
-		if (management != null && hud.managementSlotContainer.gameObject.activeSelf)
+		if (management != null && managementObject.activeSelf)
 		{
-			float w = hud.managementSlotContainer.sizeDelta.x;
+			float w = managementContainer.sizeDelta.x;
 			management.X = x + w / 2f + gap;
-			hud.managementSlotContainer.anchoredPosition = new Vector2(management.X, 0f);
+			managementContainer.anchoredPosition = new Vector2(management.X, 0f);
 			x += w + gap;
 		}
-		float cw = hud.cashSlotContainer.sizeDelta.x;
+		float cw = cashContainer.sizeDelta.x;
 		cash.X = x + cw / 2f + gap;
-		hud.cashSlotContainer.anchoredPosition = new Vector2(cash.X, 0f);
+		cashContainer.anchoredPosition = new Vector2(cash.X, 0f);
 		x += cw + gap;
-		hud.SlotContainer.anchoredPosition = new Vector2(-x / 2f, hud.SlotContainer.anchoredPosition.y);
+		slotRow.anchoredPosition = new Vector2(-x / 2f, slotRow.anchoredPosition.y);
 	}
 
 	private void UpdateIdle(bool selectionChanged, float dt)
 	{
+		// Hotbar use only, the same on every device: picking a slot (number keys, scroll, bumpers all change the selection),
+		// using the item in hand (mouse buttons, triggers), the d-pad and an open inventory. Walking and looking around
+		// aren't, so the bar fades while you just move.
 		bool input = selectionChanged || inventory.AttachedScreen != null;
-		Keyboard keyboard = Keyboard.current;
 		Mouse mouse = Mouse.current;
-		if (keyboard != null && keyboard.anyKey.wasPressedThisFrame)
-		{
-			input = true;
-		}
 		if (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame || mouse.scroll.ReadValue().y != 0f))
 		{
 			input = true;
 		}
-		// Controller buttons count too (not the sticks: looking around isn't hotbar use, same as the mouse).
 		Gamepad gamepad = Gamepad.current;
-		if (gamepad != null && (gamepad.buttonSouth.wasPressedThisFrame || gamepad.buttonEast.wasPressedThisFrame || gamepad.buttonWest.wasPressedThisFrame
-			|| gamepad.buttonNorth.wasPressedThisFrame || gamepad.leftShoulder.wasPressedThisFrame || gamepad.rightShoulder.wasPressedThisFrame
+		if (gamepad != null && (gamepad.leftShoulder.wasPressedThisFrame || gamepad.rightShoulder.wasPressedThisFrame
 			|| gamepad.leftTrigger.wasPressedThisFrame || gamepad.rightTrigger.wasPressedThisFrame || gamepad.dpad.up.wasPressedThisFrame
 			|| gamepad.dpad.down.wasPressedThisFrame || gamepad.dpad.left.wasPressedThisFrame || gamepad.dpad.right.wasPressedThisFrame))
 		{
@@ -410,6 +425,8 @@ internal sealed class HotbarSkin : IDisposable
 			return;
 		}
 		disposed = true;
+		// Every step runs even if one throws (a half-destroyed scene), so one bad slot can't leave the rest restyled.
+		Exception? failure = null;
 		List<Slot> all = new List<Slot>(slots);
 		if (management != null)
 		{
@@ -425,61 +442,77 @@ internal sealed class HotbarSkin : IDisposable
 			{
 				continue;
 			}
-			HotbarSlot? hotbarSlot = slot.Hotbar;
-			slot.Ui.Background.sprite = slot.Sprite;
-			slot.Ui.Background.type = slot.Type;
-			slot.Ui.Background.pixelsPerUnitMultiplier = slot.PixelsPerUnitMultiplier;
-			slot.Ui.SetNormalColor(slot.Normal);
-			slot.Ui.SetHighlightColor(slot.Highlight);
-			slot.Ui.SetHighlighted(hotbarSlot != null && hotbarSlot.IsSelected);
-			slot.Ui.Rect.localScale = slot.Scale;
-			slot.Ui.Rect.anchoredPosition = new Vector2(slot.Ui.Rect.anchoredPosition.x, slot.BaseY);
-			if (slot.Index != null)
+			Ui.Step(ref failure, () =>
 			{
-				slot.Index.color = slot.IndexColor;
-			}
+				HotbarSlot? hotbarSlot = slot.Hotbar;
+				slot.Ui.Background.sprite = slot.Sprite;
+				slot.Ui.Background.type = slot.Type;
+				slot.Ui.Background.pixelsPerUnitMultiplier = slot.PixelsPerUnitMultiplier;
+				slot.Ui.SetNormalColor(slot.Normal);
+				slot.Ui.SetHighlightColor(slot.Highlight);
+				slot.Ui.SetHighlighted(hotbarSlot != null && hotbarSlot.IsSelected);
+				slot.Rect.localScale = slot.Scale;
+				slot.Rect.anchoredPosition = new Vector2(slot.Rect.anchoredPosition.x, slot.BaseY);
+				if (slot.Index != null)
+				{
+					slot.Index.color = slot.IndexColor;
+				}
+			});
 		}
 		if (separator != null)
 		{
-			separator.localScale = separatorScale;
-			separator.anchoredPosition = separatorPosition;
+			Ui.Step(ref failure, () =>
+			{
+				separator.localScale = separatorScale;
+				separator.anchoredPosition = separatorPosition;
+			});
 		}
 		if (fade != null)
 		{
-			if (fadeAdded)
+			Ui.Step(ref failure, () =>
 			{
-				// Immediately: a settings change rebuilds the skin in this same frame, and a merely queued Destroy would
-				// still be found (and kept) by the new skin's GetComponent, then throw on the next frame.
-				UnityEngine.Object.DestroyImmediate(fade);
-			}
-			else
-			{
-				fade.alpha = fadeAlpha;
-			}
+				if (fadeAdded)
+				{
+					// Immediately: a settings change rebuilds the skin in this same frame, and a merely queued Destroy would
+					// still be found (and kept) by the new skin's GetComponent, then throw on the next frame.
+					UnityEngine.Object.DestroyImmediate(fade);
+				}
+				else
+				{
+					fade.alpha = fadeAlpha;
+				}
+			});
 		}
 		if (hud != null)
 		{
-			if (hud.selectedItemLabel != null)
+			Ui.Step(ref failure, () =>
 			{
-				hud.selectedItemLabel.gameObject.SetActive(labelWasActive);
-			}
-			if (hud.onlineBalanceContainer != null)
+				if (hud.selectedItemLabel != null)
+				{
+					hud.selectedItemLabel.gameObject.SetActive(labelWasActive);
+				}
+			});
+			Ui.Step(ref failure, () =>
 			{
-				hud.onlineBalanceContainer.gameObject.SetActive(balanceWasActive);
-			}
+				if (hud.onlineBalanceContainer != null)
+				{
+					hud.onlineBalanceContainer.gameObject.SetActive(balanceWasActive);
+				}
+			});
 		}
 		if (back != null)
 		{
-			UnityEngine.Object.Destroy(back.gameObject);
+			Ui.Step(ref failure, () => UnityEngine.Object.Destroy(back.gameObject));
 		}
 		if (front != null)
 		{
-			UnityEngine.Object.Destroy(front.gameObject);
+			Ui.Step(ref failure, () => UnityEngine.Object.Destroy(front.gameObject));
 		}
 		// The game's own layout (spacing 20) comes back with its own method.
 		if (inventory != null)
 		{
-			inventory.RepositionUI();
+			Ui.Step(ref failure, () => inventory.RepositionUI());
 		}
+		Ui.Rethrow(failure);
 	}
 }

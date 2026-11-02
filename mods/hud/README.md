@@ -19,14 +19,14 @@ item icons, quantities, number keys and controller support keep working, and que
 | Compass strip | `CompassManager` | Notches hidden, N/E/S/W strip (160 units per 90°) in the same container; `CompassUIRange`/`AngleDivisor` set to match, markers re-placed on the smoothed heading and faded at the ends |
 | Clock pill | `TimeManager.CurrentTime`, `IsNight`, `Get12HourTime` | Day / dusk (17:00–18:00) / night icon, crossfade 0.3 s |
 | Cash + bank panel | `MoneyManager.cashBalance`, `onlineBalance` | 0.4 s count-up; the game's bank readout is hidden |
-| Idle fade | keyboard, mouse buttons, scroll | 55% after 4 s, back in 0.12 s; never while an inventory screen is open |
+| Idle fade | slot changes, mouse buttons, scroll, gamepad bumpers/triggers/d-pad | 55% after 4 s, back in 0.12 s; never while an inventory screen is open. Walking and looking around don't count |
 | HUD hide | `HUD.canvas.enabled`, `CompassManager.SetVisible` | Inherited: everything lives in the game's own containers |
 
 Beyond the concept:
 
 | Feature | Game source | How |
 |---|---|---|
-| Curfew and sleep warnings | `CurfewManager.IsEnabled` / `IsCurrentlyActive` (curfew 21:00–05:00), `TimeManager.CurrentTime` (time stops at 04:00 until everyone sleeps) | A tag on the clock pill (`TimeWarnings.For`): "CURFEW 25M" amber from 20:00, "CURFEW" red, "SLEEP 45M" from 03:00, "SLEEP NOW" at 04:00. The game's own `HUD.CurfewPrompt` and `SleepPrompt` say the same thing, so they're switched off (their graphics, since the game toggles the objects every frame) and put back on disable |
+| Curfew and sleep warnings | `CurfewManager.IsEnabled` / `IsCurrentlyActive` (curfew 21:00–05:00), `TimeManager.CurrentTime` (time stops at 04:00 until everyone sleeps) | A tag on the clock pill (`TimeWarnings.For`): "CURFEW 25M" amber from 20:00, "CURFEW" red, "SLEEP 45M" from 03:00, "SLEEP NOW" at 04:00. The game's own `HUD.CurfewPrompt` and `SleepPrompt` say the same thing, so they're switched off (their graphics, since the game toggles the objects every frame) while the pill is on screen. The game hides the compass in menus and on the phone; then its own prompts come back, so a warning is never lost |
 | Friends on the compass | `Player.PlayerList`, `Player.PlayerName`, `UnitsUtility.FormatShortDistance` | A cyan dot (the minimap's co-op color) with "Name · 140m" under it per co-op player, clamped to the strip's ends when behind you; metres or feet follow the game's setting |
 
 Left out on purpose: deal countdowns. The game's HUD quest list already shows "(Expires in N hrs)" on tracked deals, red under 2 hours (`Contract.UpdateTiming`), and replacing it would also drop the quest objectives that share that list.
@@ -48,6 +48,8 @@ then retries after 5, 10, 20, 40, then 60 s.
 
 `[HylandHud]` in `UserData/MelonPreferences.cfg`: `Enabled`, `Hotbar`, `SlotGap` (6), `MoneyPanel`, `IdleFade`,
 `IdleSeconds` (4), `IdleOpacity` (0.55), `Compass`, `CompassSmoothing` (0.08 s), `Clock`, `TimeWarnings`, `Friends`.
+`Clock`, `TimeWarnings` and `Friends` live on the compass strip, so they need `Compass` on. The hotbar and the compass
+fail and retry separately: a problem in one leaves the other up.
 
 ## Build
 

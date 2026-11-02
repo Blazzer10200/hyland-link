@@ -31,9 +31,22 @@ if [[ "$ver" != "$pkg" || "$ver" != "$crate" ]]; then
   exit 1
 fi
 
+# "release not found" is the only gh failure that means "no such release"; anything else (auth, network) stops here
+# instead of letting a guard below pass without having checked.
+release_tag() {
+  local out
+  if out="$(gh release view ${1:+"$1"} --repo "$REPO" --json tagName -q .tagName 2>&1)"; then
+    echo "$out"
+  elif [[ "$out" != *"not found"* ]]; then
+    echo "Couldn't ask GitHub about ${1:-the latest release}: $out" >&2
+    return 1
+  fi
+}
+
 if $publish; then
-  if gh release view "v$ver" --repo "$REPO" >/dev/null 2>&1; then
-    echo "v$ver is already on GitHub. Bump the version first." >&2
+  existing="$(release_tag "v$ver")"
+  if [[ -n "$existing" ]]; then
+    echo "v$ver is already on GitHub (maybe as a draft from a failed upload). Bump the version, or delete that draft." >&2
     exit 1
   fi
   # The exe bakes manifest/manifest.json from this working tree and the new tag lands on GitHub's main, so both must be
@@ -49,7 +62,8 @@ if $publish; then
     exit 1
   fi
   # A lower version would still become releases/latest and every launcher would "update" to it.
-  latest="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null | sed 's/^v//' || true)"
+  latest="$(release_tag)"
+  latest="${latest#v}"
   if [[ -n "$latest" && "$(printf '%s\n%s\n' "$latest" "$ver" | sort -V | tail -1)" != "$ver" ]]; then
     echo "v$ver is older than the latest release v$latest. Bump the version." >&2
     exit 1
@@ -67,6 +81,16 @@ pnpm --dir app tauri build
 bundle="$(cygpath -u "${CARGO_TARGET_DIR:-app/src-tauri/target}")/release/bundle/nsis"
 setup="$bundle/Hyland Link_${ver}_x64-setup.exe"
 [[ -f "$setup" && -f "$setup.sig" ]] || { echo "Build output missing: $setup (.sig)" >&2; exit 1; }
+
+# Installed launchers only accept the key behind the pubkey in tauri.conf.json. A different (still valid) key file
+# would sign fine and break every friend's update, so the key ids must match before anything ships.
+key_id() { base64 -d | sed -n 2p | tr -d '\r' | base64 -d | od -An -tx1 -j2 -N8 | tr -d ' \n'; }
+sig_id="$(key_id <"$setup.sig")"
+pub_id="$(node -p 'require("./app/src-tauri/tauri.conf.json").plugins.updater.pubkey' | key_id)"
+if [[ -z "$sig_id" || "$sig_id" != "$pub_id" ]]; then
+  echo "Signed with key ${sig_id:-?}, but launchers trust $pub_id. $KEY isn't Hyland Link's updater key." >&2
+  exit 1
+fi
 
 # Same asset name every release, so releases/latest/download/Hyland-Link-Setup.exe is a permanent friend link.
 out="dist/v$ver"
@@ -96,7 +120,8 @@ if ! $publish; then
   exit 0
 fi
 
+# --target: the tag goes on the commit checked above, even if main moves on GitHub during the build.
 gh release create "v$ver" "$out/Hyland-Link-Setup.exe" "$out/latest.json" \
-  --repo "$REPO" --title "Hyland Link $ver" --notes "$notes"
+  --repo "$REPO" --target "$(git rev-parse HEAD)" --title "Hyland Link $ver" --notes "$notes"
 echo "Published. Friends' launchers update on their next start."
 echo "Download link: https://github.com/$REPO/releases/latest/download/Hyland-Link-Setup.exe"

@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.ExceptionServices;
 using Il2CppTMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -58,6 +60,28 @@ internal static class Ui
 	internal static Color Color(Rgba c, float alpha = -1f)
 	{
 		return new Color(c.R, c.G, c.B, alpha < 0f ? c.A : alpha);
+	}
+
+	/// <summary>Runs one step of putting the game's HUD back. A failure is kept (the first one) instead of skipping the steps
+	/// after it; <see cref="Rethrow"/> raises it once they've all run.</summary>
+	internal static void Step(ref Exception? failure, Action step)
+	{
+		try
+		{
+			step();
+		}
+		catch (Exception ex)
+		{
+			failure ??= ex;
+		}
+	}
+
+	internal static void Rethrow(Exception? failure)
+	{
+		if (failure != null)
+		{
+			ExceptionDispatchInfo.Capture(failure).Throw();
+		}
 	}
 
 	/// <summary>Places a center-pivoted rect by its center and size in its parent's local space.</summary>

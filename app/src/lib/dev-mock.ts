@@ -217,6 +217,10 @@ export function installMock() {
           // The game takes a moment to save and close.
           setTimeout(() => (scenario = "ready"), 2500);
           return null;
+        case "uninstall":
+          // Removing MelonLoader touches a lot of files; long enough to see the button lock.
+          await new Promise((r) => setTimeout(r, 2500));
+          return null;
         case "uninstall_launcher":
           throw "The browser preview has no uninstaller. In the real app this closes the launcher and runs it.";
         case "check_update":

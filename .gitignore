@@ -2,3 +2,8 @@
 dist/
 # The game's own code (Mono branch DLLs + decompiled C#), for reading only. Never public.
 .gameref/
+# This repo is public: local tool settings (Claude Code's allowlist names server commands) and anything key-like stay out.
+.claude/settings.local.json
+.secrets/
+.env
+*.key

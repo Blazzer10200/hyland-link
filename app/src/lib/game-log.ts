@@ -55,7 +55,8 @@ const MARKERS: [RegExp, GameStage][] = [
   [/Disconnecting from dedicated server/, "menu"],
   [/Main scene loaded in dedicated server mode|Quest system initialization completed/, "joined"],
   [/Starting dedicated server connection/, "connecting"],
-  [/mod initialized successfully|AssetBundle loaded/, "menu"],
+  // Tagged, so another mod's "initialized successfully" after joining doesn't flip the stage back to the menu.
+  [/\[DedicatedServerClient\] (?:DedicatedServerClient mod initialized successfully|AssetBundle loaded)/, "menu"],
   [/^\[[\d:.]+\] Loading Mods\.\.\./, "loading"],
   [/No Generation Needed/, "loading"],
   [/\[Il2CppAssemblyGenerator\]/, "preparing"],

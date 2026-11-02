@@ -61,6 +61,8 @@
           run: idle,
           kind: "work",
         };
+      case "removing":
+        return { label: "Removing mods…", disabled: true, run: idle, kind: "work" };
       // Same two-click close as "playing": a player on the server when the mods change can leave from here.
       case "closeGame":
         return quitArmed

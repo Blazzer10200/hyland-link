@@ -24,6 +24,8 @@ public sealed class MinimapMod : MelonMod
 
 	private int consecutiveFailures;
 
+	private float lastFailure = float.NegativeInfinity;
+
 	private readonly ZoomInput zoomInput = new ZoomInput();
 
 	public override void OnInitializeMelon()
@@ -86,7 +88,12 @@ public sealed class MinimapMod : MelonMod
 			{
 				hud.Update(local, instance6, instance3, settings);
 			}
-			consecutiveFailures = 0;
+			// Only five clean minutes reset the backoff: a fault that hits a few frames after every rebuild still backs off
+			// instead of rebuilding the map every 5 s.
+			if (consecutiveFailures > 0 && Time.unscaledTime - lastFailure > 300f)
+			{
+				consecutiveFailures = 0;
+			}
 		}
 		catch (Exception ex)
 		{
@@ -94,6 +101,7 @@ public sealed class MinimapMod : MelonMod
 			// Each retry rebuilds the HUD's textures, so a lasting failure backs off (5, 10, 20, 40, then 60 s).
 			float delay = Math.Min(60f, 5f * (1 << Math.Min(consecutiveFailures, 4)));
 			retryAt = Time.unscaledTime + delay;
+			lastFailure = Time.unscaledTime;
 			consecutiveFailures++;
 			string error = ex.GetType().Name + ": " + ex.Message;
 			if (consecutiveFailures <= 3)
@@ -112,6 +120,7 @@ public sealed class MinimapMod : MelonMod
 		DestroyHud();
 		retryAt = 0f;
 		consecutiveFailures = 0;
+		lastFailure = float.NegativeInfinity;
 	}
 
 	public override void OnDeinitializeMelon()

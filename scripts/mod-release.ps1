@@ -69,20 +69,28 @@ if (-not $Publish) {
     exit 0
 }
 
-# The release must match what's on main, and a tag is never reused (players' launchers cache by hash, not tag).
-if (git -C $Root status --porcelain) { throw "The working tree isn't clean. Commit first, so the release matches main." }
+# The release must match what's on main, and a tag is never reused (players' launchers cache by hash, not tag). An
+# unpublished manifest change is fine (another mod released just before this one), so both go out in one publish.
+$other = @(git -C $Root status --porcelain | Where-Object { $_ -notmatch ' manifest/manifest\.json$' })
+if ($other) { throw "Commit first, so the release matches main:`n$($other -join "`n")" }
 git -C $Root fetch -q origin main
+if ($LASTEXITCODE) { throw "git fetch failed, so I can't tell whether HEAD is on GitHub. Nothing was released." }
 if ((git -C $Root rev-parse HEAD) -ne (git -C $Root rev-parse origin/main)) { throw "HEAD isn't origin/main. Push main first." }
-gh release view $tag --repo $Repo *> $null
+$seen = gh release view $tag --repo $Repo --json tagName 2>&1
 if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists. Bump the version in $($m.Dir)/src/AssemblyInfo.cs." }
+if ("$seen" -notmatch "not found") { throw "Couldn't ask GitHub about ${tag}: $seen" }
 
-gh release create $tag $zipPath --repo $Repo --latest=false --title "$($m.Name) $version" `
+gh release create $tag $zipPath --repo $Repo --latest=false --target (git -C $Root rev-parse HEAD) --title "$($m.Name) $version" `
     --notes "$($m.Name) $version for the Hyland server. Players get it through the Hyland Link launcher; it's not meant to be installed by hand."
-if ($LASTEXITCODE -ne 0) { throw "gh release create failed." }
-$latest = gh release view --repo $Repo --json tagName --jq .tagName
-if (-not $latest.StartsWith("v")) { throw "releases/latest is now $latest, not a launcher release. Fix it on GitHub before anything else: installed launchers update from it." }
+if ($LASTEXITCODE -ne 0) { throw "gh release create failed. If GitHub shows a draft $tag, delete it before rerunning." }
 
+# The release is public from here: a failure below must say how to finish by hand, since a rerun refuses the tag.
 $url = "https://github.com/$Repo/releases/download/$tag/$($m.Zip)"
+$finish = "pwsh scripts/mods.ps1 add $url -Id $($m.Id) -Side client -Name `"$($m.Name)`" -Version $version -Blurb `"$($m.Blurb)`""
+$latest = gh release view --repo $Repo --json tagName --jq .tagName
+if ($LASTEXITCODE -ne 0 -or -not "$latest".StartsWith("v")) {
+    Write-Warning "Check https://github.com/$Repo/releases: releases/latest must be a launcher release (v*), and it reads '$latest'. Installed launchers update from it."
+}
 pwsh -NoProfile -File (Join-Path $PSScriptRoot "mods.ps1") add $url -Id $m.Id -Side client -Name $m.Name -Version $version -Blurb $m.Blurb
-if ($LASTEXITCODE -ne 0) { throw "mods.ps1 add failed; the release $tag exists but the mod list wasn't changed." }
+if ($LASTEXITCODE -ne 0) { throw "Release $tag exists but the mod list wasn't changed. Finish with: $finish" }
 Write-Host "Released $tag and added it to the mod list. Next: pwsh scripts/mods.ps1 publish (the server applies it first, then main is pushed)."

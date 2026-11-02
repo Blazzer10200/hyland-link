@@ -13,6 +13,7 @@ export type Phase =
   | "setup"
   | "update"
   | "installing"
+  | "removing"
   | "closeGame"
   | "firstLaunch"
   | "firstLaunchRunning"
@@ -54,6 +55,8 @@ class Launcher {
   server = $state<ServerStatus | null>(null);
   checkingServer = $state(false);
   installing = $state(false);
+  /** Set while Settings removes mods (or MelonLoader) from the game folder. */
+  removing = $state(false);
   progress = $state<InstallProgress | null>(null);
   error = $state<string | null>(null);
   step = $derived.by<StepNumber>(() => {
@@ -70,12 +73,15 @@ class Launcher {
     const s = this.snapshot;
     if (!s) return "loading";
     if (this.installing) return "installing";
+    if (this.removing) return "removing";
     if (!s.game.found || !s.install) return "noGame";
     if (s.game.branch) return "branch";
     const running = s.game.running;
     switch (this.step) {
       case 2: {
         if (running) return "closeGame";
+        // Steam is starting the game: installing now would write files it's about to load.
+        if (this.launching) return "launching";
         const { melonloader, serverMod } = s.install;
         return melonloader.installed || serverMod.installed ? "update" : "setup";
       }
@@ -101,6 +107,8 @@ class Launcher {
   /** Says why a ready player is suddenly back at "Update". */
   notice = $state<string | null>(null);
   private manifestCheckedAt = 0;
+  /** The mod-list check in flight, so Play waits for one a focus or the timer started instead of skipping it. */
+  private manifestCheck: Promise<void> | null = null;
   /** The last error a state poll showed, so a failure that repeats every poll isn't shown (or logged) again. */
   private loadError: string | null = null;
   /** When the self-update last reported progress; a download that stalls gives the player the manual link. */
@@ -225,10 +233,19 @@ class Launcher {
       }
     });
 
-  /** Re-reads the server's mod list, then the game folder. Skipped while installing or when checked < maxAgeMs ago. */
-  private async syncManifest(maxAgeMs = 0) {
-    if (this.installing || Date.now() - this.manifestCheckedAt < maxAgeMs) return;
-    this.manifestCheckedAt = Date.now();
+  /** Re-reads the server's mod list, then the game folder. Joins a check already running; skipped while installing or
+   * when the last one finished < maxAgeMs ago. */
+  private syncManifest(maxAgeMs = 0): Promise<void> {
+    if (this.manifestCheck) return this.manifestCheck;
+    if (this.installing || Date.now() - this.manifestCheckedAt < maxAgeMs) return Promise.resolve();
+    this.manifestCheck = this.checkManifest().finally(() => {
+      this.manifestCheckedAt = Date.now();
+      this.manifestCheck = null;
+    });
+    return this.manifestCheck;
+  }
+
+  private async checkManifest() {
     const wasReady = this.step >= 3;
     const revision = this.snapshot?.manifest.revision;
     try {
@@ -282,8 +299,21 @@ class Launcher {
   openGameFolder = () => this.act(() => api.openGameFolder());
   openLauncherDownload = () => this.act(() => api.openLauncherDownload());
   openLauncherLogs = () => this.act(() => api.openLauncherLogs());
-  uninstall = (melonloader: boolean) => this.act(() => api.uninstall(melonloader));
-  uninstallLauncher = () => this.act(() => api.uninstallLauncher());
+  uninstall = (melonloader: boolean) => this.removal(() => api.uninstall(melonloader));
+  uninstallLauncher = () => this.removal(() => api.uninstallLauncher());
+
+  /** Locks Play, Update and the other removals while files leave the game folder. */
+  private removal(action: () => Promise<void>) {
+    if (this.removing || this.installing) return Promise.resolve();
+    this.removing = true;
+    return this.act(async () => {
+      try {
+        await action();
+      } finally {
+        this.removing = false;
+      }
+    });
+  }
 
   chooseGameFolder = () =>
     this.act(async () => {
@@ -356,10 +386,14 @@ class Launcher {
     await listen<InstallProgress>("install-progress", (event) => {
       this.progress = event.payload;
     });
-    await listen<number>("update-progress", (event) => {
+    // Sent only when the download moved (a new percent, or another MiB when the size is unknown).
+    await listen<number | null>("update-progress", (event) => {
       if (!this.selfUpdate) return;
-      if (this.selfUpdate.percent !== event.payload) this.selfUpdateProgressAt = Date.now();
+      this.selfUpdateProgressAt = Date.now();
       this.selfUpdate.percent = event.payload;
+    });
+    await listen("close-blocked", () => {
+      this.notice = "Hyland Link is still changing the game folder. It can close once that's done.";
     });
     await this.load();
     void this.checkServer();

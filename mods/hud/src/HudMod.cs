@@ -12,6 +12,61 @@ namespace HylandHud;
 
 public sealed class HudMod : MelonMod
 {
+	/// <summary>
+	/// Retry timing for one part of the HUD. After a failure it waits 5, 10, 20, 40, then 60 s between tries, and only five
+	/// clean minutes reset that, so a fault that hits a few frames after every rebuild still backs off instead of making
+	/// the HUD flicker every 5 s.
+	/// </summary>
+	private sealed class Backoff
+	{
+		private readonly string part;
+
+		private float retryAt;
+
+		private float lastFailure = float.NegativeInfinity;
+
+		private int failures;
+
+		internal Backoff(string part)
+		{
+			this.part = part;
+		}
+
+		internal bool Due => Time.unscaledTime >= retryAt;
+
+		internal void Succeeded()
+		{
+			if (failures > 0 && Time.unscaledTime - lastFailure > 300f)
+			{
+				failures = 0;
+			}
+		}
+
+		internal void Failed(Exception ex, MelonLogger.Instance log)
+		{
+			float delay = Math.Min(60f, 5f * (1 << Math.Min(failures, 4)));
+			retryAt = Time.unscaledTime + delay;
+			lastFailure = Time.unscaledTime;
+			failures++;
+			string error = ex.GetType().Name + ": " + ex.Message;
+			if (failures <= 3)
+			{
+				log.Warning("Hyland HUD " + part + " unavailable; retrying in " + delay + "s: " + error);
+			}
+			else if (failures == 4)
+			{
+				log.Warning("Hyland HUD " + part + " still unavailable; retrying every minute without logging again: " + error);
+			}
+		}
+
+		internal void Reset()
+		{
+			retryAt = 0f;
+			lastFailure = float.NegativeInfinity;
+			failures = 0;
+		}
+	}
+
 	private Settings? settings;
 
 	private Sprites? sprites;
@@ -22,9 +77,12 @@ public sealed class HudMod : MelonMod
 
 	private bool settingsDirty = true;
 
-	private float retryAt;
+	/// <summary>Each part fails on its own: a compass problem leaves the glass hotbar up, and the other way round.</summary>
+	private readonly Backoff shared = new Backoff("");
 
-	private int consecutiveFailures;
+	private readonly Backoff hotbarRetry = new Backoff("hotbar");
+
+	private readonly Backoff compassRetry = new Backoff("compass");
 
 	public override void OnInitializeMelon()
 	{
@@ -37,16 +95,20 @@ public sealed class HudMod : MelonMod
 
 	public override void OnLateUpdate()
 	{
-		if (settings == null || Time.unscaledTime < retryAt)
+		if (settings == null || !shared.Due)
 		{
 			return;
 		}
+		HUD hud;
+		PlayerInventory inventory;
+		CompassManager compassManager;
+		TMP_FontAsset font;
 		try
 		{
 			LoadManager load = Singleton<LoadManager>.Instance;
-			HUD hud = Singleton<HUD>.Instance;
-			PlayerInventory inventory = PlayerSingleton<PlayerInventory>.Instance;
-			CompassManager compassManager = Singleton<CompassManager>.Instance;
+			hud = Singleton<HUD>.Instance;
+			inventory = PlayerSingleton<PlayerInventory>.Instance;
+			compassManager = Singleton<CompassManager>.Instance;
 			if (load == null || !load.IsGameLoaded || load.IsLoading || Player.Local == null || hud == null || inventory == null)
 			{
 				Teardown();
@@ -63,35 +125,43 @@ public sealed class HudMod : MelonMod
 				return;
 			}
 			sprites ??= new Sprites();
-			TMP_FontAsset font = hud.selectedItemLabel != null ? hud.selectedItemLabel.font : null;
-			if (hotbar == null && settings.Hotbar.Value)
-			{
-				hotbar = new HotbarSkin(hud, inventory, sprites, font, settings, LoggerInstance.Msg);
-			}
-			if (compass == null && settings.Compass.Value && compassManager != null)
-			{
-				compass = new CompassSkin(compassManager, hud, sprites, font, settings, LoggerInstance.Msg);
-			}
-			float dt = Time.unscaledDeltaTime;
-			hotbar?.Update(dt);
-			compass?.Update(dt);
-			consecutiveFailures = 0;
+			font = hud.selectedItemLabel != null ? hud.selectedItemLabel.font : null;
+			shared.Succeeded();
 		}
 		catch (Exception ex)
 		{
 			// Teardown puts the game's HUD back, so a failure leaves the vanilla one working.
 			Teardown();
-			float delay = Math.Min(60f, 5f * (1 << Math.Min(consecutiveFailures, 4)));
-			retryAt = Time.unscaledTime + delay;
-			consecutiveFailures++;
-			string error = ex.GetType().Name + ": " + ex.Message;
-			if (consecutiveFailures <= 3)
+			shared.Failed(ex, LoggerInstance);
+			return;
+		}
+		float dt = Time.unscaledDeltaTime;
+		if (settings.Hotbar.Value && hotbarRetry.Due)
+		{
+			try
 			{
-				LoggerInstance.Warning("Hyland HUD unavailable; retrying in " + delay + "s: " + error);
+				hotbar ??= new HotbarSkin(hud, inventory, sprites, font, settings, LoggerInstance.Msg);
+				hotbar.Update(dt);
+				hotbarRetry.Succeeded();
 			}
-			else if (consecutiveFailures == 4)
+			catch (Exception ex)
 			{
-				LoggerInstance.Warning("Hyland HUD still unavailable; retrying every minute without logging again: " + error);
+				DisposeHotbar();
+				hotbarRetry.Failed(ex, LoggerInstance);
+			}
+		}
+		if (settings.Compass.Value && compassManager != null && compassRetry.Due)
+		{
+			try
+			{
+				compass ??= new CompassSkin(compassManager, hud, sprites, font, settings, LoggerInstance.Msg);
+				compass.Update(dt);
+				compassRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposeCompass();
+				compassRetry.Failed(ex, LoggerInstance);
 			}
 		}
 	}
@@ -99,8 +169,9 @@ public sealed class HudMod : MelonMod
 	public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 	{
 		Teardown();
-		retryAt = 0f;
-		consecutiveFailures = 0;
+		shared.Reset();
+		hotbarRetry.Reset();
+		compassRetry.Reset();
 	}
 
 	public override void OnDeinitializeMelon()
@@ -109,9 +180,8 @@ public sealed class HudMod : MelonMod
 		settings?.Dispose();
 	}
 
-	private void Teardown()
+	private void DisposeHotbar()
 	{
-		// Each step on its own: a half-destroyed scene must not stop the rest from being put back.
 		try
 		{
 			hotbar?.Dispose();
@@ -120,6 +190,11 @@ public sealed class HudMod : MelonMod
 		{
 			LoggerInstance.Warning("Putting the game's hotbar back failed: " + ex.Message);
 		}
+		hotbar = null;
+	}
+
+	private void DisposeCompass()
+	{
 		try
 		{
 			compass?.Dispose();
@@ -128,8 +203,14 @@ public sealed class HudMod : MelonMod
 		{
 			LoggerInstance.Warning("Putting the game's compass back failed: " + ex.Message);
 		}
-		hotbar = null;
 		compass = null;
+	}
+
+	private void Teardown()
+	{
+		// Each part on its own: a half-destroyed scene must not stop the rest from being put back.
+		DisposeHotbar();
+		DisposeCompass();
 		sprites?.Dispose();
 		sprites = null;
 	}
