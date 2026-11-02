@@ -31,7 +31,7 @@ public sealed class MinimapMod : MelonMod
 		{
 			settingsDirty = true;
 		});
-		LoggerInstance.Msg("v1.0.1 local dealer/vehicle marker test. Settings are available in Mod Manager & Phone App.");
+		LoggerInstance.Msg("Hyland Minimap 1.1.0 (based on nacho's Schedule I Minimap 1.0.1). Settings: [HylandMinimap] in UserData/MelonPreferences.cfg.");
 	}
 
 	public override void OnLateUpdate()
@@ -68,7 +68,7 @@ public sealed class MinimapMod : MelonMod
 			if (hud == null || !hud.IsAlive || !hud.IsBoundTo(instance2))
 			{
 				DestroyHud();
-				hud = new MinimapHud(instance2);
+				hud = new MinimapHud(instance2, LoggerInstance.Msg);
 				settingsDirty = true;
 				LoggerInstance.Msg("Minimap HUD created from the native phone map.");
 			}

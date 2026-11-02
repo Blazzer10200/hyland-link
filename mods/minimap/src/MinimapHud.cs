@@ -41,6 +41,30 @@ internal sealed class MinimapHud : IDisposable
 
 	private readonly Texture2D arrowTexture;
 
+	private readonly Canvas canvas;
+
+	private readonly RectTransform rim;
+
+	private readonly Image rimImage;
+
+	private readonly Action<string> log;
+
+	private Texture2D? rimTexture;
+
+	private Sprite? rimSprite;
+
+	private float rimScale;
+
+	private float borderWidth;
+
+	private float outlineWidth;
+
+	private Color borderColor;
+
+	private Color outlineColor;
+
+	private bool loggedMapArt;
+
 	private readonly CustomerMarkers customers;
 
 	private readonly WorldMarkers worldMarkers;
@@ -78,14 +102,15 @@ internal sealed class MinimapHud : IDisposable
 		return source == app;
 	}
 
-	internal MinimapHud(MapApp app)
+	internal MinimapHud(MapApp app, Action<string> log)
 	{
 		source = app;
+		this.log = log;
 		root = new GameObject("Hyland Minimap HUD");
 		try
 		{
 			root.AddComponent<RectTransform>();
-			Canvas canvas = root.AddComponent<Canvas>();
+			canvas = root.AddComponent<Canvas>();
 			canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 			canvas.sortingOrder = 5;
 			UnityEngine.UI.CanvasScaler canvasScaler = root.AddComponent<UnityEngine.UI.CanvasScaler>();
@@ -96,19 +121,10 @@ internal sealed class MinimapHud : IDisposable
 			group = root.AddComponent<CanvasGroup>();
 			group.interactable = false;
 			group.blocksRaycasts = false;
-			(Texture2D, Sprite) tuple = MakeSprite(128, (float x, float y) =>
-			{
-				double num = Math.Sqrt(x * x + y * y);
-				return new Color(1f, 1f, 1f, (float)Math.Clamp((1.0 - num) * 64.0, 0.0, 1.0));
-			});
+			(Texture2D, Sprite) tuple = MakeMask(256, Shapes.InCircle);
 			circleTexture = tuple.Item1;
 			circleSprite = tuple.Item2;
-			tuple = MakeSprite(64, (float x, float y) =>
-			{
-				bool num = (double)y > -0.65 && (double)y < 0.9 && (double)Math.Abs(x) < (0.9 - (double)y) * 0.48;
-				bool flag = (double)y < -0.1 && (double)Math.Abs(x) < (-0.1 - (double)y) * 0.38;
-				return (!num || flag) ? Color.clear : Color.white;
-			});
+			tuple = MakeMask(128, Shapes.InArrow);
 			arrowTexture = tuple.Item1;
 			arrowSprite = tuple.Item2;
 			outline = NewRect("Outer outline", root.transform);
@@ -122,6 +138,10 @@ internal sealed class MinimapHud : IDisposable
 			maskImage.raycastTarget = false;
 			maskImage.color = Color.white;
 			viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+			// Drawn over the map: the Mask's stencil edge can't be smoothed, so a smooth rim covers it (Shapes.RimPixel).
+			rim = NewRect("Rim", root.transform);
+			rimImage = rim.gameObject.AddComponent<Image>();
+			rimImage.raycastTarget = false;
 			RectTransform rectTransform = NewRect("Backdrop", viewport);
 			Stretch(rectTransform);
 			Image image2 = rectTransform.gameObject.AddComponent<Image>();
@@ -199,14 +219,18 @@ internal sealed class MinimapHud : IDisposable
 		maskImage.sprite = (circular ? circleSprite : null);
 		Image component = frame.GetComponent<Image>();
 		Image component2 = outline.GetComponent<Image>();
-		Sprite sprite = (component2.sprite = (circular ? circleSprite : null));
-		component.sprite = sprite;
-		component.color = ClampColor(settings.BorderColor.Value, new Color(0.18f, 0.22f, 0.27f, 1f));
-		component2.color = ClampColor(settings.OutlineColor.Value, new Color(0.02f, 0.025f, 0.03f, 1f));
+		borderColor = ClampColor(settings.BorderColor.Value, new Color(0.18f, 0.22f, 0.27f, 1f));
+		outlineColor = ClampColor(settings.OutlineColor.Value, new Color(0.02f, 0.025f, 0.03f, 1f));
+		component.color = borderColor;
+		component2.color = outlineColor;
 		float num = (settings.BorderEnabled.Value ? ((float)MapMath.ClampFinite(settings.BorderWidth.Value, 0.0, 24.0, 4.0)) : 0f);
 		float num2 = (settings.OutlineEnabled.Value ? ((float)MapMath.ClampFinite(settings.OutlineWidth.Value, 0.0, 12.0, 2.0)) : 0f);
-		frame.gameObject.SetActive(num > 0f);
-		outline.gameObject.SetActive(num2 > 0f);
+		borderWidth = num;
+		outlineWidth = num2;
+		// A circle gets the rim instead of the plain discs behind it; the square's straight edges are already clean.
+		frame.gameObject.SetActive(!circular && num > 0f);
+		outline.gameObject.SetActive(!circular && num2 > 0f);
+		rim.gameObject.SetActive(circular);
 		MapCorner mapCorner = (Enum.IsDefined(typeof(MapCorner), settings.Corner.Value) ? settings.Corner.Value : MapCorner.TopRight);
 		bool flag = mapCorner == MapCorner.TopRight || mapCorner == MapCorner.BottomRight;
 		bool flag2 = mapCorner == MapCorner.TopRight || mapCorner == MapCorner.TopLeft;
@@ -217,6 +241,9 @@ internal sealed class MinimapHud : IDisposable
 		Place(viewport, anchor, position, size);
 		Place(frame, anchor, position, size + 2f * num);
 		Place(outline, anchor, position, size + 2f * (num + num2));
+		Place(rim, anchor, position, size + 2f * RimBand());
+		rimScale = 0f;
+		RebuildRim();
 		nextPeerRefresh = 0f;
 		customers.Apply(settings);
 		worldMarkers.Apply(settings);
@@ -254,9 +281,23 @@ internal sealed class MinimapHud : IDisposable
 			SetVisible(visible: false);
 			return;
 		}
+		float scale = HudScale();
+		RebuildRim();
+		// Zoom 1 = one pixel of the game's map art per screen pixel: the sharpest that art can look. Past that it only blurs.
+		float z = zoom * sprite.rect.width / (drawingRect.width * scale);
+		if (!float.IsFinite(z) || z <= 0f)
+		{
+			z = zoom;
+		}
+		if (!loggedMapArt)
+		{
+			loggedMapArt = true;
+			Texture2D texture = sprite.texture;
+			log($"Map art {sprite.rect.width:F0}x{sprite.rect.height:F0} px (texture {texture?.width}x{texture?.height}, {texture?.filterMode}, {texture?.mipmapCount} mips), drawn at {drawingRect.width:F0} units, HUD scale {scale:F2}: zoom 1 = {z / zoom:F3}x the phone map.");
+		}
 		mapImage.sprite = sprite;
 		mapImage.rectTransform.sizeDelta = new Vector2(drawingRect.width, drawingRect.height);
-		mapImage.rectTransform.localScale = new Vector3(zoom, zoom, 1f);
+		mapImage.rectTransform.localScale = new Vector3(z, z, 1f);
 		RectTransform rectTransform2 = ((player.PoI != null) ? player.PoI.UI : null);
 		Transform parent;
 		Vector3 anchorOffset;
@@ -285,11 +326,11 @@ internal sealed class MinimapHud : IDisposable
 		float num = (float)MapMath.Heading(vector3.x, vector3.y);
 		float num2 = (settings.Rotate.Value ? num : 0f);
 		mapLayer.localRotation = Quaternion.Euler(0f, 0f, num2);
-		mapImage.rectTransform.anchoredPosition = -vector * zoom;
+		mapImage.rectTransform.anchoredPosition = -vector * z;
 		arrow.localRotation = Quaternion.Euler(0f, 0f, num2 - num);
 		worldMarkers.RefreshSources();
-		customers.Update(settings, projection2, vector, zoom, num2, size, circular, worldMarkers.DealerNpcIds);
-		worldMarkers.Update(player, settings.ShowCoop.Value, projection2, vector, zoom, num2, size, circular, customers.OccupiedLabels);
+		customers.Update(settings, projection2, vector, z, num2, size, circular, worldMarkers.DealerNpcIds);
+		worldMarkers.Update(player, settings.ShowCoop.Value, projection2, vector, z, num2, size, circular, customers.OccupiedLabels);
 		RefreshPeers(player, settings.ShowCoop.Value);
 		foreach (var value in peers.Values)
 		{
@@ -301,7 +342,7 @@ internal sealed class MinimapHud : IDisposable
 			}
 			Transform transform2 = ((player2.IsInVehicle && player2.CurrentVehicle != null) ? player2.CurrentVehicle.transform : player2.transform);
 			Vector2 vector4 = projection2.Project(transform2.position);
-			(double, double) tuple2 = MapMath.RelativePoint(vector4.x, vector4.y, vector.x, vector.y, zoom, num2);
+			(double, double) tuple2 = MapMath.RelativePoint(vector4.x, vector4.y, vector.x, vector.y, z, num2);
 			bool flag = MapMath.IsInside(tuple2.Item1, tuple2.Item2, size / 2f - 7f, circular);
 			value.Marker.gameObject.SetActive(flag);
 			if (flag)
@@ -411,23 +452,93 @@ internal sealed class MinimapHud : IDisposable
 		rect.sizeDelta = new Vector2(diameter, diameter);
 	}
 
-	private static (Texture2D Texture, Sprite Sprite) MakeSprite(int size, Func<float, float, Color> pixel)
+	/// <summary>Thickness of the rim outside the map, in HUD units. At least 1, so the map's hard edge is always covered.</summary>
+	private float RimBand()
 	{
-		Texture2D texture2D = new Texture2D(size, size, TextureFormat.RGBA32, mipChain: false);
+		return Math.Max(borderWidth + outlineWidth, 1f);
+	}
+
+	private float HudScale()
+	{
+		float scaleFactor = canvas.scaleFactor;
+		return (float.IsFinite(scaleFactor) && scaleFactor > 0f) ? scaleFactor : 1f;
+	}
+
+	/// <summary>Bakes the border and outline into one ring texture at its real on-screen pixel size (so each edge ramp is
+	/// one screen pixel), and again whenever the HUD scale changes, e.g. after a resolution change.</summary>
+	private void RebuildRim()
+	{
+		float scale = HudScale();
+		if (!circular || (rimSprite != null && Math.Abs(scale - rimScale) < 0.001f))
+		{
+			return;
+		}
+		rimScale = scale;
+		float band = RimBand();
+		float diameter = size + 2f * band;
+		int px = Math.Clamp((int)Math.Ceiling(diameter * scale), 64, 2048);
+		double perUnit = px / (double)diameter;
+		double mapR = size * 0.5 * perUnit;
+		double borderR = (size * 0.5 + borderWidth) * perUnit;
+		double outerR = (size * 0.5 + band) * perUnit;
+		// A missing layer takes the other one's color, so the band never shows a color that's switched off.
+		Rgba outlineRgba = ToRgba((outlineWidth > 0f || borderWidth <= 0f) ? outlineColor : borderColor);
+		Rgba borderRgba = ((borderWidth > 0f) ? ToRgba(borderColor) : outlineRgba);
+		Color[] pixels = new Color[px * px];
+		double center = px * 0.5;
+		for (int y = 0; y < px; y++)
+		{
+			for (int x = 0; x < px; x++)
+			{
+				double dx = x + 0.5 - center;
+				double dy = y + 0.5 - center;
+				Rgba p = Shapes.RimPixel(Math.Sqrt(dx * dx + dy * dy), mapR, borderR, outerR, borderRgba, outlineRgba);
+				pixels[y * px + x] = new Color(p.R, p.G, p.B, p.A);
+			}
+		}
+		Texture2D texture = new Texture2D(px, px, TextureFormat.RGBA32, mipChain: false);
+		texture.wrapMode = TextureWrapMode.Clamp;
+		texture.filterMode = FilterMode.Bilinear;
+		texture.SetPixels(pixels);
+		texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+		Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, px, px), new Vector2(0.5f, 0.5f), 100f);
+		rimImage.sprite = sprite;
+		if (rimSprite != null)
+		{
+			UnityEngine.Object.Destroy(rimSprite);
+		}
+		if (rimTexture != null)
+		{
+			UnityEngine.Object.Destroy(rimTexture);
+		}
+		rimSprite = sprite;
+		rimTexture = texture;
+	}
+
+	private static Rgba ToRgba(Color color)
+	{
+		return new Rgba(color.r, color.g, color.b, color.a);
+	}
+
+	/// <summary>A white shape with 4×4-supersampled coverage as alpha (averaging white with clear would darken the edge),
+	/// plus mipmaps so the small marker dots that reuse the circle stay smooth too.</summary>
+	private static (Texture2D Texture, Sprite Sprite) MakeMask(int size, Func<double, double, bool> inside)
+	{
+		Texture2D texture2D = new Texture2D(size, size, TextureFormat.RGBA32, mipChain: true);
 		try
 		{
 			texture2D.wrapMode = TextureWrapMode.Clamp;
-			texture2D.filterMode = FilterMode.Bilinear;
+			texture2D.filterMode = FilterMode.Trilinear;
 			Color[] array = new Color[size * size];
 			for (int i = 0; i < size; i++)
 			{
 				for (int j = 0; j < size; j++)
 				{
-					array[i * size + j] = pixel(((float)j + 0.5f) / (float)size * 2f - 1f, ((float)i + 0.5f) / (float)size * 2f - 1f);
+					array[i * size + j] = new Color(1f, 1f, 1f, Shapes.Coverage(j, i, size, inside));
 				}
 			}
 			texture2D.SetPixels(array);
-			texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+			texture2D.Apply(updateMipmaps: true, makeNoLongerReadable: true);
 			Sprite item = Sprite.Create(texture2D, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
 			return (Texture: texture2D, Sprite: item);
 		}
@@ -468,6 +579,14 @@ internal sealed class MinimapHud : IDisposable
 			UnityEngine.Object.Destroy(arrowSprite);
 			UnityEngine.Object.Destroy(circleTexture);
 			UnityEngine.Object.Destroy(arrowTexture);
+			if (rimSprite != null)
+			{
+				UnityEngine.Object.Destroy(rimSprite);
+			}
+			if (rimTexture != null)
+			{
+				UnityEngine.Object.Destroy(rimTexture);
+			}
 		}
 	}
 }

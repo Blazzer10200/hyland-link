@@ -30,6 +30,8 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - Debugging a PC: `bash scripts/logs.sh [lines]` prints the launcher's own log
   (`%LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log`: game found/started/closed, mod list changes, installs,
   Play, game stages, every error shown to the player), the game's `Latest.log` with error counts, and `hide_console`.
+- `mods/minimap/`: Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT, decompiled; see its README). Not in the
+  manifest yet: friends still get nachorn's 1.0.2 (revision 3) until a build ships through `mods.ps1`.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 

@@ -108,7 +108,7 @@ internal sealed class Settings
 		Shape = Add("Shape", MapShape.Circle, "Map shape", "Circle or square clipping.", changed);
 		Corner = Add("Corner", MapCorner.TopRight, "Screen corner", "Choose a corner to avoid other HUD mods.", changed);
 		Size = Add("Size", 240, "Map size", "120–480 units, relative to a 1920x1080 HUD.", changed);
-		Zoom = Add("Zoom", 3f, "Zoom", "0.1–12. Lower values show much more of the town.", changed);
+		Zoom = Add("Zoom", 1f, "Zoom", "0.25–4. 1 = sharpest (one map pixel per screen pixel); lower shows more of the town, higher only blurs.", changed);
 		Opacity = Add("Opacity", 0.95f, "Opacity", "0.1–1. Applies to the entire minimap.", changed);
 		Rotate = Add("Rotate", defaultValue: false, "Rotate with view", "Keep your viewing direction at the top.", changed);
 		HideInMenus = Add("HideInMenus", defaultValue: true, "Hide during menus", "Hide while the phone, pause menu or another game UI is open.", changed);
@@ -118,7 +118,7 @@ internal sealed class Settings
 		OffsetY = Add("OffsetY", 0, "Vertical offset", "-1000–1000 HUD units. Positive moves up from the chosen corner.", changed);
 		ZoomInKey = Add("ZoomInKey", KeyCode.PageUp, "Zoom in key", "Keyboard key; None disables it. Ignored while a menu is open.", changed);
 		ZoomOutKey = Add("ZoomOutKey", KeyCode.PageDown, "Zoom out key", "Keyboard key; None disables it. Ignored while a menu is open.", changed);
-		ZoomStep = Add("ZoomStep", 0.5f, "Zoom per key press", "0.1–3. Each press saves the new zoom level.", changed);
+		ZoomStep = Add("ZoomStep", 1.25f, "Zoom per key press", "1.05–2. Each press multiplies or divides the zoom by this and saves it.", changed);
 		BorderEnabled = Add("BorderEnabled", defaultValue: true, "Show border", "Show a border around either map shape.", changed);
 		BorderWidth = Add("BorderWidth", 4, "Border thickness", "0–24 reference HUD units.", changed);
 		BorderColor = Add("BorderColor", new Color(0.18f, 0.22f, 0.27f, 1f), "Border color", "Color and transparency of the border.", changed);

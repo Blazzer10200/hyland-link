@@ -4,21 +4,24 @@ namespace HylandMinimap;
 
 internal static class MapMath
 {
-	internal const double MinimumZoom = 0.1;
+	// Zoom is screen pixels per pixel of the game's map art: 1 is the sharpest it gets.
+	internal const double MinimumZoom = 0.25;
 
-	internal const double MaximumZoom = 12.0;
+	internal const double MaximumZoom = 4.0;
 
-	internal const double DefaultZoom = 3.0;
+	internal const double DefaultZoom = 1.0;
 
 	internal static double ClampZoom(double value)
 	{
-		return ClampFinite(value, 0.1, 12.0, 3.0);
+		return ClampFinite(value, MinimumZoom, MaximumZoom, DefaultZoom);
 	}
 
+	/// <summary>Multiplies (in) or divides (out) by the step, so every press feels the same at any zoom.</summary>
 	internal static float NextZoom(double current, double step, bool increase)
 	{
-		double num = ClampFinite(step, 0.1, 3.0, 0.5);
-		return (float)Math.Clamp(ClampZoom(current) + (increase ? num : (0.0 - num)), 0.1, 12.0);
+		double factor = ClampFinite(step, 1.05, 2.0, 1.25);
+		double next = (increase ? (ClampZoom(current) * factor) : (ClampZoom(current) / factor));
+		return (float)Math.Round(Math.Clamp(next, MinimumZoom, MaximumZoom), 3);
 	}
 
 	internal static double ClampFinite(double value, double min, double max, double fallback)
