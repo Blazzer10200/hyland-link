@@ -168,6 +168,26 @@ function Set-ServerMod {
     Write-Host "Publishing checks the server boots on MelonLoader $($manifest.melonloader.version). Run: pwsh scripts/mods.ps1 publish"
 }
 
+# Launchers read the plain raw URL, which GitHub's CDN caches for up to 5 minutes after a push. "Live" means that URL
+# serves the new revision, not that the push went through.
+function Wait-RawManifest([int] $revision) {
+    $url = "https://raw.githubusercontent.com/Blazzer10200/hyland-link/main/manifest/manifest.json"
+    $deadline = (Get-Date).AddMinutes(7)
+    Write-Host "Waiting for GitHub's cache to serve revision $revision (up to 5 minutes)..."
+    while ($true) {
+        $served = try { [int](Invoke-RestMethod $url -TimeoutSec 10).revision } catch { -1 }
+        if ($served -eq $revision) {
+            Write-Host "Revision $revision is live: launchers get it on their next check (every 5 min, on focus, or at start)."
+            return
+        }
+        if ((Get-Date) -gt $deadline) {
+            Write-Warning "After 7 minutes the launchers' URL still serves revision $served, not $revision. The server and main are on $revision; check $url"
+            return
+        }
+        Start-Sleep -Seconds 15
+    }
+}
+
 function Publish-Mods {
     Push-Location $Root
     try {
@@ -201,7 +221,7 @@ function Publish-Mods {
         if ($LASTEXITCODE) { throw "git commit failed. The server already runs revision ${revision}: commit and push main by hand." }
         git push origin main
         if ($LASTEXITCODE) { throw "The server runs revision $revision but the push failed. Push main by hand now so players match." }
-        Write-Host "Revision $revision is live. Open launchers pick it up within 5 minutes, or on their next start."
+        Wait-RawManifest $revision
     }
     finally { Pop-Location }
 }
