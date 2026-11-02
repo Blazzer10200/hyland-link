@@ -7,6 +7,42 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 7 — 2026-11-02 06:30 (full review: launcher 0.1.3 + minimap 1.2.1 live, server hardened)
+
+### Completed
+- **Game code access:** the Mono branch (`alternate`, build 25796351) decompiled to `.gameref/src/` (gitignored,
+  2,331 files, never public). IL2CPP interop DLLs give names/signatures only; `.gameref` has the logic.
+- **Full review** (5 fresh-eyes agents: backend, UI, scripts, minimap, server); every finding re-checked in code.
+- **Launcher 0.1.3 released** (`v0.1.3`, latest; feed verified anonymously, key id `c565f1e2370aae54`, download =
+  build). Real app run before publishing: v0.1.3, "Mod list: revision 7 from Online", server online, 1 update shown.
+  Fixes: a failed recheck keeps the online list (0.1.2 fell back to built-in r5 = MelonLoader 0.7.2 and asked to
+  "update" back); extra mods re-checked after removals and files a current mod ships never deleted; download timeouts
+  (15 s connect / 30 s first byte / 15 min); damaged Favorites file kept as `.unreadable-<time>`, Play re-adds the
+  favorite, step 2 no longer needs it; install/uninstall busy lock, uninstall off the main thread; manifest paths
+  stricter (server-mod paths, launcher-owned files reserved, same rules in s1ds-mods); UI: removals locked while
+  installing, "Close Schedule I to update" button, notices clear after Update, per-text notice dismissal, stalled
+  self-update → manual link, error count from tagged lines only, offline update check logged not shown.
+- **Minimap 1.2.1** (`minimap-v1.2.1`, not latest; mod list **r7**, published 06:12, server applied, 5 min passed):
+  skips customers without NPC data (one could take the whole map down), no zoom while `GameInput.IsTyping`, NaN-safe
+  heading, retry backoff 5→60 s, version from `MelonInfo`.
+- Scripts: `release.sh --publish` refuses a dirty tree, HEAD ≠ origin/main, or a version below the latest release;
+  `mods.ps1 publish` refuses unsynced main before touching the server and restores the manifest on Ctrl+C;
+  `logs.sh` fallbacks print. Checks: cargo test 18/18 incl. the real-download install, clippy 0, svelte-check 0/0,
+  minimap build 0 warnings.
+
+### Not done / not verified
+- Minimap 1.2.1 compiled against the game's interop but **not run in game** (rule: no installs into Blazzer's game).
+- Friends' self-update to 0.1.3 happens on their next launcher start; not observed yet.
+- Deliberately skipped minimap perf nits (full re-apply of marker looks every 1 s, full `Apply` on each zoom key,
+  per-frame Il2Cpp wrapper allocations): reworking working code for small gains.
+- HUD redesign parked by Blazzer (canvas "Hyland HUD", main board published; compass/hotbar boards not written).
+
+### Next Steps
+1. Blazzer: open the launcher → it self-updates to 0.1.3 → Update (minimap 1.2.1) → play; `bash scripts/logs.sh`.
+2. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer).
+3. Leftovers to OK deleting: `%TEMP%\hlmm-1.2.0`, `%TEMP%\hlmm-1.2.1`, `%TEMP%\hl-verify-013`,
+   `%TEMP%\hl-test-webview`; server ones in the schedule1-server HANDOFF.
+
 ## Session 6 — 2026-11-02 05:40 (Minimap 1.2.0, launcher 0.1.2, MelonLoader 0.7.3 everywhere; all verified on Blazzer's PC)
 
 ### Completed
