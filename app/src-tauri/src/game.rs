@@ -115,7 +115,7 @@ fn game_pids() -> Vec<u32> {
         let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
         while ok {
             let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            if String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase() == target {
+            if String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase() == target && is_alive(entry.th32ProcessID) {
                 pids.push(entry.th32ProcessID);
             }
             ok = Process32NextW(snapshot, &mut entry) != 0;
@@ -123,6 +123,23 @@ fn game_pids() -> Vec<u32> {
         CloseHandle(snapshot);
     }
     pids
+}
+
+/// A game that has exited stays in the snapshot (no threads, no memory) while anything still holds a handle to it,
+/// e.g. Steam, so only count one that hasn't signaled its exit. If Windows won't let us look, assume it's alive.
+fn is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject};
+
+    unsafe {
+        let process = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if process.is_null() {
+            return true;
+        }
+        let exited = WaitForSingleObject(process, 0) == WAIT_OBJECT_0;
+        CloseHandle(process);
+        !exited
+    }
 }
 
 pub fn is_running() -> bool {
@@ -207,5 +224,19 @@ mod tests {
         let libraries = library_folders(&steam);
         assert!(libraries.contains(&PathBuf::from(r"C:\Program Files (x86)\Steam")));
         assert!(libraries.contains(&PathBuf::from(r"D:\SteamLibrary")));
+    }
+
+    #[test]
+    fn an_exited_process_still_held_open_is_not_alive() {
+        // The Child keeps its handle after wait(), the same husk Steam leaves behind after the game quits.
+        let mut done = std::process::Command::new("cmd").args(["/c", "exit 0"]).spawn().unwrap();
+        done.wait().unwrap();
+        assert!(!is_alive(done.id()));
+
+        let mut busy = std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
+        let alive = is_alive(busy.id());
+        busy.kill().unwrap();
+        busy.wait().unwrap();
+        assert!(alive);
     }
 }
