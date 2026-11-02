@@ -72,15 +72,24 @@ function Read-Entry($entry) {
 
 # Where a zip entry goes in the game folder: kept under Mods/Plugins/UserLibs/UserData, a loose .dll goes to Mods/,
 # everything else (readme, icon, Thunderstore's manifest.json) is skipped.
-function Get-GamePath([string] $entryName) {
+# $wrapper: the one folder a whole GitHub zip sits in ("MyMod-1.0/Mods/x.dll"), looked through; see Get-Wrapper.
+function Get-GamePath([string] $entryName, [string] $wrapper) {
     $parts = $entryName.Replace('\', '/').Split('/')
-    # A GitHub zip often wraps everything in one folder ("MyMod-1.0/Mods/x.dll"): look through it.
-    if ($parts.Count -gt 2 -and -not ($ModDirs -icontains $parts[0]) -and ($ModDirs -icontains $parts[1])) {
-        $parts = $parts[1..($parts.Count - 1)]
-    }
+    if ($wrapper -and $parts.Count -gt 1 -and $parts[0] -eq $wrapper) { $parts = $parts[1..($parts.Count - 1)] }
     $dir = $ModDirs | Where-Object { $_ -ieq $parts[0] } | Select-Object -First 1
     if ($dir -and $parts.Count -gt 1) { return (@($dir) + $parts[1..($parts.Count - 1)]) -join '/' }
     if ($entryName.EndsWith(".dll", [StringComparison]::OrdinalIgnoreCase)) { return "Mods/$($parts[-1])" }
+    $null
+}
+
+# Only a zip whose every entry sits in one folder (that isn't itself Mods/Plugins/...) has a wrapper. A Thunderstore
+# package has files at its root, so a "BepInEx/plugins" folder in one is never mistaken for one.
+function Get-Wrapper($zip) {
+    $names = @($zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+    $roots = @($names | ForEach-Object { $_.Split('/')[0] } | Sort-Object -Unique)
+    if ($roots.Count -eq 1 -and -not ($ModDirs -icontains $roots[0]) -and -not ($names | Where-Object { -not $_.Contains('/') })) {
+        return $roots[0]
+    }
     $null
 }
 
@@ -103,10 +112,11 @@ function Add-Mod {
         $info = $null
         $infoEntry = $zip.GetEntry("manifest.json")
         if ($infoEntry) { $info = [Text.Encoding]::UTF8.GetString((Read-Entry $infoEntry)).TrimStart([char]0xFEFF) | ConvertFrom-Json }
+        $wrapper = Get-Wrapper $zip
         $files = @(foreach ($entry in $zip.Entries) {
                 if ($entry.FullName.EndsWith("/")) { continue }
                 if ($Skip | Where-Object { $entry.FullName -like $_ }) { Write-Host "  skipping $($entry.FullName)"; continue }
-                $path = Get-GamePath $entry.FullName
+                $path = Get-GamePath $entry.FullName $wrapper
                 if (-not $path) { continue }
                 [ordered]@{ source = $entry.FullName; path = $path; sha256 = Get-Sha256 (Read-Entry $entry) }
             })

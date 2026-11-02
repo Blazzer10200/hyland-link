@@ -40,6 +40,9 @@ const CLOSE_WAIT_MS = 30_000;
 const LAUNCH_WAIT_MS = 45_000;
 /** How long the self-update may go without progress before the manual download is offered. */
 const SELF_UPDATE_STALL_MS = 120_000;
+/** Shown when the window was asked to close mid-install; cleared once the game folder is done. */
+const CLOSE_HELD =
+  "Hyland Link is still changing the game folder. Close again to quit anyway; next time, Update puts it right.";
 
 function message(error: unknown): string {
   return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
@@ -230,6 +233,7 @@ class Launcher {
       } finally {
         this.installing = false;
         this.progress = null;
+        if (this.notice === CLOSE_HELD) this.notice = null;
       }
     });
 
@@ -311,6 +315,7 @@ class Launcher {
         await action();
       } finally {
         this.removing = false;
+        if (this.notice === CLOSE_HELD) this.notice = null;
       }
     });
   }
@@ -393,7 +398,7 @@ class Launcher {
       this.selfUpdate.percent = event.payload;
     });
     await listen("close-blocked", () => {
-      this.notice = "Hyland Link is still changing the game folder. It can close once that's done.";
+      this.notice = CLOSE_HELD;
     });
     await this.load();
     void this.checkServer();

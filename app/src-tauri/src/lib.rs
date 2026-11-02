@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,8 @@ struct Shared {
     game: Mutex<(Option<String>, bool)>,
     /// Set while files in the game folder are being installed or removed, so two of those never overlap.
     busy: AtomicBool,
+    /// When a close was last held back because of `busy`; a second close soon after goes through.
+    close_blocked_at: Mutex<Option<Instant>>,
 }
 
 /// Holds `Shared::busy` until dropped.
@@ -135,18 +138,22 @@ async fn refresh_manifest(shared: State<'_, Shared>) -> Result<(), String> {
     // A recheck never goes back from the online list in use to an older one: a failed check falls back to the built-in
     // list, and a CDN edge can serve the previous revision for a few minutes after a publish. Either way the player
     // would be told their mods changed, and Update would install the old ones.
-    if matches!(current.1, Source::Online) && current.0.revision >= resolved.0.revision {
+    // The same online revision is taken as is, so a hand edit pushed without a bump still reaches open launchers.
+    if matches!(current.1, Source::Online) {
         match &resolved.1 {
-            Source::BuiltIn { reason } => {
-                warn!("Mod list recheck failed ({reason}); keeping revision {} from Online", current.0.revision)
+            Source::BuiltIn { reason } if resolved.0.revision <= current.0.revision => {
+                warn!("Mod list recheck failed ({reason}); keeping revision {} from Online", current.0.revision);
+                return Ok(());
             }
-            Source::Online if resolved.0.revision < current.0.revision => warn!(
-                "Mod list recheck got revision {} (an old cached copy); keeping revision {}",
-                resolved.0.revision, current.0.revision
-            ),
-            Source::Online => {}
+            Source::Online if resolved.0.revision < current.0.revision => {
+                warn!(
+                    "Mod list recheck got revision {} (an old cached copy); keeping revision {}",
+                    resolved.0.revision, current.0.revision
+                );
+                return Ok(());
+            }
+            _ => {}
         }
-        return Ok(());
     }
     let describe = |(m, s): &(Manifest, Source)| format!("revision {} from {s:?}", m.revision);
     if describe(&current) != describe(&resolved) {
@@ -413,6 +420,7 @@ pub fn run() {
             manifest: Mutex::new((manifest::baked(), Source::BuiltIn { reason: "checking for updates".into() })),
             game: Mutex::new((None, false)),
             busy: AtomicBool::new(false),
+            close_blocked_at: Mutex::new(None),
         })
         .setup(|app| {
             info!("Hyland Link {} started", app.package_info().version);
@@ -421,13 +429,22 @@ pub fn run() {
             }
             Ok(())
         })
-        // Closing mid-install would leave the game folder half written; the UI says why the window stayed open.
+        // Closing mid-install can leave the game folder half written, so the first close waits and the UI says why. A
+        // second close within 10 s goes through (a stuck download mustn't trap anyone), and the next start shows Update.
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event
-                && window.state::<Shared>().busy.load(Ordering::Acquire)
-            {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let shared = window.state::<Shared>();
+                if !shared.busy.load(Ordering::Acquire) {
+                    return;
+                }
+                let mut blocked = shared.close_blocked_at.lock().expect("close lock");
+                if blocked.is_some_and(|at| at.elapsed() < Duration::from_secs(10)) {
+                    warn!("Closed while the game folder was still being changed");
+                    return;
+                }
+                *blocked = Some(Instant::now());
                 api.prevent_close();
-                info!("Close blocked: the game folder is still being changed");
+                info!("Close held back: the game folder is still being changed");
                 let _ = window.emit("close-blocked", ());
             }
         })

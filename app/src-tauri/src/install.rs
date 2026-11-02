@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use log::warn;
@@ -96,9 +97,14 @@ fn read_marker(game: &Path) -> Marker {
     serde_json::from_str(&text).unwrap_or_else(|e| {
         let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         let backup = path.with_extension(format!("json.unreadable-{secs}"));
+        // state() reads this every few seconds: a file that can't be moved is reported once, not on every poll.
+        static REPORTED: AtomicBool = AtomicBool::new(false);
         match fs::rename(&path, &backup) {
             Ok(()) => warn!("{MARKER} was damaged ({e}); moved it to {}", backup.display()),
-            Err(r) => warn!("{MARKER} is damaged ({e}) and couldn't be moved aside ({r})"),
+            Err(r) if !REPORTED.swap(true, Ordering::Relaxed) => {
+                warn!("{MARKER} is damaged ({e}) and couldn't be moved aside ({r})")
+            }
+            Err(_) => {}
         }
         Marker::default()
     })
@@ -343,7 +349,11 @@ fn write_marker(game: &Path, marker: &Marker) -> Result<(), String> {
     // Written next to it, then swapped in: a crash mid-write never leaves a half file that forgets what's installed.
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, serde_json::to_string_pretty(marker).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, &path).map_err(|e| format!("Couldn't save {MARKER}: {e}"))
+    fs::rename(&tmp, &path).map_err(|e| {
+        // Best effort: the error below is what matters, and the next write replaces a leftover anyway.
+        let _ = fs::remove_file(&tmp);
+        format!("Couldn't save {MARKER}: {e}")
+    })
 }
 
 /// Installs whatever is missing or outdated. Each package is downloaded and verified before anything is written.

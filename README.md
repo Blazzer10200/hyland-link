@@ -35,6 +35,15 @@ pwsh scripts/mods.ps1 publish                                # server applies it
 unless `-Now`), confirms the server booted on the same MelonLoader players get, and only then pushes `main`. Each mod
 has a `side`: `both` (default), `server` (never reaches players) or `client` (players only).
 
+Our own client mods (`mods/hud`, `mods/minimap`): bump the mod's `src/AssemblyInfo.cs`, commit and push `main`, then
+
+```bash
+pwsh scripts/mod-release.ps1 hud -Publish   # GitHub release hud-v<version> (never "latest") + mods.ps1 add
+pwsh scripts/mods.ps1 publish               # as above
+```
+
+Without `-Publish` it only builds and stages the zip in `dist/<tag>/`.
+
 Other manifest changes (new IP, a notice for everyone): edit `manifest/manifest.json`, raise its `revision`, run
 `cargo test --manifest-path app/src-tauri/Cargo.toml --lib manifest::` (a file the launcher rejects sends every player
 back to the built-in list), and push `main`.
@@ -55,8 +64,10 @@ installed launchers can't verify another update, and everyone has to reinstall o
 app/                 the Tauri 2 + Svelte 5 app (see app/README.md)
 manifest/            the version file the launcher and the server both follow (built in, and fetched from main)
 mods/minimap/        Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT)
+mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass and money (not shipped yet)
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
-scripts/release.sh   build, sign and publish a release
+scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap)
+scripts/release.sh   build, sign and publish a launcher release
 scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)
 scripts/logs.sh      print the launcher log, the game log and the console setting on this PC
 ```

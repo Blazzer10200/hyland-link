@@ -161,6 +161,8 @@ internal sealed class CompassSkin : IDisposable
 
 	internal void Update(float dt)
 	{
+		// First: it doesn't need the camera, and it decides whether the game's own curfew prompts show.
+		clock?.Update(dt);
 		PlayerCamera camera = PlayerSingleton<PlayerCamera>.Instance;
 		if (camera == null)
 		{
@@ -193,7 +195,6 @@ internal sealed class CompassSkin : IDisposable
 			element.Group.alpha = Mathf.Max(0.25f, Art.EdgeMask((x + Width / 2f) / Width));
 		}
 		friends?.Update(this, cam.position);
-		clock?.Update(dt);
 	}
 
 	public void Dispose()
