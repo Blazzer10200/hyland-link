@@ -1,11 +1,34 @@
 ---
 title: Hyland Link handoff
 tags: [project, handoff]
-status: ready-to-publish
+status: released
 updated: 2026-11-02
 ---
 
 # Hyland Link: handoff
+
+## Session 2 — 2026-11-02 (server mods, public repo, v0.1.0 released)
+
+### Completed
+- **Server-driven mods:** manifest schema 2 with `mods[]` (`side`: both/client/server). Launcher installs, updates
+  and removes them hash-checked, tracks its own files in `UserData/HylandLink.json`, re-reads the list every 5 min /
+  on focus / before Play. Step 2 shows one "Server's mods" row + `ModsSheet`. Mock: `?s=mods`, `?s=nomods`.
+- `scripts/mods.ps1` (list/add/remove/server-mod/publish): publish = launcher validation (cargo test) → server
+  `s1ds mods apply` over SSH → commit + push. Tested: server-mod reproduced the exact hashes, gate caught a clash.
+- Public repo `Blazzer10200/hyland-link` created; raw manifest URL serves 200 anonymously.
+- **v0.1.0 released** via `release.sh`: signature key id 54ae0a37e2f165c5 = pubkey; download link serves the built
+  bytes; the real build ran (online manifest, no update error, found the game).
+- Checks: `cargo test` 12 passed; `pnpm --dir app check` 0 errors / 0 warnings.
+
+### Next
+1. Server side is waiting on Blazzer (Steam login once more, router forwards): `projects/schedule1-server/HANDOFF.md`.
+2. Once the port is open: confirm the launcher shows Online from outside the LAN. From inside, NAT loopback may fail;
+   if Blazzer's own launcher stays Offline on the LAN, that's the router, not the server.
+3. First real mod: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+
+### Notes
+- `manifest.game.version` ("0.4.7f12") is read by nothing; the server now follows Steam's build by itself.
+- Validation rules live in three places (manifest.rs, mods.ps1, schedule1-server `s1ds-mods`); change all together.
 
 ## Session 1 — 2026-11-02 (built, verified locally, not published)
 
