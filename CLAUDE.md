@@ -2,7 +2,7 @@
 
 Friend launcher for Blazzer's Schedule I server (server tooling lives in `projects/schedule1-server`, private).
 This repo is **public** (`Blazzer10200/hyland-link`), because the updater and the manifest are fetched anonymously
-from it. v0.1.0 is released and installed on friends' PCs.
+from it. Released launchers are installed on friends' PCs and update themselves from `releases/latest`.
 
 State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updates): `README.md`.
 

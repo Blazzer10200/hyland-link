@@ -42,8 +42,8 @@ updated: 2026-11-02
 1. Push `main`: `2ae9cb3` (publish wait + CLAUDE.md rule) is local only.
 2. Ask Blazzer how rotate-with-view feels in game (smoothing 14/s is a guess).
 3. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer).
-4. Leftovers for Blazzer to OK deleting: `%TEMP%\hlmm-1.2.0`, Proxmox `/tmp/hl-ml-test/`, CT 121 `/tmp/s1ds-new/`,
-   `/tmp/s1ds-deploy-*`.
+4. Leftovers for Blazzer to OK deleting: `%TEMP%\hlmm-1.2.0`, plus the server-side temp folders listed in the
+   schedule1-server HANDOFF.
 
 ### Files Modified
 - `mods/minimap/src/{Settings,MapMath,MinimapHud,MinimapMod,AssemblyInfo}.cs`, `mods/minimap/README.md`
@@ -93,7 +93,7 @@ updated: 2026-11-02
 2. Raise `MapMath.MinimumZoom` (`MapMath.cs:8`, 0.25) to about 0.6: the map art has no mipmaps, so it shimmers when
    zoomed out further.
 3. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer).
-4. Optional: router DHCP reservation for .180; one leaked `/tmp/tmp.*` in CT 121 from the failed r3 apply.
+4. Optional server housekeeping: see the schedule1-server HANDOFF.
 
 ### Files Modified
 - `mods/minimap/**` (new), `manifest/manifest.json` (r3 nachorn → r4 hyland-minimap), `scripts/mods.ps1`,
@@ -112,7 +112,7 @@ updated: 2026-11-02
   unused npm `@tauri-apps/plugin-opener` (the Rust crate is used); docs synced (`closing` stage, step 2 title).
   The rest of the sweep came back clean: commands ↔ `api.ts` 1:1, no unused deps/capabilities/CSS/debug output.
 - Router item settled: 38465 TCP (status ping) and UDP (Blazzer's join via NAT loopback) both pass the forward.
-  CT 121 has a **static** `ip=192.168.1.180/24` (`pct config 121`), so a router reservation is optional.
+  The server's LAN address is static (details in the schedule1-server HANDOFF), so a router reservation is optional.
 - Deleted `%TEMP%\hl-test-webview`. Checks: cargo test 14 passed, clippy 0, svelte-check 0/0.
 
 ### Key Decisions

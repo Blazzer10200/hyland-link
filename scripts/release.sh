@@ -31,9 +31,29 @@ if [[ "$ver" != "$pkg" || "$ver" != "$crate" ]]; then
   exit 1
 fi
 
-if $publish && gh release view "v$ver" --repo "$REPO" >/dev/null 2>&1; then
-  echo "v$ver is already on GitHub. Bump the version first." >&2
-  exit 1
+if $publish; then
+  if gh release view "v$ver" --repo "$REPO" >/dev/null 2>&1; then
+    echo "v$ver is already on GitHub. Bump the version first." >&2
+    exit 1
+  fi
+  # The exe bakes manifest/manifest.json from this working tree and the new tag lands on GitHub's main, so both must be
+  # exactly what's committed and pushed.
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "Commit first: a release is built from what's on GitHub." >&2
+    git status --short >&2
+    exit 1
+  fi
+  git fetch -q origin main
+  if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+    echo "main isn't the same as origin/main: push (or pull) first." >&2
+    exit 1
+  fi
+  # A lower version would still become releases/latest and every launcher would "update" to it.
+  latest="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null | sed 's/^v//' || true)"
+  if [[ -n "$latest" && "$(printf '%s\n%s\n' "$latest" "$ver" | sort -V | tail -1)" != "$ver" ]]; then
+    echo "v$ver is older than the latest release v$latest. Bump the version." >&2
+    exit 1
+  fi
 fi
 
 [[ -f "$KEY" ]] || { echo "Signing key missing: $KEY" >&2; exit 1; }

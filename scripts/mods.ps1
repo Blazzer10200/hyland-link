@@ -9,7 +9,7 @@
 #   pwsh scripts/mods.ps1 publish [-Now]
 #
 # add and remove only edit the file (rerun add with the new URL to update a mod). publish bumps `revision`, checks the
-# file with the launcher's own rules (cargo test), runs `s1ds mods apply` on the server over SSH, then commits and
+# file with the launcher's own rules (cargo test), runs `hl s1 mods apply` on the server over SSH, then commits and
 # pushes. The server waits until nobody's online unless you pass -Now.
 param(
     [Parameter(Position = 0, Mandatory)]
@@ -34,7 +34,8 @@ Add-Type -AssemblyName System.IO.Compression
 $Root = Split-Path -Parent $PSScriptRoot
 $ManifestPath = Join-Path $Root "manifest/manifest.json"
 $SshHost = "blazzer-labs"
-# Same rules as app/src-tauri/src/manifest.rs and schedule1-server's s1ds-mods.
+# The hosts and folders of app/src-tauri/src/manifest.rs and schedule1-server's s1ds-mods. add/remove check only
+# these; publish runs the launcher's full rules (cargo test) before anything reaches the server.
 $ModDirs = "Mods", "Plugins", "UserLibs", "UserData"
 $Hosts = "https://github.com/", "https://thunderstore.io/"
 
@@ -197,12 +198,20 @@ function Publish-Mods {
         if ($other) { throw "Commit or stash other changes first; publish commits only manifest/manifest.json:`n$($other -join "`n")" }
         $branch = git rev-parse --abbrev-ref HEAD
         if ($branch -ne "main") { throw "Publish from main (you're on $branch)." }
+        # Checked before the server changes: the push at the end must send only the manifest commit, and must not be
+        # rejected for being behind after the server already runs the new list.
+        git fetch -q origin main
+        if ($LASTEXITCODE) { throw "git fetch failed; publish needs to know main matches GitHub first. Nothing changed." }
+        $ahead = [int](git rev-list --count origin/main..main)
+        $behind = [int](git rev-list --count main..origin/main)
+        if ($ahead -or $behind) { throw "main is $ahead ahead and $behind behind origin/main. Push or pull first. Nothing changed." }
 
         $original = Get-Content -Raw $ManifestPath
         $manifest = Read-Manifest
         $revision = [int]$manifest.revision + 1
         $manifest.revision = $revision
         Write-Manifest $manifest
+        $applied = $false
         try {
             # The launcher's own validation, so players never fall back to the built-in list over a typo.
             cargo test --manifest-path app/src-tauri/Cargo.toml --lib manifest::
@@ -212,10 +221,11 @@ function Publish-Mods {
             if ($Now) { $sshArgs += "--now" }
             ssh @sshArgs
             if ($LASTEXITCODE) { throw "The server didn't finish applying revision $revision (output above). Nothing was pushed." }
+            $applied = $true
         }
-        catch {
-            [IO.File]::WriteAllText($ManifestPath, $original, [Text.UTF8Encoding]::new($false))
-            throw
+        finally {
+            # Also on Ctrl+C (which skips catch): the file goes back unless the server took the new revision.
+            if (-not $applied) { [IO.File]::WriteAllText($ManifestPath, $original, [Text.UTF8Encoding]::new($false)) }
         }
 
         git add manifest/manifest.json

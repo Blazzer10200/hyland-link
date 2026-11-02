@@ -35,8 +35,9 @@ pwsh scripts/mods.ps1 publish                                # server applies it
 unless `-Now`), confirms the server booted on the same MelonLoader players get, and only then pushes `main`. Each mod
 has a `side`: `both` (default), `server` (never reaches players) or `client` (players only).
 
-Other manifest changes (new IP, a notice for everyone): edit `manifest/manifest.json`, raise its `revision`, and push
-`main`.
+Other manifest changes (new IP, a notice for everyone): edit `manifest/manifest.json`, raise its `revision`, run
+`cargo test --manifest-path app/src-tauri/Cargo.toml --lib manifest::` (a file the launcher rejects sends every player
+back to the built-in list), and push `main`.
 
 Launcher change:
 

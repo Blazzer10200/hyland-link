@@ -33,13 +33,24 @@ if [ ! -d "$game" ]; then
 fi
 
 marker="$game/UserData/HylandLink.json"
-echo "Installed by Hyland Link: $(tr -d '\r\n ' < "$marker" 2>/dev/null || echo 'nothing (no UserData/HylandLink.json)')"
-echo "Console window: $(grep -m1 -E '^\s*hide_console' "$game/UserData/Loader.cfg" 2>/dev/null | tr -d '\r' || echo 'Loader.cfg missing')"
+if [ -f "$marker" ]; then
+    echo "Installed by Hyland Link: $(tr -d '\r\n ' < "$marker")"
+else
+    echo "Installed by Hyland Link: nothing (no UserData/HylandLink.json)"
+fi
+loader_cfg="$game/UserData/Loader.cfg"
+if [ -f "$loader_cfg" ]; then
+    console_setting="$(grep -m1 -E '^\s*hide_console' "$loader_cfg" | tr -d '\r')"
+    echo "Console window: ${console_setting:-hide_console not set}"
+else
+    echo "Console window: Loader.cfg missing"
+fi
 
 game_log="$game/MelonLoader/Latest.log"
 section "Game log ($game_log)"
 if [ -f "$game_log" ]; then
-    echo "Errors: $(grep -ciE '\[(error|fatal)\]|exception' "$game_log")  Warnings: $(grep -ciE '\[warn(ing)?\]' "$game_log")"
+    # Counted like the launcher's log sheet: tagged lines only (an exception's stack belongs to its [ERROR] line).
+    echo "Errors: $(grep -ciE '\[(error|fatal)\]' "$game_log")  Warnings: $(grep -ciE '\[warn(ing)?\]' "$game_log")"
     tail -n "$lines" "$game_log"
 else
     echo "(none: the game hasn't run with MelonLoader yet)"
