@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 3,
+  "revision": 4,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -27,18 +27,18 @@
   },
   "mods": [
     {
-      "id": "schedule-i-minimap",
-      "name": "Schedule I Minimap",
-      "version": "1.0.2",
+      "id": "hyland-minimap",
+      "name": "Hyland Minimap",
+      "version": "1.1.0",
       "blurb": "Minimap with customers, dealers, vehicles and players. PageUp/Down to zoom.",
       "side": "client",
-      "url": "https://thunderstore.io/package/download/nachorn/Schedule_I_Minimap/1.0.2/",
-      "sha256": "4b325d28fd788dc89b90e5d31eb3066f3d900ad2ea532ccf3540d8d18ad7857b",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/minimap-v1.1.0/HylandMinimap.zip",
+      "sha256": "433c977a76202ff9d18cda3c161660f18f46cfa518e40ea38e49344a7d893dc7",
       "files": [
         {
-          "source": "Mods/ScheduleIMinimap.dll",
-          "path": "Mods/ScheduleIMinimap.dll",
-          "sha256": "92631174cf2e5e882a6afc9f9536e1d1369983b86e067b7e478e2145d70bfa96"
+          "source": "Mods/HylandMinimap.dll",
+          "path": "Mods/HylandMinimap.dll",
+          "sha256": "7cedc127f6423b244b743213860d130b142b62d4dc07b92803bab5f0bfeebc1e"
         }
       ]
     }
