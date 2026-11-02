@@ -36,6 +36,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   (pwsh `ZipFile.CreateFromDirectory`, not 5.1's Compress-Archive), then `gh release create minimap-v<version> ...
   --latest=false` (**never latest**: the launcher updater reads `releases/latest`), `mods.ps1 add <asset URL> -Id
   hyland-minimap ...` and `publish`.
+- `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
+  restyles the game's own HUD objects in place and restores them on disable or error. Not shipped yet; ships like the
+  minimap (`hud-v<version>`, id `hyland-hud`). `mods/hud/preview` renders its sprites to PNG without the game.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 

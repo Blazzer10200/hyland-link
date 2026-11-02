@@ -1,0 +1,450 @@
+using System;
+using System.Collections.Generic;
+using Il2CppScheduleOne.PlayerScripts;
+using Il2CppScheduleOne.UI;
+using Il2CppTMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+namespace HylandHud;
+
+/// <summary>
+/// Restyles the game's own hotbar in place: the slots stay the game's (drag and drop, item icons, quantities, controller
+/// support all keep working), they just get a glass rail behind them, rounded backgrounds, tighter spacing, a lift on the
+/// selected one, a sliding underline and an item name pill above it. Everything changed on a game object is recorded and
+/// put back in <see cref="Dispose"/>.
+/// </summary>
+internal sealed class HotbarSkin : IDisposable
+{
+	private sealed class Slot
+	{
+		internal ItemSlotUI Ui;
+
+		internal Sprite Sprite;
+
+		internal Image.Type Type;
+
+		internal float PixelsPerUnitMultiplier;
+
+		internal Color32 Normal;
+
+		internal Color32 Highlight;
+
+		internal Vector3 Scale;
+
+		internal float BaseY;
+
+		internal TextMeshProUGUI Index;
+
+		internal Color IndexColor;
+
+		internal float Lift;
+
+		/// <summary>Center x in the slot row (SlotContainer space), from the last layout.</summary>
+		internal float X;
+	}
+
+	private const float Padding = 12f;
+
+	private const float PaddingY = 10f;
+
+	private const float LiftUnits = 10f;
+
+	private const float LiftScale = 0.07f;
+
+	private const float SelectSeconds = 0.18f;
+
+	private readonly HUD hud;
+
+	private readonly PlayerInventory inventory;
+
+	private readonly Settings settings;
+
+	private readonly List<Slot> slots = new List<Slot>();
+
+	private readonly Slot? management;
+
+	private readonly Slot cash;
+
+	private readonly RectTransform? separator;
+
+	private readonly Vector2 separatorPosition;
+
+	private readonly Vector3 separatorScale;
+
+	private readonly RectTransform back;
+
+	private readonly RectTransform front;
+
+	private readonly RectTransform rail;
+
+	private readonly RectTransform railShadow;
+
+	private readonly Image underline;
+
+	private readonly RectTransform label;
+
+	private readonly CanvasGroup labelGroup;
+
+	private readonly TextMeshProUGUI labelText;
+
+	private readonly MoneyPanel? money;
+
+	private readonly CanvasGroup fade;
+
+	private readonly bool fadeAdded;
+
+	private readonly float fadeAlpha;
+
+	private readonly bool labelWasActive;
+
+	private readonly bool balanceWasActive;
+
+	private Slot? selected;
+
+	private string labelName = "";
+
+	private float labelIn;
+
+	private float underlineX;
+
+	private float underlineAlpha;
+
+	private float idleFor;
+
+	private bool disposed;
+
+	internal HotbarSkin(HUD hud, PlayerInventory inventory, Sprites sprites, TMP_FontAsset font, Settings settings, Action<string> log)
+	{
+		this.hud = hud;
+		this.inventory = inventory;
+		this.settings = settings;
+		// SlotUIs: the 8 hotbar slots, then the clipboard (management) slot, then the cash slot.
+		Il2CppSystem.Collections.Generic.List<ItemSlotUI> uis = inventory.SlotUIs;
+		if (uis == null || uis.Count < 10)
+		{
+			throw new InvalidOperationException("Hotbar has " + (uis?.Count ?? 0) + " slot UIs, expected 10.");
+		}
+		RectTransform row = hud.SlotContainer;
+		float slotWidth;
+		try
+		{
+			Sprite slotSprite = sprites.Slot(14);
+			for (int i = 0; i < 8; i++)
+			{
+				slots.Add(Restyle(uis[i], slotSprite));
+			}
+			management = Restyle(hud.managementSlotUI, slotSprite);
+			cash = Restyle(hud.cashSlotUI.GetComponent<ItemSlotUI>(), slotSprite);
+			Transform sep = slots[7].Ui.Rect.Find("Seperator");
+			separator = sep != null ? sep.Cast<RectTransform>() : null;
+			if (separator != null)
+			{
+				separatorPosition = separator.anchoredPosition;
+				separatorScale = separator.localScale;
+			}
+			// Two layers inside the slot row, so they share its coordinates: the rail behind the slots, the underline,
+			// name pill and money panel in front.
+			back = Layer("Hyland rail (back)", row, slots[0].Ui.Rect);
+			back.SetAsFirstSibling();
+			front = Layer("Hyland rail (front)", row, slots[0].Ui.Rect);
+			front.SetAsLastSibling();
+			railShadow = Ui.Image("Shadow", back, sprites.Shadow(22, 16), Color.white, sliced: true).rectTransform;
+			rail = Ui.Image("Glass", back, sprites.Glass(22), Color.white, sliced: true).rectTransform;
+			slotWidth = slots[0].Ui.Rect.rect.width;
+			float barWidth = slotWidth;
+			underline = Ui.Image("Underline", front, sprites.Get("underline" + barWidth, () => Art.GlowBar(barWidth, Theme.Accent)), Color.white);
+			underline.rectTransform.sizeDelta = new Vector2(barWidth + 16f, 19f);
+			underline.color = new Color(1f, 1f, 1f, 0f);
+			label = Ui.Rect("Item name", front);
+			labelGroup = Ui.Group(label.gameObject);
+			labelGroup.alpha = 0f;
+			RectTransform labelGlass = Ui.Image("Glass", label, sprites.Glass(10), Color.white, sliced: true).rectTransform;
+			labelGlass.anchorMin = Vector2.zero;
+			labelGlass.anchorMax = Vector2.one;
+			labelGlass.offsetMin = Vector2.zero;
+			labelGlass.offsetMax = Vector2.zero;
+			labelText = Ui.Text("Text", label, font, 15f, Color.white, 2f);
+			labelText.rectTransform.sizeDelta = new Vector2(400f, 24f);
+			if (settings.MoneyPanel.Value)
+			{
+				money = new MoneyPanel(front, sprites, font);
+			}
+			// The fade covers the whole row (slots and both layers). The game doesn't put a CanvasGroup here, but if a
+			// later version does, it's reused and its alpha put back.
+			fade = row.GetComponent<CanvasGroup>();
+			fadeAdded = fade == null;
+			if (fadeAdded)
+			{
+				fade = row.gameObject.AddComponent<CanvasGroup>();
+			}
+			fadeAlpha = fade.alpha;
+			labelWasActive = hud.selectedItemLabel.gameObject.activeSelf;
+			hud.selectedItemLabel.gameObject.SetActive(false);
+			balanceWasActive = hud.onlineBalanceContainer.gameObject.activeSelf;
+			if (money != null)
+			{
+				hud.onlineBalanceContainer.gameObject.SetActive(false);
+			}
+		}
+		catch
+		{
+			Dispose();
+			throw;
+		}
+		// One line per session about the real layout, so the first in-game run tells us what the prefab looks like.
+		log($"Hotbar: slot {slotWidth:F0}x{slots[0].Ui.Rect.rect.height:F0}, cash slot under '{hud.cashSlotContainer.parent?.name}', clipboard under '{hud.managementSlotContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
+	}
+
+	internal bool IsBoundTo(HUD instance)
+	{
+		return hud == instance && back != null;
+	}
+
+	private static RectTransform Layer(string name, RectTransform parent, RectTransform like)
+	{
+		RectTransform layer = Ui.Rect(name, parent);
+		layer.anchorMin = like.anchorMin;
+		layer.anchorMax = like.anchorMax;
+		layer.anchoredPosition = Vector2.zero;
+		return layer;
+	}
+
+	private static Slot Restyle(ItemSlotUI ui, Sprite sprite)
+	{
+		if (ui == null || ui.Background == null)
+		{
+			throw new InvalidOperationException("A hotbar slot has no background image.");
+		}
+		Slot slot = new Slot
+		{
+			Ui = ui,
+			Sprite = ui.Background.sprite,
+			Type = ui.Background.type,
+			PixelsPerUnitMultiplier = ui.Background.pixelsPerUnitMultiplier,
+			Normal = ui.normalColor,
+			Highlight = ui.highlightColor,
+			Scale = ui.Rect.localScale,
+			BaseY = ui.Rect.anchoredPosition.y
+		};
+		Transform index = ui.Rect.Find("Background/Index");
+		slot.Index = index != null ? index.GetComponent<TextMeshProUGUI>() : null;
+		if (slot.Index != null)
+		{
+			slot.IndexColor = slot.Index.color;
+		}
+		ui.Background.sprite = sprite;
+		ui.Background.type = Image.Type.Sliced;
+		ui.Background.pixelsPerUnitMultiplier = 1f;
+		// The baked sprite is a white stroke over a third-strength fill, so these give the concept's
+		// rgba(255,255,255,.04)/.08 at rest and .13/.42 when selected.
+		HotbarSlot? hotbarSlot = ui.assignedSlot?.TryCast<HotbarSlot>();
+		ui.SetNormalColor(new Color(1f, 1f, 1f, 0.12f));
+		ui.SetHighlightColor(new Color(1f, 1f, 1f, 0.4f));
+		ui.SetHighlighted(hotbarSlot != null && hotbarSlot.IsSelected);
+		return slot;
+	}
+
+	private IEnumerable<Slot> Row()
+	{
+		foreach (Slot slot in slots)
+		{
+			yield return slot;
+		}
+		if (management != null && hud.managementSlotContainer.gameObject.activeSelf)
+		{
+			yield return management;
+		}
+		yield return cash;
+	}
+
+	internal void Update(float dt)
+	{
+		float gap = Mathf.Clamp(settings.SlotGap.Value, 0, 20);
+		Layout(gap);
+		Slot? now = null;
+		foreach (Slot slot in Row())
+		{
+			HotbarSlot? hotbarSlot = slot.Ui.assignedSlot?.TryCast<HotbarSlot>();
+			if (hotbarSlot != null && hotbarSlot.IsSelected)
+			{
+				now = slot;
+			}
+		}
+		bool changed = now != selected;
+		selected = now;
+		float height = 0f;
+		foreach (Slot slot in Row())
+		{
+			height = Mathf.Max(height, slot.Ui.Rect.rect.height);
+			slot.Lift = Motion.Approach(slot.Lift, slot == selected ? 1f : 0f, SelectSeconds, dt);
+			slot.Ui.Rect.localScale = slot.Scale * (1f + LiftScale * slot.Lift);
+			Vector2 position = slot.Ui.Rect.anchoredPosition;
+			slot.Ui.Rect.anchoredPosition = new Vector2(position.x, slot.BaseY + LiftUnits * slot.Lift);
+			if (slot.Index != null)
+			{
+				slot.Index.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.4f, 1f, slot.Lift));
+			}
+		}
+		if (separator != null)
+		{
+			// The separator hangs off slot 8, so undo that slot's lift to keep it still.
+			float scale = 1f + LiftScale * slots[7].Lift;
+			separator.localScale = separatorScale / scale;
+			separator.anchoredPosition = new Vector2(gap / scale, (separatorPosition.y - LiftUnits * slots[7].Lift) / scale);
+		}
+		// The rail spans the row from the first slot to the cash slot (the layout starts at x = gap).
+		float left = gap - Padding;
+		float right = cash.X + cash.Ui.Rect.rect.width / 2f + Padding;
+		float bottom = -height / 2f - PaddingY;
+		float top = height / 2f + PaddingY;
+		Ui.Place(rail, new Vector2((left + right) / 2f, 0f), new Vector2(right - left, top - bottom));
+		Ui.Place(railShadow, new Vector2((left + right) / 2f, -6f), new Vector2(right - left + 32f, top - bottom + 32f));
+		// Underline and name pill follow the selected slot.
+		float targetX = selected?.X ?? underlineX;
+		underlineX = changed && underlineAlpha < 0.05f ? targetX : Motion.Approach(underlineX, targetX, SelectSeconds, dt);
+		underlineAlpha = Motion.Approach(underlineAlpha, selected != null ? 1f : 0f, SelectSeconds, dt);
+		underline.rectTransform.localPosition = new Vector3(underlineX, bottom + 7.5f, 0f);
+		underline.color = new Color(1f, 1f, 1f, underlineAlpha);
+		string name = selected == null ? "" : (selected.Ui.assignedSlot?.ItemInstance?.Name ?? "Empty");
+		if (name != labelName)
+		{
+			labelName = name;
+			labelText.text = name;
+			labelIn = 0f;
+		}
+		labelIn = Mathf.Min(1f, labelIn + dt / 0.22f);
+		float rise = (1f - Motion.EaseOutCubic(labelIn)) * 6f;
+		label.sizeDelta = new Vector2(labelText.preferredWidth + 24f, 26f);
+		label.localPosition = new Vector3(underlineX, top + 21f - rise, 0f);
+		labelGroup.alpha = name.Length == 0 ? 0f : Motion.EaseOutCubic(labelIn);
+		money?.Update(new Vector2(right + 12f, bottom), dt);
+		UpdateIdle(changed, dt);
+	}
+
+	/// <summary>The game's RepositionUI with our gap: 8 slots, a double gap with the separator, then the clipboard (when
+	/// unlocked) and the cash slot, centered. Runs every frame, so it also wins after the game re-lays the row.</summary>
+	private void Layout(float gap)
+	{
+		float x = 0f;
+		foreach (Slot slot in slots)
+		{
+			float w = slot.Ui.Rect.rect.width;
+			slot.X = x + w / 2f + gap;
+			slot.Ui.Rect.anchoredPosition = new Vector2(slot.X, slot.Ui.Rect.anchoredPosition.y);
+			x += w + gap;
+		}
+		x += gap;
+		if (management != null && hud.managementSlotContainer.gameObject.activeSelf)
+		{
+			float w = hud.managementSlotContainer.sizeDelta.x;
+			management.X = x + w / 2f + gap;
+			hud.managementSlotContainer.anchoredPosition = new Vector2(management.X, 0f);
+			x += w + gap;
+		}
+		float cw = hud.cashSlotContainer.sizeDelta.x;
+		cash.X = x + cw / 2f + gap;
+		hud.cashSlotContainer.anchoredPosition = new Vector2(cash.X, 0f);
+		x += cw + gap;
+		hud.SlotContainer.anchoredPosition = new Vector2(-x / 2f, hud.SlotContainer.anchoredPosition.y);
+	}
+
+	private void UpdateIdle(bool selectionChanged, float dt)
+	{
+		bool input = selectionChanged || inventory.AttachedScreen != null;
+		Keyboard keyboard = Keyboard.current;
+		Mouse mouse = Mouse.current;
+		if (keyboard != null && keyboard.anyKey.wasPressedThisFrame)
+		{
+			input = true;
+		}
+		if (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame || mouse.scroll.ReadValue().y != 0f))
+		{
+			input = true;
+		}
+		idleFor = input ? 0f : idleFor + dt;
+		bool idle = settings.IdleFade.Value && idleFor >= Mathf.Clamp(settings.IdleSeconds.Value, 1f, 30f);
+		float target = idle ? Mathf.Clamp(settings.IdleOpacity.Value, 0.1f, 1f) : 1f;
+		// Concept: eases out over 0.6 s, snaps back in 0.12 s.
+		fade.alpha = Motion.Approach(fade.alpha, target, idle ? 0.6f : 0.12f, dt);
+	}
+
+	public void Dispose()
+	{
+		if (disposed)
+		{
+			return;
+		}
+		disposed = true;
+		List<Slot> all = new List<Slot>(slots);
+		if (management != null)
+		{
+			all.Add(management);
+		}
+		if (cash != null)
+		{
+			all.Add(cash);
+		}
+		foreach (Slot slot in all)
+		{
+			if (slot.Ui == null)
+			{
+				continue;
+			}
+			HotbarSlot? hotbarSlot = slot.Ui.assignedSlot?.TryCast<HotbarSlot>();
+			slot.Ui.Background.sprite = slot.Sprite;
+			slot.Ui.Background.type = slot.Type;
+			slot.Ui.Background.pixelsPerUnitMultiplier = slot.PixelsPerUnitMultiplier;
+			slot.Ui.SetNormalColor(slot.Normal);
+			slot.Ui.SetHighlightColor(slot.Highlight);
+			slot.Ui.SetHighlighted(hotbarSlot != null && hotbarSlot.IsSelected);
+			slot.Ui.Rect.localScale = slot.Scale;
+			slot.Ui.Rect.anchoredPosition = new Vector2(slot.Ui.Rect.anchoredPosition.x, slot.BaseY);
+			if (slot.Index != null)
+			{
+				slot.Index.color = slot.IndexColor;
+			}
+		}
+		if (separator != null)
+		{
+			separator.localScale = separatorScale;
+			separator.anchoredPosition = separatorPosition;
+		}
+		if (fade != null)
+		{
+			if (fadeAdded)
+			{
+				UnityEngine.Object.Destroy(fade);
+			}
+			else
+			{
+				fade.alpha = fadeAlpha;
+			}
+		}
+		if (hud != null)
+		{
+			if (hud.selectedItemLabel != null)
+			{
+				hud.selectedItemLabel.gameObject.SetActive(labelWasActive);
+			}
+			if (hud.onlineBalanceContainer != null)
+			{
+				hud.onlineBalanceContainer.gameObject.SetActive(balanceWasActive);
+			}
+		}
+		if (back != null)
+		{
+			UnityEngine.Object.Destroy(back.gameObject);
+		}
+		if (front != null)
+		{
+			UnityEngine.Object.Destroy(front.gameObject);
+		}
+		// The game's own layout (spacing 20) comes back with its own method.
+		if (inventory != null)
+		{
+			inventory.RepositionUI();
+		}
+	}
+}

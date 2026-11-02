@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Renders the HUD's generated sprites (../src/Art.cs, no Unity types) to PNGs, so their look can be checked without
+       the game. Usage is in mods/hud/README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>HylandHud</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/Art.cs" Link="Art.cs" />
+  </ItemGroup>
+</Project>
