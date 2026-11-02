@@ -64,7 +64,7 @@ installed launchers can't verify another update, and everyone has to reinstall o
 app/                 the Tauri 2 + Svelte 5 app (see app/README.md)
 manifest/            the version file the launcher and the server both follow (built in, and fetched from main)
 mods/minimap/        Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT)
-mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass and money (not shipped yet)
+mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass and money
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap)
 scripts/release.sh   build, sign and publish a launcher release

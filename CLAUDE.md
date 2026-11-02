@@ -33,8 +33,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `mods/minimap/`: Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT, decompiled; see its README). Players get
   it as `hyland-minimap` (client side) from a `minimap-v<version>` release.
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
-  restyles the game's own HUD objects in place and restores them on disable or error. Not shipped yet (`hud-v<version>`,
-  id `hyland-hud`). `mods/hud/preview` renders its sprites to PNG without the game.
+  restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.0`, id
+  `hyland-hud`, mod list r8). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
+  real prefab's layout to the log. In-game testing: see its README ("Testing in game").
 - `scripts/mod-release.ps1 hud|minimap`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
   Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
   release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.
@@ -67,7 +68,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - **Releases move only when published:** a draft doesn't update `releases/latest`. The asset is always named
   `Hyland-Link-Setup.exe`, so the friend download link never changes.
 - Don't install the mod into Blazzer's real game folder to test. That copy is used for co-op. Use the browser mock
-  (`pnpm --dir app dev`, `?s=<state>`) or `cargo test -- --ignored` (installs into a temp folder).
+  (`pnpm --dir app dev`, `?s=<state>`) or `cargo test -- --ignored` (installs into a temp folder). For our client mods
+  in the real game, use the test copy `C:\Games\Schedule I (HUD test)` (runs its own exe via `steam_appid.txt`; join
+  the server, never single-player: saves are shared). See `mods/hud/README.md`.
 
 ## Build
 - `CARGO_TARGET_DIR=C:\cargo-targets` on this PC, so bundles land in `C:\cargo-targets\release\bundle\nsis\`.

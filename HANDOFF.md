@@ -7,6 +7,38 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 10 — 2026-11-02 (HUD tested in game, everything shipped: launcher 0.1.4, HUD 0.1.0, minimap 1.2.2, r8)
+
+### Completed
+- **First in-game run** of the HUD in the test copy `C:\Games\Schedule I (HUD test)` (game folder copy plus
+  `steam_appid.txt`; it runs from its own exe). Layout dumps from the live prefab (`mods/hud/src/Diagnostics.cs`)
+  found two bugs, both fixed and confirmed in game:
+  - The compass strip sat inside `NotchContainer`, whose RectMask2D clips to 30 units. That hid the heading marker,
+    the clock and friends. The N/E/S/W letters also never got their text.
+  - `HUD.onlineBalanceContainer` is the whole `CashSlotContainer`, so hiding the bank also hid the cash slot. Now only
+    `OnlineSlot` is hidden. The underline and pill use the slot's real center.
+- **Polish after Blazzer's screenshot** (built, not yet seen in game):
+  - The money panel is now bank-only (the cash slot shows the cash).
+  - The bar is centered on what's shown.
+  - The server's headless player ("Player" at 772 ft) is skipped on the compass, and in the minimap too.
+- **Shipped, with Blazzer's go-ahead:**
+  - Launcher **v0.1.4** is `releases/latest`. Its feed was checked anonymously: version 0.1.4, key id
+    `54ae0a37e2f165c5`, the download matches the build.
+  - **hud-v0.1.0** and **minimap-v1.2.2** released (not latest).
+  - `mods.ps1 publish` → **revision 8**. The server applied it first (world saved, `pre-mods-r8` backup, ML 0.7.3
+    matches, server up), then `main` was pushed (6081900). After the 5-minute wait the raw manifest serves r8.
+- Cleanup: `dist/` now holds only what's live (`v0.1.4`, `hud-v0.1.0`, `minimap-v1.2.2`).
+
+### Next Steps
+1. Blazzer: open the launcher. It self-updates to 0.1.4, then **Update** installs the HUD and minimap 1.2.2. Join and
+   look at the polish round (bank-only panel, centered bar, no ghost friend). `bash scripts/logs.sh` should show
+   `Mod list: revision 8 from Online`.
+2. The test copy is still on disk (6.5 GB) for the next in-game test. Its `Mods/` holds a dev HUD build, not 0.1.0.
+3. Open items carried over from session 9 ("Not done" below): HANDOFF.md being public, the SSH-safe server apply, and
+   the shared path-rule gaps.
+
+---
+
 ## Session 9 — 2026-11-02 (deep review: launcher, HUD, minimap, scripts; all local, nothing shipped)
 
 ### Completed

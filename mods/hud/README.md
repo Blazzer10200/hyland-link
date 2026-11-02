@@ -3,7 +3,8 @@
 A restyled HUD for Schedule I (IL2CPP, MelonLoader 0.7.2+): the "Glass Rail" concept (`hud-prototype.html`, Blazzer's
 design). It's our own code, not a fork.
 
-**Not shipped yet.** Built and previewed, never run in game. See "Before the first release" below.
+**Shipped:** 0.1.0 (`hud-v0.1.0`, id `hyland-hud`, client side) is on the server's mod list from revision 8
+(2026-11-02). Players get it through the launcher's Update.
 
 ## What it does
 
@@ -68,15 +69,25 @@ Preview the generated sprites in the concept's layout, without the game (text is
 dotnet run --project mods/hud/preview -c Release -- <output folder>
 ```
 
-## Before the first release
+## Testing in game
 
-1. Run it once in a test copy of the game (not Blazzer's co-op folder). Each session it logs one line about the real
-   hotbar and compass layout (slot size, parents, canvas scale): check the rail wraps the slots, the cash slot sits
-   inside it, and the strip lines up with quest markers.
-2. Ship it. 0.1.0 is already staged in `dist/hud-v0.1.0/HylandHud.zip`; rerun the first line after any change:
+Never in Blazzer's own game folder (it's the co-op copy). There's a test copy at `C:\Games\Schedule I (HUD test)`: the
+whole game folder plus a `steam_appid.txt` (3164500), so its `Schedule I.exe` runs from there (Steam open) instead of
+Steam starting the real install. Copy a fresh `bin/Release/net6.0/HylandHud.dll` into its `Mods/` (with the game closed),
+launch the exe, and **join the server**: both copies share the save folder in `AppData\LocalLow`, so a single-player
+test would write to Blazzer's real saves.
 
-   ```bash
-   pwsh scripts/mod-release.ps1 hud            # build + stage + check, nothing leaves the PC
-   pwsh scripts/mod-release.ps1 hud -Publish   # GitHub release hud-v<version> (not latest) + mods.ps1 add
-   pwsh scripts/mods.ps1 publish               # the server installs it first, then main is pushed
-   ```
+Each session the mod logs one line about the hotbar and one about the compass (slot size, parents, canvas scale, which
+bank readout it hid) to that copy's `MelonLoader/Latest.log`. When a screenshot shows something out of place, log the
+real prefab with `Diagnostics.Chain`/`Children` in the skin's constructor. That's how the first run's two bugs were
+found: the compass's `RectMask2D` and the cash slot's shared container.
+
+## Shipping a change
+
+Bump `src/AssemblyInfo.cs` (MelonInfo and the two assembly versions), then:
+
+```bash
+pwsh scripts/mod-release.ps1 hud            # build + stage + check, nothing leaves the PC
+pwsh scripts/mod-release.ps1 hud -Publish   # GitHub release hud-v<version> (not latest) + mods.ps1 add
+pwsh scripts/mods.ps1 publish               # the server installs it first, then main is pushed
+```
