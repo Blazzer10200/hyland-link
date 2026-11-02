@@ -69,7 +69,6 @@ internal sealed class CompassSkin : IDisposable
 	private float heading = float.NaN;
 
 	private bool disposed;
-
 	internal CompassSkin(CompassManager compass, HUD hud, Sprites sprites, TMP_FontAsset font, Settings settings, Action<string> log)
 	{
 		this.compass = compass;
@@ -84,10 +83,11 @@ internal sealed class CompassSkin : IDisposable
 		RectTransform like = notches[0].Rect;
 		try
 		{
-			// Same parent and anchors as the notches, so x = 0 is straight ahead for the strip and the game's markers alike.
-			root = Ui.Rect("Hyland compass", compass.NotchUIContainer);
-			root.anchorMin = like.anchorMin;
-			root.anchorMax = like.anchorMax;
+			// In the compass Container, centered: the notches' NotchContainer fills it exactly (same center, so x = 0 is straight
+			// ahead for the strip and the game's markers alike), but it carries a RectMask2D cut to its 30-unit height, which
+			// clipped the heading marker, friends and clock below the strip. The Container slides and hides the compass, so
+			// the strip still moves with it.
+			root = Ui.Rect("Hyland compass", compass.Container);
 			root.anchoredPosition = Vector2.zero;
 			root.sizeDelta = new Vector2(Width, 36f);
 			for (int i = 0; i < notches.Count; i++)
@@ -107,6 +107,7 @@ internal sealed class CompassSkin : IDisposable
 			{
 				bool north = i == 0;
 				TextMeshProUGUI letter = Ui.Text(letters[i], root, font, north ? 24f : 18f, Color.white, 8f);
+				letter.text = letters[i];
 				letter.rectTransform.sizeDelta = new Vector2(40f, 28f);
 				letter.rectTransform.localPosition = new Vector3(0f, Top - 14f, 0f);
 				marks.Add(new Mark(i * 90f, letter, north ? 1f : 0.72f));
@@ -133,8 +134,7 @@ internal sealed class CompassSkin : IDisposable
 			compass.CompassUIRange = Width;
 			compass.AngleDivisor = Width / 2f / UnitsPerDegree;
 			// Inside the try: it's the first touch of Container and Canvas, and a throw here must still undo the above.
-			log($"Compass: {notches.Count} notches hidden, container '{compass.Container.name}' at {compass.Container.anchoredPosition}, notch anchor {like.anchorMin}, canvas scale {compass.Canvas.scaleFactor:F2}.");
-		}
+			log($"Compass: {notches.Count} notches hidden, container '{compass.Container.name}' at {compass.Container.anchoredPosition}, notch anchor {like.anchorMin}, canvas scale {compass.Canvas.scaleFactor:F2}.");		}
 		catch
 		{
 			Dispose();
@@ -571,7 +571,7 @@ internal sealed class CompassSkin : IDisposable
 			for (int i = 0; players != null && i < players.Count; i++)
 			{
 				Player player = players[i];
-				if (player == null || player == local)
+				if (player == null || player == local || IsServerPlayer(player))
 				{
 					continue;
 				}
@@ -605,6 +605,13 @@ internal sealed class CompassSkin : IDisposable
 				}
 				markers.Remove(id);
 			}
+		}
+
+		/// <summary>The dedicated server's own headless player. A client sets its Steam name on spawn (Player.OnStartClient);
+		/// the server has no Steam login, so its player keeps the class default "Player", and showed up as a friend.</summary>
+		internal static bool IsServerPlayer(Player player)
+		{
+			return player.PlayerName == "Player";
 		}
 
 		private Marker Create(Player player)

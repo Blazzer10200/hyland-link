@@ -16,9 +16,9 @@ item icons, quantities, number keys and controller support keep working, and que
 | Slot gap 6 | `PlayerInventory.RepositionUI` (gap 20) | Same layout with `SlotGap`, every frame |
 | Selected slot lifts | `HotbarSlot.IsSelected` | +10 units, ×1.07, 0.18 s |
 | Gold underline, name pill | `ItemInstance.Name` | Slide under/over the selected slot; the game's fading `selectedItemLabel` is hidden |
-| Compass strip | `CompassManager` | Notches hidden, N/E/S/W strip (160 units per 90°) in the same container; `CompassUIRange`/`AngleDivisor` set to match, markers re-placed on the smoothed heading and faded at the ends |
+| Compass strip | `CompassManager` | Notches hidden, N/E/S/W strip (160 units per 90°) in the compass `Container` (not the notches' `NotchContainer`, whose RectMask2D cuts everything to a 30-unit strip); `CompassUIRange`/`AngleDivisor` set to match, markers re-placed on the smoothed heading and faded at the ends |
 | Clock pill | `TimeManager.CurrentTime`, `IsNight`, `Get12HourTime` | Day / dusk (17:00–18:00) / night icon, crossfade 0.3 s |
-| Cash + bank panel | `MoneyManager.cashBalance`, `onlineBalance` | 0.4 s count-up; the game's bank readout is hidden |
+| Bank panel | `MoneyManager.onlineBalance` | 0.4 s count-up, right of the rail where the game's bank slot (`OnlineSlot`, `HUD.onlineBalanceSlotUI`) was; that slot is hidden. Cash isn't repeated: the game's cash slot shows it |
 | Idle fade | slot changes, mouse buttons, scroll, gamepad bumpers/triggers/d-pad | 55% after 4 s, back in 0.12 s; never while an inventory screen is open. Walking and looking around don't count |
 | HUD hide | `HUD.canvas.enabled`, `CompassManager.SetVisible` | Inherited: everything lives in the game's own containers |
 
@@ -27,7 +27,7 @@ Beyond the concept:
 | Feature | Game source | How |
 |---|---|---|
 | Curfew and sleep warnings | `CurfewManager.IsEnabled` / `IsCurrentlyActive` (curfew 21:00–05:00), `TimeManager.CurrentTime` (time stops at 04:00 until everyone sleeps) | A tag on the clock pill (`TimeWarnings.For`): "CURFEW 25M" amber from 20:00, "CURFEW" red, "SLEEP 45M" from 03:00, "SLEEP NOW" at 04:00. The game's own `HUD.CurfewPrompt` and `SleepPrompt` say the same thing, so they're switched off (their graphics, since the game toggles the objects every frame) while the pill is on screen. The game hides the compass in menus and on the phone; then its own prompts come back, so a warning is never lost |
-| Friends on the compass | `Player.PlayerList`, `Player.PlayerName`, `UnitsUtility.FormatShortDistance` | A cyan dot (the minimap's co-op color) with "Name · 140m" under it per co-op player, clamped to the strip's ends when behind you; metres or feet follow the game's setting |
+| Friends on the compass | `Player.PlayerList`, `Player.PlayerName`, `UnitsUtility.FormatShortDistance` | A cyan dot (the minimap's co-op color) with "Name · 140m" under it per co-op player, clamped to the strip's ends when behind you; metres or feet follow the game's setting. The dedicated server's own headless player (still named the class default "Player", since it has no Steam login) is skipped |
 
 Left out on purpose: deal countdowns. The game's HUD quest list already shows "(Expires in N hrs)" on tracked deals, red under 2 hours (`Contract.UpdateTiming`), and replacing it would also drop the quest objectives that share that list.
 
@@ -38,8 +38,10 @@ then retries after 5, 10, 20, 40, then 60 s.
 
 - **No backdrop blur** (uGUI can't blur what's behind it without a custom shader); the glass is a little darker instead.
 - **The game's font**, not Barlow: a TMP font needs a Unity-built asset bundle to load. Sizes and spacing follow the concept.
-- **The cash slot stays in the rail** (key 9/0, drag target, needed to hand over cash), after the separator, so cash
-  also shows in the money panel. `MoneyPanel = false` drops the panel and brings the game's bank readout back.
+- **The cash slot stays in the rail** (key 9/0, drag target, needed to hand over cash), after the separator, showing the
+  cash amount as the game draws it, so the panel next to it shows only the bank. `HUD.onlineBalanceContainer` is the
+  whole `CashSlotContainer` (cash slot and bank slot), so only the bank slot inside it is hidden. `MoneyPanel = false`
+  drops the panel and brings the game's bank slot back.
 - **The "+$120" float is the game's own** popup (over the cash slot), not a second one.
 - **Hide/show is instant**, as the game toggles its canvas; the concept's 200 ms slide can't be hooked without patching.
 - Item icons are the game's item art, not the concept's line icons.

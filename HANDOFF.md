@@ -42,9 +42,9 @@ updated: 2026-11-02
 - HUD re-staged: `dist/hud-v0.1.0/HylandHud.zip`, sha256 `743a656e…84ea4d9` (replaces session 8's `577b9ac7…`).
 
 ### Not done (needs Blazzer or another repo)
-- **HANDOFF.md is public** (tracked and pushed). It names CT 121, the `.180` LAN reservation, router NAT and the
-  `blazzer-labs` SSH alias. These aren't secrets, but it goes against "nothing from schedule1-server in here". Untracking it is
-  Blazzer's call (it stays in history either way).
+- **HANDOFF.md is public** (tracked and pushed), and older sessions hold server and network details. They aren't
+  secrets, but it goes against "nothing from schedule1-server in here". Untracking it is Blazzer's call (it stays in
+  history either way).
 - `mods.ps1 publish` runs `ssh -t` for the server's whole wait-until-empty step. A dropped connection can kill
   `s1ds mods apply` midway. The fix belongs in schedule1-server (run the apply detached, poll for the result).
 - The three-place manifest rules share two small gaps: trailing dot/space/`~` in a path segment (Windows strips them, which gets around the

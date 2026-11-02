@@ -478,7 +478,9 @@ internal sealed class MinimapHud : IDisposable
 				for (int i = 0; i < playerList.Count; i++)
 				{
 					Player player = playerList[i];
-					if (!(player == null) && !(player == local))
+					// "Player" is the class default name: only the dedicated server's headless player keeps it (a client sets
+					// its Steam name on spawn), and it isn't anyone to show.
+					if (!(player == null) && !(player == local) && player.PlayerName != "Player")
 					{
 						int instanceID = player.GetInstanceID();
 						livePeerIds.Add(instanceID);

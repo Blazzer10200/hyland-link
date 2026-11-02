@@ -115,7 +115,10 @@ internal sealed class HotbarSkin : IDisposable
 
 	private readonly bool labelWasActive;
 
-	private readonly bool balanceWasActive;
+	/// <summary>The game's bank readout we switched off for the money panel, and whether it was on, to put back.</summary>
+	private GameObject? hiddenBalance;
+
+	private bool hiddenBalanceWasActive;
 
 	private Slot? selected;
 
@@ -141,6 +144,7 @@ internal sealed class HotbarSkin : IDisposable
 
 	private bool disposed;
 
+
 	internal HotbarSkin(HUD hud, PlayerInventory inventory, Sprites sprites, TMP_FontAsset font, Settings settings, Action<string> log)
 	{
 		this.hud = hud;
@@ -156,9 +160,8 @@ internal sealed class HotbarSkin : IDisposable
 		cashContainer = hud.cashSlotContainer;
 		managementContainer = hud.managementSlotContainer;
 		managementObject = managementContainer.gameObject;
-		// Recorded before anything changes, so a build that fails part way puts these back as they really were.
+		// Recorded before anything changes, so a build that fails part way puts it back as it really was.
 		labelWasActive = hud.selectedItemLabel.gameObject.activeSelf;
-		balanceWasActive = hud.onlineBalanceContainer.gameObject.activeSelf;
 		RectTransform row = slotRow;
 		float slotWidth;
 		try
@@ -216,12 +219,18 @@ internal sealed class HotbarSkin : IDisposable
 			hud.selectedItemLabel.gameObject.SetActive(false);
 			if (money != null)
 			{
-				hud.onlineBalanceContainer.gameObject.SetActive(false);
+				Transform? balance = BankReadout(hud, cash.Rect);
+				if (balance != null)
+				{
+					hiddenBalance = balance.gameObject;
+					hiddenBalanceWasActive = hiddenBalance.activeSelf;
+					hiddenBalance.SetActive(false);
+				}
+				log("Bank readout hidden: " + (balance != null ? $"'{balance.name}'" : "none (each candidate holds the cash slot)") + ".");
 			}
 			// One line per session about the real layout, so the first in-game run tells us what the prefab looks like.
 			// Inside the try: it's the first touch of the cash and clipboard containers, and a throw here must still undo.
-			log($"Hotbar: slot {slotWidth:F0}x{slots[0].Rect.rect.height:F0}, cash slot under '{cashContainer.parent?.name}', clipboard under '{managementContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}).");
-		}
+			log($"Hotbar: slot {slotWidth:F0}x{slots[0].Rect.rect.height:F0}, cash slot under '{cashContainer.parent?.name}', clipboard under '{managementContainer.parent?.name}', row '{row.name}' (scale {row.lossyScale.x:F3}), screen {Screen.width}x{Screen.height}.");		}
 		catch
 		{
 			Dispose();
@@ -232,6 +241,22 @@ internal sealed class HotbarSkin : IDisposable
 	internal bool IsBoundTo(HUD instance)
 	{
 		return hud == instance && back != null;
+	}
+
+	/// <summary>The game's bank readout, which the money panel replaces. In the shipped prefab
+	/// <c>HUD.onlineBalanceContainer</c> is the cash slot's own container (CashSlotContainer: the cash slot on the left,
+	/// the bank slot on the right), and switching that off hid the cash slot too. So the first candidate that doesn't hold
+	/// the cash slot goes, or nothing.</summary>
+	private static Transform? BankReadout(HUD hud, Transform cashSlot)
+	{
+		foreach (Transform? candidate in new Transform?[] { hud.onlineBalanceContainer, hud.onlineBalanceSlotUI })
+		{
+			if (candidate != null && !cashSlot.IsChildOf(candidate))
+			{
+				return candidate;
+			}
+		}
+		return null;
 	}
 
 	private static RectTransform Layer(string name, RectTransform parent, RectTransform like)
@@ -382,15 +407,23 @@ internal sealed class HotbarSkin : IDisposable
 		if (management != null && managementObject.activeSelf)
 		{
 			float w = managementContainer.sizeDelta.x;
-			management.X = x + w / 2f + gap;
-			managementContainer.anchoredPosition = new Vector2(management.X, 0f);
+			managementContainer.anchoredPosition = new Vector2(x + w / 2f + gap, 0f);
 			x += w + gap;
 		}
 		float cw = cashContainer.sizeDelta.x;
-		cash.X = x + cw / 2f + gap;
-		cashContainer.anchoredPosition = new Vector2(cash.X, 0f);
-		x += cw + gap;
+		// With the bank slot hidden, the container's right part is empty: the bar is centered on what's shown, up to the
+		// cash slot's right edge (measured from the container's left, so a later prefab with other offsets still works).
+		float used = hiddenBalance == null ? cw : Mathf.Clamp(cashContainer.InverseTransformPoint(cash.Rect.position).x + cash.Rect.rect.width / 2f + cw / 2f, 0f, cw);
+		cashContainer.anchoredPosition = new Vector2(x + cw / 2f + gap, 0f);
+		x += used + gap;
 		slotRow.anchoredPosition = new Vector2(-x / 2f, slotRow.anchoredPosition.y);
+		// The cash slot sits at the left of its 170-wide container (the bank slot was on the right), and the clipboard may
+		// not be centered in its own, so every slot's center is read back from where it really is in the row.
+		if (management != null)
+		{
+			management.X = slotRow.InverseTransformPoint(management.Rect.position).x;
+		}
+		cash.X = slotRow.InverseTransformPoint(cash.Rect.position).x;
 	}
 
 	private void UpdateIdle(bool selectionChanged, float dt)
@@ -494,9 +527,9 @@ internal sealed class HotbarSkin : IDisposable
 			});
 			Ui.Step(ref failure, () =>
 			{
-				if (hud.onlineBalanceContainer != null)
+				if (hiddenBalance != null)
 				{
-					hud.onlineBalanceContainer.gameObject.SetActive(balanceWasActive);
+					hiddenBalance.SetActive(hiddenBalanceWasActive);
 				}
 			});
 		}

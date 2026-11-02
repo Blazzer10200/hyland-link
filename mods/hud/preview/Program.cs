@@ -91,14 +91,12 @@ internal static class Program
 		c.Draw(Art.GlowBar(w, Theme.Accent), selX - (w + 16) / 2, railBottom - 7.5 - 9.5, w + 16, 19, 1f);
 		double nameW = 110;
 		c.Draw(glass10, selX - nameW / 2, railTop - 34, nameW, 26, 1f);
-		// Money panel: 12 right of the rail, bottoms aligned.
-		double mw = 14 + 18 + 8 + 62 + 14, mh = 10 + 20 + 6 + 1 + 6 + 20 + 10;
+		// Bank panel: 12 right of the rail, bottoms aligned (the cash slot on the rail shows the cash).
+		double mw = 14 + 18 + 8 + 62 + 14, mh = 10 + 20 + 10;
 		double mx = railRight + 12, my = railBottom - mh;
 		c.Draw(Art.Shadow(16, 16, 0.3f), mx - 16, my - 16 + 6, mw + 32, mh + 32, 1f);
 		c.Draw(glass16, mx, my, mw, mh, 1f);
-		c.Draw(Art.Render(Art.Icon.Cash, 64), mx + 14, my + 10 + 1, 18, 18, 1f);
-		c.Fill(mx + 14, my + mh / 2 - 0.5, mw - 28, 1, Theme.White.WithAlpha(0.1f));
-		c.Draw(Art.Render(Art.Icon.Bank, 64), mx + 14, my + mh - 10 - 19, 18, 18, 1f);
+		c.Draw(Art.Render(Art.Icon.Bank, 64), mx + 14, my + 10 + 1, 18, 18, 1f);
 		return c;
 	}
 

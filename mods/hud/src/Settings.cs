@@ -40,7 +40,7 @@ internal sealed class Settings
 		Enabled = Add("Enabled", defaultValue: true, "Enable Hyland HUD", "Off puts the game's own HUD back.", changed);
 		Hotbar = Add("Hotbar", defaultValue: true, "Glass hotbar", "Restyle the hotbar: glass rail, rounded slots, lift and underline on the selected slot, item name above it.", changed);
 		SlotGap = Add("SlotGap", 6, "Slot gap", "0–20 HUD units between hotbar slots (the game uses 20).", changed);
-		MoneyPanel = Add("MoneyPanel", defaultValue: true, "Money panel", "Cash and bank next to the hotbar, counting up when they change. Replaces the game's bank readout; the cash slot stays.", changed);
+		MoneyPanel = Add("MoneyPanel", defaultValue: true, "Bank panel", "Bank balance right of the hotbar, counting up when it changes. Replaces the game's bank slot; the cash slot shows your cash.", changed);
 		IdleFade = Add("IdleFade", defaultValue: true, "Fade when idle", "Fade the hotbar after a while with no hotbar use (picking a slot, clicking, scrolling, the inventory). Walking doesn't count.", changed);
 		IdleSeconds = Add("IdleSeconds", 4f, "Idle after", "1–30 seconds without input.", changed);
 		IdleOpacity = Add("IdleOpacity", 0.55f, "Idle opacity", "0.1–1.", changed);
