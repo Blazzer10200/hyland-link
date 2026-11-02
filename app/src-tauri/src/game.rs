@@ -18,7 +18,6 @@ pub struct GameInfo {
     /// Steam beta branch; `None` = the normal branch.
     pub branch: Option<String>,
     pub running: bool,
-    pub picked_manually: bool,
 }
 
 pub fn is_game_dir(dir: &Path) -> bool {
@@ -84,7 +83,6 @@ pub fn detect(app_id: u32, manual: Option<&Path>) -> GameInfo {
             path: Some(dir.display().to_string()),
             branch: acf.as_deref().and_then(beta_branch),
             running,
-            picked_manually: true,
         };
     }
     match find_through_steam(app_id) {
@@ -93,9 +91,8 @@ pub fn detect(app_id: u32, manual: Option<&Path>) -> GameInfo {
             path: Some(dir.display().to_string()),
             branch: beta_branch(&acf),
             running,
-            picked_manually: false,
         },
-        None => GameInfo { found: false, path: None, branch: None, running, picked_manually: false },
+        None => GameInfo { found: false, path: None, branch: None, running },
     }
 }
 

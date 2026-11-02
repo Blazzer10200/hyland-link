@@ -1,8 +1,8 @@
 # Hyland Link: project rules
 
 Friend launcher for Blazzer's Schedule I server (server tooling lives in `projects/schedule1-server`, private).
-This repo is meant to be **public** (`Blazzer10200/hyland-link`), because the updater and the manifest are fetched
-anonymously from it.
+This repo is **public** (`Blazzer10200/hyland-link`), because the updater and the manifest are fetched anonymously
+from it. v0.1.0 is released and installed on friends' PCs.
 
 State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updates): `README.md`.
 
@@ -34,6 +34,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   ids, hashes) is mirrored in `manifest.rs`, `scripts/mods.ps1` and schedule1-server's `s1ds-mods`. Change one,
   change all three, or the server and players can disagree about the same file.
 - **Mods flow one way:** server first, then `main`. Never push a manifest whose mods the server doesn't run yet.
+- **Released launchers read the online manifest:** v0.1.0 needs schema 2 and requires `game.version` and
+  `launcher.version` even though nothing reads them now. Only add fields (with `#[serde(default)]`); never drop or
+  rename one, and never bump `schema` without a launcher release that understands it first.
 - **Public repo hygiene:** nothing from `schedule1-server` goes in here (the ntfy topic lives in its scripts). The
   server IP in `manifest/manifest.json` is public on purpose.
 - **Releases move only when published:** a draft doesn't update `releases/latest`. The asset is always named
@@ -44,3 +47,6 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 ## Build
 - `CARGO_TARGET_DIR=C:\cargo-targets` on this PC, so bundles land in `C:\cargo-targets\release\bundle\nsis\`.
 - Checks: `pnpm --dir app check`, `cd app/src-tauri && cargo test`.
+- See the real app (not the mock): start `C:\cargo-targets\release\hyland-link.exe` with
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, then `node scripts/read-app.mjs 9333` prints
+  its screen text. Read-only: it never clicks, so nothing gets installed.

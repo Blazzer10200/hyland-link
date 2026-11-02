@@ -44,7 +44,7 @@ function snapshot(): Snapshot {
     manifest: { ...(shipped as Manifest), mods: extras },
     manifestSource: { kind: "online" },
     launcherVersion: "0.1.0",
-    game: { found: true, path: gamePath, branch: null, running: false, pickedManually: false },
+    game: { found: true, path: gamePath, branch: null, running: false },
     install: { melonloader: fresh, serverMod: fresh, mods: extras.map((m) => modStatus(m, null)), staleMods: [], firstLaunchDone: false },
     favoriteAdded: false,
   };

@@ -30,7 +30,6 @@ export type GameInfo = {
   path: string | null;
   branch: string | null;
   running: boolean;
-  pickedManually: boolean;
 };
 
 export type Component = { installed: boolean; version: string | null; upToDate: boolean };

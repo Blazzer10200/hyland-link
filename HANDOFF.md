@@ -7,28 +7,46 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
-## Session 2 — 2026-11-02 (server mods, public repo, v0.1.0 released)
+## Session 2 — 2026-11-02 02:45 (live: released, server online, self-running)
 
 ### Completed
-- **Server-driven mods:** manifest schema 2 with `mods[]` (`side`: both/client/server). Launcher installs, updates
-  and removes them hash-checked, tracks its own files in `UserData/HylandLink.json`, re-reads the list every 5 min /
-  on focus / before Play. Step 2 shows one "Server's mods" row + `ModsSheet`. Mock: `?s=mods`, `?s=nomods`.
-- `scripts/mods.ps1` (list/add/remove/server-mod/publish): publish = launcher validation (cargo test) → server
-  `s1ds mods apply` over SSH → commit + push. Tested: server-mod reproduced the exact hashes, gate caught a clash.
-- Public repo `Blazzer10200/hyland-link` created; raw manifest URL serves 200 anonymously.
-- **v0.1.0 released** via `release.sh`: signature key id 54ae0a37e2f165c5 = pubkey; download link serves the built
-  bytes; the real build ran (online manifest, no update error, found the game).
-- Checks: `cargo test` 12 passed; `pnpm --dir app check` 0 errors / 0 warnings.
+- **Server-driven mods:** manifest schema 2 with `mods[]` (`side`: both/client/server). Launcher installs, updates,
+  removes them hash-checked, tracks its files in `UserData/HylandLink.json`, re-reads the list every 5 min / on focus /
+  before Play. Step 2: one "Server's mods" row + `ModsSheet`. Mock: `?s=mods`, `?s=nomods`.
+- `scripts/mods.ps1` (list/add/remove/server-mod/publish): publish = cargo test validation → `hl s1 mods apply` over
+  SSH → commit + push. Verified: server-mod reproduced the exact hashes; the gate caught a planted clash.
+- Public repo `Blazzer10200/hyland-link`; raw manifest serves 200 anonymously. **v0.1.0 released**: key id
+  54ae0a37e2f165c5 = pubkey, download link serves the built bytes.
+- Server live (see schedule1-server HANDOFF): game installed, router forwards in, `69.50.245.12:38465` answers.
+  The released launcher on this PC shows **"Online · 9 ms", 0 / 8** (router NAT loopback works).
+- Cleanup: removed dead `GameInfo.picked_manually` (set, never read) and the unused template `app/static/favicon.png`;
+  docs synced; added `scripts/read-app.mjs` (reads the real app's screen over WebView2 DevTools).
+- Checks: `cargo test` 12 passed; svelte-check 0/0; `pnpm --dir app build` clean.
 
-### Next
-1. Server side is waiting on Blazzer (Steam login once more, router forwards): `projects/schedule1-server/HANDOFF.md`.
-2. Once the port is open: confirm the launcher shows Online from outside the LAN. From inside, NAT loopback may fail;
-   if Blazzer's own launcher stays Offline on the LAN, that's the router, not the server.
-3. First real mod: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+### Key Decisions
+- Server is the source of truth; mods flow server → `main` → launchers, never the other way — no drift, no GitHub
+  token on the internet-facing server.
+- S1DS mod updates stay one command (ntfy says when), not automatic: they change friends' client mod and need a push.
 
-### Notes
-- `manifest.game.version` ("0.4.7f12") is read by nothing; the server now follows Steam's build by itself.
-- Validation rules live in three places (manifest.rs, mods.ps1, schedule1-server `s1ds-mods`); change all together.
+### Failed / Don't Retry
+- `kill <pid> <ppid>` on an orphan with PPID 0 sends `kill 0` to your own process group. Check PPID first.
+
+### Load-Bearing Invariants
+- `game.version` / `launcher.version` in the manifest look dead but v0.1.0 needs them to parse (see CLAUDE.md).
+- `ModsSheet` lives inside `<main>` so the Update button stays clickable with the list open.
+
+### Next Steps
+1. A friend joins for real: proves UDP 38465 and the whole install flow on a clean PC.
+2. Blazzer: confirm 38465 is TCP/UDP in the router and the .180 address reservation is saved.
+3. First extra mod: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+4. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC.
+
+### Files Modified
+- `app/src-tauri/src/{manifest,install,game}.rs`, `app/src/lib/{api.ts,launcher.svelte.ts,dev-mock.ts}`,
+  `app/src/lib/components/{Steps,ActionBar,ModsSheet}.svelte`, `app/src/routes/+page.svelte`, `manifest/manifest.json`,
+  `scripts/{mods.ps1,read-app.mjs}`, README.md, app/README.md, CLAUDE.md
+
+---
 
 ## Session 1 — 2026-11-02 (built, verified locally, not published)
 

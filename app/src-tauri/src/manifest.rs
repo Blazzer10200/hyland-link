@@ -81,6 +81,7 @@ pub struct Server {
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub app_id: u32,
+    /// Not read by the app. Kept required so manifest.json keeps it: v0.1.0 launchers can't parse the file without it.
     pub version: String,
 }
 
@@ -106,6 +107,7 @@ pub struct ModPackage {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Launcher {
+    /// Not read by the app (self-update uses GitHub Releases). Kept required for v0.1.0 launchers, like `game.version`.
     pub version: String,
     #[serde(default)]
     pub download_url: String,

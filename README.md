@@ -55,4 +55,5 @@ app/                 the Tauri 2 + Svelte 5 app (see app/README.md)
 manifest/            the version file the launcher and the server both follow (built in, and fetched from main)
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/release.sh   build, sign and publish a release
+scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)
 ```
