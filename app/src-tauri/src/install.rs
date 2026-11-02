@@ -495,6 +495,11 @@ mod tests {
         assert_eq!(after.melonloader.version.as_deref(), Some("0.7.2"));
         assert!(!game.join("Mods").join("DedicatedServerMod_Mono_Client.dll").exists(), "wrong-runtime DLL removed");
         assert!(game.join("Mods").join("SomeoneElsesMod.dll").exists(), "other mods untouched");
+        let extra_files: Vec<_> =
+            manifest.mods.iter().filter(|m| m.on_client()).flat_map(|m| &m.files).map(|f| game.join(&f.path)).collect();
+        for file in &extra_files {
+            assert!(file.exists(), "extra mod file installed: {}", file.display());
+        }
 
         // A second run has nothing to do.
         events.set(0);
@@ -505,6 +510,7 @@ mod tests {
         let removed = state(&game, &manifest);
         assert!(!removed.melonloader.installed && !removed.server_mod.installed);
         assert!(game.join("Mods").join("SomeoneElsesMod.dll").exists(), "uninstall keeps other mods");
+        assert!(extra_files.iter().all(|file| !file.exists()), "uninstall removes extra mods");
         assert!(game.join("Schedule I.exe").exists());
         fs::remove_dir_all(&game).unwrap();
     }

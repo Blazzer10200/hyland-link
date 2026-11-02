@@ -27,6 +27,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+# Inside a function $PSBoundParameters is that function's own, so read the script's here: an explicit -Blurb "" clears it.
+$BlurbGiven = $PSBoundParameters.ContainsKey("Blurb")
 Add-Type -AssemblyName System.IO.Compression
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -111,7 +113,7 @@ function Add-Mod {
     $modId = if ($Id) { $Id } else { ($modName.ToLowerInvariant() -replace '[^a-z0-9_-]+', '-').Trim('-') }
     $existing = @($manifest.mods | Where-Object { $_.id -eq $modId })
     $modSide = if ($Side) { $Side } elseif ($existing) { $existing[0].side } else { "both" }
-    $modBlurb = if ($PSBoundParameters.ContainsKey("Blurb")) { $Blurb } elseif ($existing) { $existing[0].blurb } elseif ($info -and $info.description) {
+    $modBlurb = if ($BlurbGiven) { $Blurb } elseif ($existing) { $existing[0].blurb } elseif ($info -and $info.description) {
         $d = [string]$info.description; if ($d.Length -gt 80) { $d.Substring(0, 77) + "..." } else { $d }
     } else { "" }
 
