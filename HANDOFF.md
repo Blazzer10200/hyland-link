@@ -33,9 +33,20 @@ updated: 2026-11-02
   (03:18:32), so it was a pre-log session-3 dev build; nothing ties it to shipped code. `request_close`'s callback
   can't panic.
 
+- **First extra mod live: Schedule I Minimap 1.0.2** (nachorn, Thunderstore, `side: client`), mod list revision 3.
+  It's compiled against MelonLoader 0.7.3 but has no `VerifyLoaderVersion`; all 32 MelonLoader APIs it calls exist in
+  0.7.2 (checked by metadata against the game folder's `MelonLoader.dll`), and 0.7.2's resolver binds by name
+  (`OverrideBaseAssembly`/`Fallback`). Server: no server-side extras, booted on 0.7.2, PTO RETIRED still loaded.
+  Not yet seen in game. Runner-up if it misbehaves: CherryMods SmallCornerMap (ML 0.7.0, a year old).
+- Fixed `mods.ps1 -Blurb` being ignored (function-scoped `$PSBoundParameters`). The real-download install test now
+  also asserts every client-side extra mod lands and is removed by uninstall (15 passed).
+- First publish failed **after** the server applied r3: `s1ds mods apply`'s EXIT trap read a function-local `$work`
+  under `set -u`. Fixed in schedule1-server, redeployed, rerun clean → r3 pushed.
+
 ### Next Steps
-1. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
-2. First extra mod when one's picked: `pwsh scripts/mods.ps1 add <url>` → `publish`.
+1. Blazzer: launcher → Update → Play → minimap in the corner (PageUp/PageDown zoom). If it doesn't show,
+   `bash scripts/logs.sh` (MelonLoader errors for ScheduleIMinimap).
+2. Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (USB or password manager): Blazzer's call.
 3. Optional: router DHCP reservation for .180 so nothing else gets handed that address.
    (The server world is now PTO RETIRED: see schedule1-server HANDOFF.)
 
