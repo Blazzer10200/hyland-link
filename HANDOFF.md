@@ -7,6 +7,35 @@ updated: 2026-11-02
 
 # Hyland Link: handoff
 
+## Session 8 — 2026-11-02 (Hyland HUD 0.1.0 built and staged, not shipped)
+
+### Completed
+- **Hyland HUD** (`mods/hud`) built from Blazzer's "Glass Rail" concept: it restyles the game's own hotbar, compass
+  and money in place and restores everything on disable or error (rebuild backoff 5→60 s). Extras: a clock pill with
+  curfew (from 20:00) and sleep (04:00) warnings that hide the game's own `CurfewPrompt`/`SleepPrompt`, and friends on
+  the compass (cyan dot plus "Name · 140m"). Deal countdowns were dropped because the quest list already shows them.
+- Fresh-eyes review fixes in df9b4b3. Commits: c19b9ad, df9b4b3, 14042bb (all local, **nothing pushed**).
+- **`scripts/mod-release.ps1 hud|minimap [-Publish]`** is now the only ship path for our mods. Version comes from
+  `src/AssemblyInfo.cs`. Without `-Publish` it builds and stages `dist/<tag>/<Mod>.zip`, checks the forward-slash
+  entries and prints the sha256. `-Publish` refuses a dirty or unpushed tree and an existing tag, runs
+  `gh release create --latest=false`, checks that `releases/latest` is still a `v*` tag, then runs `mods.ps1 add`.
+- Staged: `dist/hud-v0.1.0/HylandHud.zip` (entry `Mods/HylandHud.dll`, sha256 `577b9ac7…d91a`).
+- Dropped the GIF/artifact demo work (server focus only): `mods/hud/preview` writes just the layout and sprite PNGs.
+
+### Next Steps
+1. Run the HUD once in a **test copy** of Schedule I (not Blazzer's co-op folder). Check its one-line layout log: the
+   rail wraps the slots, the cash slot sits inside it, the strip lines up with quest markers. Unverified: whether the
+   prefab's slot "bop" animation fights the selected-slot lift.
+2. On Blazzer's go-ahead only: push main, `pwsh scripts/mod-release.ps1 hud -Publish`, `pwsh scripts/mods.ps1 publish`,
+   then confirm `Mod list: revision N from Online` in `bash scripts/logs.sh`.
+3. Awaiting Blazzer's OK to delete: old launcher builds `dist/v0.1.0`–`v0.1.2`; `%TEMP%\hlmm-1.2.0`, `hlmm-1.2.1`,
+   `hl-verify-013`, `hl-test-webview`. Artifact `Ud8ETT6ri6ta6HMK9VvLHx` stays up until Blazzer decides.
+
+### Files Modified
+- `mods/hud/**` (new), `scripts/mod-release.ps1` (new), `CLAUDE.md` (map), `mods/minimap/README.md` (ship line)
+
+---
+
 ## Session 7 — 2026-11-02 06:30 (full review: launcher 0.1.3 + minimap 1.2.1 live, server hardened)
 
 ### Completed
