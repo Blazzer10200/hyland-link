@@ -2,7 +2,6 @@ using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.Money;
 using Il2CppTMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace HylandHud;
 

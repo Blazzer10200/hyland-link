@@ -1,4 +1,3 @@
-using System;
 using Il2CppTMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -59,15 +58,6 @@ internal static class Ui
 	internal static Color Color(Rgba c, float alpha = -1f)
 	{
 		return new Color(c.R, c.G, c.B, alpha < 0f ? c.A : alpha);
-	}
-
-	/// <summary>The bounds of <paramref name="rect"/> in <paramref name="space"/>'s local coordinates.</summary>
-	internal static Rect Bounds(RectTransform rect, Transform space)
-	{
-		Rect r = rect.rect;
-		Vector3 min = space.InverseTransformPoint(rect.TransformPoint(new Vector3(r.xMin, r.yMin, 0f)));
-		Vector3 max = space.InverseTransformPoint(rect.TransformPoint(new Vector3(r.xMax, r.yMax, 0f)));
-		return UnityEngine.Rect.MinMaxRect(Math.Min(min.x, max.x), Math.Min(min.y, max.y), Math.Max(min.x, max.x), Math.Max(min.y, max.y));
 	}
 
 	/// <summary>Places a center-pivoted rect by its center and size in its parent's local space.</summary>

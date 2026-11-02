@@ -31,14 +31,14 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   (`%LOCALAPPDATA%\com.blazzer.hylandlink\logs\launcher.log`: game found/started/closed, mod list changes, installs,
   Play, game stages, every error shown to the player), the game's `Latest.log` with error counts, and `hide_console`.
 - `mods/minimap/`: Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT, decompiled; see its README). Players get
-  it as `hyland-minimap` (client side) from a `minimap-v<version>` release. To ship a change: bump `src/AssemblyInfo.cs`,
-  `dotnet build -c Release mods/minimap`, zip `Mods/HylandMinimap.dll` + LICENSE.md with **forward-slash** entry paths
-  (pwsh `ZipFile.CreateFromDirectory`, not 5.1's Compress-Archive), then `gh release create minimap-v<version> ...
-  --latest=false` (**never latest**: the launcher updater reads `releases/latest`), `mods.ps1 add <asset URL> -Id
-  hyland-minimap ...` and `publish`.
+  it as `hyland-minimap` (client side) from a `minimap-v<version>` release.
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
-  restyles the game's own HUD objects in place and restores them on disable or error. Not shipped yet; ships like the
-  minimap (`hud-v<version>`, id `hyland-hud`). `mods/hud/preview` renders its sprites to PNG without the game.
+  restyles the game's own HUD objects in place and restores them on disable or error. Not shipped yet (`hud-v<version>`,
+  id `hyland-hud`). `mods/hud/preview` renders its sprites to PNG without the game.
+- `scripts/mod-release.ps1 hud|minimap`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
+  Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
+  release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.
+  Then `mods.ps1 publish` as usual.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 

@@ -69,5 +69,10 @@ dotnet run --project mods/hud/preview -c Release -- <output folder>
 1. Run it once in a test copy of the game (not Blazzer's co-op folder). Each session it logs one line about the real
    hotbar and compass layout (slot size, parents, canvas scale): check the rail wraps the slots, the cash slot sits
    inside it, and the strip lines up with quest markers.
-2. Ship like the minimap: bump `src/AssemblyInfo.cs`, build, zip `Mods/HylandHud.dll` with forward-slash entry paths,
-   `gh release create hud-v<version> ... --latest=false`, `mods.ps1 add <asset URL> -Id hyland-hud ...`, `publish`.
+2. Ship it. 0.1.0 is already staged in `dist/hud-v0.1.0/HylandHud.zip`; rerun the first line after any change:
+
+   ```bash
+   pwsh scripts/mod-release.ps1 hud            # build + stage + check, nothing leaves the PC
+   pwsh scripts/mod-release.ps1 hud -Publish   # GitHub release hud-v<version> (not latest) + mods.ps1 add
+   pwsh scripts/mods.ps1 publish               # the server installs it first, then main is pushed
+   ```

@@ -34,3 +34,6 @@ dotnet build -c Release mods/minimap
 It references the MelonLoader and IL2CPP assemblies in a Schedule I install. The game has to have run once with
 MelonLoader. The default path is the Steam one; pass `-p:GamePath="D:\...\Schedule I"` for another. The output is
 `bin/Release/net6.0/HylandMinimap.dll`.
+
+To ship a change, bump `src/AssemblyInfo.cs`, then `pwsh scripts/mod-release.ps1 minimap -Publish` and
+`pwsh scripts/mods.ps1 publish`.
