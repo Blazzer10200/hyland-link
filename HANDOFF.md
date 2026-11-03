@@ -64,9 +64,6 @@ tree, so pushing comes first when a HUD ships.
   passed in game on 2026-11-03.
 - A hotbar missing in a test screenshot was the game, not the HUD: at the 4 AM pass-out, on arrest and on death,
   `Player.ExitAll` / `OnDied` call `SetInventoryEnabled(false)`, which hides `HotbarContainer` and the cash slot with it.
-- Stale, for Blazzer to OK deleting: five `%TEMP%\Hyland Link-0.1.x-updater-*` folders (old self-update runs on this
-  PC, outside the project) and `dist/v0.1.4` (that launcher is released).
-
 ## Gotchas worth keeping
 - **"Live" means a launcher read it:** the raw manifest is cached up to 5 min per CDN edge and query strings don't
   bypass it. Check `bash scripts/logs.sh` or wait 5 min after the push.
