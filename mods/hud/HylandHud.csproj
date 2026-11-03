@@ -27,6 +27,7 @@
     <Reference Include="$(Il2Cpp)\Il2CppScheduleOne.Core.dll" Private="false" />
     <Reference Include="$(Il2Cpp)\Il2CppFishNet.Runtime.dll" Private="false" />
     <Reference Include="$(Il2Cpp)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\UnityEngine.PhysicsModule.dll" Private="false" />
     <Reference Include="$(Il2Cpp)\UnityEngine.TextRenderingModule.dll" Private="false" />
     <Reference Include="$(Il2Cpp)\UnityEngine.UI.dll" Private="false" />
     <Reference Include="$(Il2Cpp)\UnityEngine.UIModule.dll" Private="false" />

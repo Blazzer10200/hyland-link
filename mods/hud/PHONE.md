@@ -89,3 +89,11 @@ Hyland is app 8: upright like Messages, key 8.
   Indoors is only about 4 dB quieter than outdoors, which is why rain sounds loud inside.
 - Our fix: a rain level of our own, plus a much bigger indoor drop, both through `AudioSourceController.VolumeMultiplier` on the
   two rain sources. The Weather slider keeps working on top.
+
+## What we built (HUD 0.2.0)
+
+- Home screen: `src/PhoneSkin.cs`. Board sizes × 655/316 (the board's screen is 316 wide). Everything it changes is
+  recorded and restored, like the HUD skins.
+- Hyland app: `src/HylandApp.cs`, icon 8, upright in `AppsCanvas`.
+- Rain: `src/RainLevel.cs`, on top of the game's multiplier as described above.
+- Not done: restyling the inside of the game's own apps, and the incoming-call screen. Both stay the game's.

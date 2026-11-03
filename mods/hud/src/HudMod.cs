@@ -4,6 +4,7 @@ using Il2CppScheduleOne.Persistence;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Compass;
+using Il2CppScheduleOne.UI.Phone;
 using Il2CppTMPro;
 using MelonLoader;
 using UnityEngine;
@@ -77,6 +78,18 @@ public sealed class HudMod : MelonMod
 
 	private bool settingsDirty = true;
 
+	/// <summary>The phone's own sprites: the HUD's are thrown away on every HUD rebuild, and the Hyland app stays open
+	/// through those.</summary>
+	private Sprites? phoneSprites;
+
+	private PhoneSkin? phoneSkin;
+
+	private HylandApp? app;
+
+	private RainLevel? rain;
+
+	private bool phoneDirty;
+
 	/// <summary>Each part fails on its own: a compass problem leaves the glass hotbar up, and the other way round.</summary>
 	private readonly Backoff shared = new Backoff("");
 
@@ -84,18 +97,39 @@ public sealed class HudMod : MelonMod
 
 	private readonly Backoff compassRetry = new Backoff("compass");
 
+	private readonly Backoff phoneShared = new Backoff("phone");
+
+	private readonly Backoff phoneSkinRetry = new Backoff("glass phone");
+
+	private readonly Backoff appRetry = new Backoff("phone app");
+
+	private readonly Backoff rainRetry = new Backoff("rain level");
+
 	public override void OnInitializeMelon()
 	{
 		settings = new Settings(() =>
 		{
 			settingsDirty = true;
+		}, () =>
+		{
+			phoneDirty = true;
 		});
-		LoggerInstance.Msg("Hyland HUD " + Info.Version + ". Settings: [HylandHud] in UserData/MelonPreferences.cfg.");
+		LoggerInstance.Msg("Hyland HUD " + Info.Version + ". Settings: the Hyland app on the phone, or [HylandHud] in UserData/MelonPreferences.cfg.");
 	}
 
 	public override void OnLateUpdate()
 	{
-		if (settings == null || !shared.Due)
+		if (settings == null)
+		{
+			return;
+		}
+		UpdateHud(settings);
+		UpdatePhone(settings);
+	}
+
+	private void UpdateHud(Settings settings)
+	{
+		if (!shared.Due)
 		{
 			return;
 		}
@@ -166,18 +200,158 @@ public sealed class HudMod : MelonMod
 		}
 	}
 
+	/// <summary>The phone: the Hyland app and our rain level always (they're how the HUD is switched back on, and not HUD
+	/// art), the glass restyle only with the HUD and "Glass phone" on.</summary>
+	private void UpdatePhone(Settings settings)
+	{
+		if (!phoneShared.Due)
+		{
+			return;
+		}
+		Phone phone;
+		HomeScreen home;
+		AppsCanvas apps;
+		try
+		{
+			LoadManager load = Singleton<LoadManager>.Instance;
+			phone = PlayerSingleton<Phone>.Instance;
+			home = PlayerSingleton<HomeScreen>.Instance;
+			apps = PlayerSingleton<AppsCanvas>.Instance;
+			if (load == null || !load.IsGameLoaded || load.IsLoading || Player.Local == null || phone == null || home == null || apps == null)
+			{
+				TeardownPhone();
+				return;
+			}
+			if ((app != null && !app.IsBoundTo(home)) || (phoneSkin != null && !phoneSkin.IsBoundTo(home)))
+			{
+				TeardownPhone();
+			}
+			if (phoneDirty || !(settings.Enabled.Value && settings.GlassPhone.Value))
+			{
+				DisposePhoneSkin();
+				phoneDirty = false;
+			}
+			phoneSprites ??= new Sprites();
+			phoneShared.Succeeded();
+		}
+		catch (Exception ex)
+		{
+			TeardownPhone();
+			phoneShared.Failed(ex, LoggerInstance);
+			return;
+		}
+		float dt = Time.unscaledDeltaTime;
+		if (appRetry.Due)
+		{
+			try
+			{
+				app ??= new HylandApp(phone, home, apps, phoneSprites, settings, LoggerInstance.Msg);
+				app.Update(dt);
+				appRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposeApp();
+				appRetry.Failed(ex, LoggerInstance);
+			}
+		}
+		if (settings.Enabled.Value && settings.GlassPhone.Value && phoneSkinRetry.Due)
+		{
+			try
+			{
+				phoneSkin ??= new PhoneSkin(phone, home, phoneSprites, settings, LoggerInstance.Msg);
+				phoneSkin.Update(dt);
+				phoneSkinRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposePhoneSkin();
+				phoneSkinRetry.Failed(ex, LoggerInstance);
+			}
+		}
+		if (rainRetry.Due)
+		{
+			try
+			{
+				rain ??= new RainLevel(settings);
+				rain.Update();
+				rainRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposeRain();
+				rainRetry.Failed(ex, LoggerInstance);
+			}
+		}
+	}
+
 	public override void OnSceneWasLoaded(int buildIndex, string sceneName)
 	{
 		Teardown();
+		TeardownPhone();
 		shared.Reset();
 		hotbarRetry.Reset();
 		compassRetry.Reset();
+		phoneShared.Reset();
+		phoneSkinRetry.Reset();
+		appRetry.Reset();
+		rainRetry.Reset();
 	}
 
 	public override void OnDeinitializeMelon()
 	{
 		Teardown();
+		TeardownPhone();
 		settings?.Dispose();
+	}
+
+	private void DisposePhoneSkin()
+	{
+		try
+		{
+			phoneSkin?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			LoggerInstance.Warning("Putting the game's phone back failed: " + ex.Message);
+		}
+		phoneSkin = null;
+	}
+
+	private void DisposeApp()
+	{
+		try
+		{
+			app?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			LoggerInstance.Warning("Removing the Hyland app failed: " + ex.Message);
+		}
+		app = null;
+	}
+
+	private void DisposeRain()
+	{
+		try
+		{
+			rain?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			LoggerInstance.Warning("Putting the game's rain volume back failed: " + ex.Message);
+		}
+		rain = null;
+	}
+
+	private void TeardownPhone()
+	{
+		// The restyle first, so it puts the Hyland icon back to plain before the app removes it.
+		DisposePhoneSkin();
+		DisposeApp();
+		DisposeRain();
+		phoneSprites?.Dispose();
+		phoneSprites = null;
 	}
 
 	private void DisposeHotbar()
