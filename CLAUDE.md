@@ -44,7 +44,10 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   decompiled Mono branch (logic), `assets/build-<id>/` is an AssetRipper export of the live IL2CPP build (prefab
   layouts, sprites, fonts, audio mixers; the phone is `GameObject/Player.prefab`). `pwsh scripts/game-assets.ps1
   export` makes one per game build with the pinned, checksum-checked AssetRipper (`setup` installs it, `browse` opens
-  its viewer). Design against these, not screenshots. It reads the game folder only.
+  its viewer). `node scripts/prefab-tree.mjs <file> <object>` prints a UI subtree of the export (rects, images, texts,
+  fonts, colors, layout groups, game scripts). Design against these, not screenshots. It reads the game folder only.
+- `mods/hud/PHONE.md`: the game's phone as the redesign must cover it (home screen, icon template, apps and their
+  orientation, calls, rain audio), read off the export.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 
