@@ -279,7 +279,7 @@ public sealed class HudMod : MelonMod
 			try
 			{
 				appsSkin ??= new AppsSkin(LoggerInstance.Msg);
-				appsSkin.Update();
+				appsSkin.Update(home);
 				appsSkinRetry.Succeeded();
 			}
 			catch (Exception ex)

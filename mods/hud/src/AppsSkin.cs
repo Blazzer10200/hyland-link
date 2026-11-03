@@ -73,13 +73,23 @@ internal sealed class AppsSkin : IDisposable
 
 	private float nextCorners;
 
+	private float nextCall;
+
 	internal AppsSkin(Action<string> log)
 	{
 		this.log = log;
 	}
 
-	internal void Update()
+	internal void Update(HomeScreen home)
 	{
+		// The incoming-call screen (on the home canvas, up while it rings) gets the same treatment: its #3C3C3C panel and
+		// gray avatar mask go to the board's slate, Answer and Decline keep their green and red.
+		Transform? call = home.transform.Find("CallPrompt");
+		if (call != null && call.gameObject.activeInHierarchy && Time.unscaledTime >= nextCall)
+		{
+			nextCall = Time.unscaledTime + 0.25f;
+			Restyle(call.gameObject, corners: false);
+		}
 		GameObject? app = Phone.ActiveApp;
 		if (app == null || app.name == HylandApp.RootName)
 		{

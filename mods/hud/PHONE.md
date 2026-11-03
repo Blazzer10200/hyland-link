@@ -96,4 +96,8 @@ Hyland is app 8: upright like Messages, key 8.
   recorded and restored, like the HUD skins.
 - Hyland app: `src/HylandApp.cs`, icon 8, upright in `AppsCanvas`.
 - Rain: `src/RainLevel.cs`, on top of the game's multiplier as described above.
-- Not done: restyling the inside of the game's own apps, and the incoming-call screen. Both stay the game's.
+- The game's own apps and the incoming-call screen: `src/AppsSkin.cs`, a dark theme read off each screen's own colors
+  (its background → the board's, gray panels → slate steps, gray text → the board's text; colored and picture graphics
+  stay; button images are judged by image × tint). Titles that reach into the screen's rounded corners move sideways.
+  Each app logs what it left light once per run (`left light:`). Not done: the board's layout changes (the inset map
+  card, Deliveries' tabs on top, the shops' colored left stripe).
