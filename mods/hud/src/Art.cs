@@ -63,6 +63,9 @@ internal static class Theme
 	internal static readonly Rgba PhoneLine = Hex(0x262D35);
 	internal static readonly Rgba PhoneAccent = Hex(0xFFE652);
 	internal static readonly Rgba PhoneCase = Hex(0x1B1F24);
+	internal static readonly Rgba PhoneCaseEdge = Hex(0x3A424C);
+	internal static readonly Rgba PhoneSpeaker = Hex(0x050608);
+	internal static readonly Rgba PhoneHomeBar = Hex(0x5A6470);
 	internal static readonly Rgba Online = Hex(0x7DDC6F);
 	internal static readonly Rgba Friend = Hex(0x5CC4FF);
 	/// <summary>The game's own badge red (AppIcon prefab, Notifications).</summary>
@@ -119,6 +122,10 @@ internal static class Art
 {
 	/// <summary>Texture pixels per HUD unit: 2 keeps edges smooth up to 4K.</summary>
 	internal const int Scale = 2;
+
+	/// <summary>Edge width of the phone's glass and frame, in canvas units (the board × 655/316): the board's 1 px edge is
+	/// ~2 here, drawn 3 so it survives the phone being scaled down on screen.</summary>
+	internal const double PhoneEdge = 3.0;
 
 	internal static double SmoothStep(double edge0, double edge1, double x)
 	{
@@ -190,6 +197,30 @@ internal static class Art
 			float ring = (float)Math.Clamp(d + strokeWidth * Scale + 0.5, 0.0, 1.0);
 			Rgba color = Rgba.Over(stroke.WithAlpha(stroke.A * ring), fill);
 			return color.WithAlpha(color.A * shape);
+		});
+	}
+
+	/// <summary>The board's phone body as a 9-sliced frame: a rounded slab with a stroke on its outer edge and a rounded
+	/// hole where the screen shows through, <paramref name="side"/> in from the left and right, <paramref name="top"/> and
+	/// <paramref name="bottom"/> in from those edges. One border wide enough for the deepest inset keeps every corner,
+	/// inner rounding included, out of the stretched middle.</summary>
+	internal static Bitmap Frame(double outerRadius, double innerRadius, double side, double top, double bottom, Rgba body, Rgba stroke, double strokeWidth)
+	{
+		int border = (int)Math.Ceiling(Math.Max(Math.Max(side, Math.Max(top, bottom)) + innerRadius, outerRadius) + 1.0);
+		int size = (border * 2 + 2) * Scale;
+		double half = size / 2.0 / Scale;
+		double holeHalfW = half - side, holeHalfH = half - (top + bottom) / 2.0, holeY = (bottom - top) / 2.0;
+		return new Bitmap(size, size, Scale, border * Scale).Fill((x, y) =>
+		{
+			double outer = RoundedBox(x, y, half, half, outerRadius) * Scale;
+			float slab = Coverage(outer) * (1f - Coverage(RoundedBox(x, y - holeY, holeHalfW, holeHalfH, innerRadius) * Scale));
+			if (slab <= 0f)
+			{
+				return default;
+			}
+			float ring = (float)Math.Clamp(outer + strokeWidth * Scale + 0.5, 0.0, 1.0);
+			Rgba color = Rgba.Over(stroke.WithAlpha(stroke.A * ring), body);
+			return color.WithAlpha(color.A * slab);
 		});
 	}
 

@@ -28,6 +28,9 @@ internal sealed class PhoneSkin : IDisposable
 
 	private const float Radius = 17f * Unit;
 
+	/// <summary>How far the info bar's time and "5G" move in, clear of the frame's 30 px screen corners.</summary>
+	private const float BarInset = 10f * Unit;
+
 	/// <summary>Where a rect of the game's sat, to put it back exactly.</summary>
 	private readonly struct RectState
 	{
@@ -129,8 +132,6 @@ internal sealed class PhoneSkin : IDisposable
 
 	private readonly Dictionary<int, Icon> icons = new Dictionary<int, Icon>();
 
-	private readonly List<(MeshRenderer Renderer, Material Shared, Material Ours)> cases = new List<(MeshRenderer, Material, Material)>();
-
 	private readonly List<(MeshRenderer Renderer, bool Enabled)> hidden = new List<(MeshRenderer, bool)>();
 
 	private Image? background;
@@ -155,6 +156,8 @@ internal sealed class PhoneSkin : IDisposable
 
 	private int timeSize;
 
+	private Vector2 timePosition, dataPosition;
+
 	private Text? dataText;
 
 	private Color dataColor;
@@ -171,7 +174,7 @@ internal sealed class PhoneSkin : IDisposable
 
 	private Vector2 gridPosition;
 
-	private RectTransform? wallpaper, card, wake, onlineDot;
+	private RectTransform? wallpaper, card, wake, onlineDot, frame;
 
 	private CanvasGroup? cardGroup;
 
@@ -249,6 +252,11 @@ internal sealed class PhoneSkin : IDisposable
 			dataSize = dataText.fontSize;
 			dataText.color = Ui.Color(Rgba.Hex(0xC9D1DB));
 			dataText.fontSize = Mathf.RoundToInt(12f * Unit);
+			// In from the frame's rounded screen corners, where the board keeps them.
+			timePosition = timeText.rectTransform.anchoredPosition;
+			timeText.rectTransform.anchoredPosition = timePosition + new Vector2(BarInset, 0f);
+			dataPosition = dataText.rectTransform.anchoredPosition;
+			dataText.rectTransform.anchoredPosition = dataPosition - new Vector2(BarInset, 0f);
 			// The board's green "connected" dot, left of "5G".
 			onlineDot = Ui.Image("Hyland online dot", dataText.transform, sprites.Disc(3, Theme.Online), Color.white).rectTransform;
 			onlineDot.anchorMin = onlineDot.anchorMax = new Vector2(1f, 0.5f);
@@ -280,9 +288,9 @@ internal sealed class PhoneSkin : IDisposable
 			Stretch(wake);
 			wake.SetAsLastSibling();
 
-			Recolor(phone);
+			BuildBody(phone, screen);
 			Refresh();
-			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {cases.Count} case renderer(s) recolored, {hidden.Count} home button(s) hidden.");
+			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {hidden.Count} model mesh(es) hidden for our frame (sorting {frame?.GetComponent<Canvas>().sortingOrder}, layer {screen.gameObject.layer}).");
 		}
 		catch
 		{
@@ -366,44 +374,64 @@ internal sealed class PhoneSkin : IDisposable
 		return text;
 	}
 
-	/// <summary>The phone's case gets the board's dark body. Only the local phone's renderers, each with its own copy of the
-	/// material, so nobody else's phone (or any other prop sharing the material) changes.</summary>
-	private void Recolor(Phone phone)
+	/// <summary>The board's phone body in place of the game's model, whose shape isn't a recolor away: every mesh but the
+	/// screen is hidden (only on the local phone), and our frame, speaker slot and home bar go on a world-space canvas of
+	/// their own, lined up with the home screen. Its own canvas because the game turns the home and apps canvases on and off
+	/// as apps open; sorted above both, so the frame's rounded hole rounds their corners too.</summary>
+	private void BuildBody(Phone phone, RectTransform screen)
 	{
 		GameObject model = phone.phoneModel;
-		if (model == null)
+		if (model != null)
 		{
-			return;
-		}
-		Il2CppArrayBase<MeshRenderer> renderers = model.GetComponentsInChildren<MeshRenderer>(true);
-		foreach (MeshRenderer renderer in renderers)
-		{
-			// The model's big home-button pill: the board's phone has a slim home bar on the screen instead. Nothing in the
-			// game reads this mesh, so only its renderer goes.
-			if (renderer.gameObject.name == "Button")
+			foreach (MeshRenderer renderer in model.GetComponentsInChildren<MeshRenderer>(true))
 			{
+				// The screen mesh stays as the dark backing behind the canvases.
+				if (renderer.gameObject.name == "Screen")
+				{
+					continue;
+				}
 				hidden.Add((renderer, renderer.enabled));
 				renderer.enabled = false;
-				continue;
 			}
-			Material shared = renderer.sharedMaterial;
-			if (shared == null || !shared.name.StartsWith("phone_Case", StringComparison.Ordinal))
-			{
-				continue;
-			}
-			Material ours = new Material(shared);
-			ours.name = shared.name + " (Hyland)";
-			Color body = Ui.Color(Theme.PhoneCase);
-			if (ours.HasProperty("_BaseColor"))
-			{
-				ours.SetColor("_BaseColor", body);
-			}
-			if (ours.HasProperty("_Color"))
-			{
-				ours.SetColor("_Color", body);
-			}
-			cases.Add((renderer, shared, ours));
-			renderer.sharedMaterial = ours;
+		}
+
+		Canvas homeCanvas = screen.GetComponentInParent<Canvas>();
+		Transform parent = homeCanvas.transform.parent;
+		Rect rect = screen.rect;
+		frame = Ui.Rect("Hyland phone frame", parent);
+		frame.pivot = new Vector2(0.5f, 0.5f);
+		frame.sizeDelta = rect.size;
+		frame.position = screen.TransformPoint(rect.center);
+		frame.rotation = screen.rotation;
+		Vector3 parentScale = parent != null ? parent.lossyScale : Vector3.one, screenScale = screen.lossyScale;
+		frame.localScale = new Vector3(screenScale.x / parentScale.x, screenScale.y / parentScale.y, screenScale.z / parentScale.z);
+		Canvas canvas = frame.gameObject.AddComponent<Canvas>();
+		canvas.renderMode = RenderMode.WorldSpace;
+		canvas.worldCamera = homeCanvas.worldCamera;
+		canvas.sortingLayerID = homeCanvas.sortingLayerID;
+		AppsCanvas apps = PlayerSingleton<AppsCanvas>.Instance;
+		int appsOrder = apps != null && apps.canvas != null ? apps.canvas.sortingOrder : homeCanvas.sortingOrder;
+		canvas.sortingOrder = Math.Max(homeCanvas.sortingOrder, appsOrder) + 1;
+		CanvasScaler homeScaler = homeCanvas.GetComponent<CanvasScaler>();
+		if (homeScaler != null)
+		{
+			CanvasScaler scaler = frame.gameObject.AddComponent<CanvasScaler>();
+			scaler.dynamicPixelsPerUnit = homeScaler.dynamicPixelsPerUnit;
+			scaler.referencePixelsPerUnit = homeScaler.referencePixelsPerUnit;
+		}
+
+		// The board's body: 12 at the sides, 36 above the screen (the speaker slot), 24 below, 46 outer and 30 screen corners.
+		float side = 12f * Unit, top = 36f * Unit, bottom = 24f * Unit;
+		Image body = Ui.Image("Body", frame, sprites.PhoneFrame(46f * Unit, 30f * Unit, side, top, bottom), Color.white, sliced: true);
+		Ui.Place(body.rectTransform, new Vector2(0f, (top - bottom) / 2f), new Vector2(rect.width + 2f * side, rect.height + top + bottom));
+		Image speaker = Ui.Image("Speaker", frame, sprites.Pill(4 * Unit, Theme.PhoneSpeaker), Color.white, sliced: true);
+		Ui.Place(speaker.rectTransform, new Vector2(0f, rect.height / 2f + 14f * Unit), new Vector2(40f * Unit, 8f * Unit));
+		Image bar = Ui.Image("Home bar", frame, sprites.Pill(2 * Unit, Theme.PhoneHomeBar), Color.white, sliced: true);
+		Ui.Place(bar.rectTransform, new Vector2(0f, -rect.height / 2f + 10f * Unit), new Vector2(80f * Unit, 4f * Unit));
+		// Same layer as the home screen, so whichever camera draws the phone draws this too.
+		foreach (Transform t in frame.GetComponentsInChildren<Transform>(true))
+		{
+			t.gameObject.layer = screen.gameObject.layer;
 		}
 	}
 
@@ -534,7 +562,7 @@ internal sealed class PhoneSkin : IDisposable
 		icon.Label.color = glyph == Art.Icon.AppHyland ? Ui.Color(Theme.PhoneAccent) : Ui.Color(Theme.PhoneText);
 		if (glyph == Art.Icon.AppHyland)
 		{
-			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Sprites.PhoneEdge));
+			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Art.PhoneEdge));
 		}
 
 		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack, Unit)), Color.white, sliced: true);
@@ -791,6 +819,7 @@ internal sealed class PhoneSkin : IDisposable
 			{
 				timeText.color = timeColor;
 				timeText.fontSize = timeSize;
+				timeText.rectTransform.anchoredPosition = timePosition;
 			});
 		}
 		if (dataText != null)
@@ -799,20 +828,9 @@ internal sealed class PhoneSkin : IDisposable
 			{
 				dataText.color = dataColor;
 				dataText.fontSize = dataSize;
+				dataText.rectTransform.anchoredPosition = dataPosition;
 			});
 		}
-		foreach ((MeshRenderer renderer, Material shared, Material ours) in cases)
-		{
-			Ui.Step(ref failure, () =>
-			{
-				if (renderer != null)
-				{
-					renderer.sharedMaterial = shared;
-				}
-				UnityEngine.Object.Destroy(ours);
-			});
-		}
-		cases.Clear();
 		foreach ((MeshRenderer renderer, bool enabled) in hidden)
 		{
 			Ui.Step(ref failure, () =>
@@ -824,7 +842,7 @@ internal sealed class PhoneSkin : IDisposable
 			});
 		}
 		hidden.Clear();
-		foreach (RectTransform? added in new[] { wallpaper, card, wake, onlineDot })
+		foreach (RectTransform? added in new[] { wallpaper, card, wake, onlineDot, frame })
 		{
 			if (added != null)
 			{

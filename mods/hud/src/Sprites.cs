@@ -44,13 +44,16 @@ internal sealed class Sprites : IDisposable
 	}
 
 	/// <summary>The phone's glass (tiles, the clock card, the app's groups): darker than the HUD's, with a slate edge.</summary>
-	internal const double PhoneEdge = 3.0;
-
 	internal Sprite PhoneGlass(double radius)
 	{
-		// Radius and edge are canvas units (the board × 655/316): the board's 1 px edge is ~2 here, drawn 3 so it survives the
-		// phone being scaled down on screen.
-		return Get("phoneGlass" + radius, () => Art.Glass(radius, Theme.PhoneGlass, Theme.PhoneStroke, PhoneEdge));
+		return Get("phoneGlass" + radius, () => Art.Glass(radius, Theme.PhoneGlass, Theme.PhoneStroke, Art.PhoneEdge));
+	}
+
+	/// <summary>The board's phone body around a screen (all canvas units); see <see cref="Art.Frame"/>.</summary>
+	internal Sprite PhoneFrame(double outerRadius, double innerRadius, double side, double top, double bottom)
+	{
+		return Get("phoneFrame" + outerRadius + "/" + innerRadius + "/" + side + "/" + top + "/" + bottom,
+			() => Art.Frame(outerRadius, innerRadius, side, top, bottom, Theme.PhoneCase, Theme.PhoneCaseEdge, Art.PhoneEdge));
 	}
 
 	/// <summary>A solid rounded panel with no edge: badges, chips, switch tracks. White ones are for tinting.</summary>
