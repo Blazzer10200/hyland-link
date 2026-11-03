@@ -100,6 +100,10 @@ internal sealed class PhoneSkin : IDisposable
 
 		internal Color LabelColor;
 
+		internal bool LabelBestFit;
+
+		internal HorizontalWrapMode LabelOverflow;
+
 		internal RectTransform Glass = null!;
 
 		internal RectTransform Key = null!;
@@ -126,6 +130,8 @@ internal sealed class PhoneSkin : IDisposable
 	private readonly Dictionary<int, Icon> icons = new Dictionary<int, Icon>();
 
 	private readonly List<(MeshRenderer Renderer, Material Shared, Material Ours)> cases = new List<(MeshRenderer, Material, Material)>();
+
+	private readonly List<(MeshRenderer Renderer, bool Enabled)> hidden = new List<(MeshRenderer, bool)>();
 
 	private Image? background;
 
@@ -276,7 +282,7 @@ internal sealed class PhoneSkin : IDisposable
 
 			Recolor(phone);
 			Refresh();
-			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {cases.Count} case renderer(s) recolored.");
+			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {cases.Count} case renderer(s) recolored, {hidden.Count} home button(s) hidden.");
 		}
 		catch
 		{
@@ -372,6 +378,14 @@ internal sealed class PhoneSkin : IDisposable
 		Il2CppArrayBase<MeshRenderer> renderers = model.GetComponentsInChildren<MeshRenderer>(true);
 		foreach (MeshRenderer renderer in renderers)
 		{
+			// The model's big home-button pill: the board's phone has a slim home bar on the screen instead. Nothing in the
+			// game reads this mesh, so only its renderer goes.
+			if (renderer.gameObject.name == "Button")
+			{
+				hidden.Add((renderer, renderer.enabled));
+				renderer.enabled = false;
+				continue;
+			}
 			Material shared = renderer.sharedMaterial;
 			if (shared == null || !shared.name.StartsWith("phone_Case", StringComparison.Ordinal))
 			{
@@ -487,6 +501,8 @@ internal sealed class PhoneSkin : IDisposable
 		icon.Label = Find(root, "Label").GetComponent<Text>();
 		icon.LabelFontSize = icon.Label.fontSize;
 		icon.LabelColor = icon.Label.color;
+		icon.LabelBestFit = icon.Label.resizeTextForBestFit;
+		icon.LabelOverflow = icon.Label.horizontalOverflow;
 
 		icon.Shade.SetActive(false);
 		// The game tints Outline clear normally and near-white on hover or controller selection: with our accent ring as its
@@ -510,14 +526,18 @@ internal sealed class PhoneSkin : IDisposable
 		icon.BadgeImage.type = Image.Type.Sliced;
 		Pin(icon.Badge, Vector2.one, new Vector2(-4f * Unit, -4f * Unit), new Vector2(18f * Unit, 18f * Unit));
 		icon.BadgeText.fontSize = Mathf.RoundToInt(11f * Unit);
+		// The game's label shrinks long names to fit (best fit), so "Messages" came out smaller than "Map". One size, like
+		// the board, and long names run past the tile's width instead.
+		icon.Label.resizeTextForBestFit = false;
+		icon.Label.horizontalOverflow = HorizontalWrapMode.Overflow;
 		icon.Label.fontSize = Mathf.RoundToInt(11f * Unit);
 		icon.Label.color = glyph == Art.Icon.AppHyland ? Ui.Color(Theme.PhoneAccent) : Ui.Color(Theme.PhoneText);
 		if (glyph == Art.Icon.AppHyland)
 		{
-			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent));
+			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Sprites.PhoneEdge));
 		}
 
-		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack)), Color.white, sliced: true);
+		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack, Unit)), Color.white, sliced: true);
 		icon.Key = key.rectTransform;
 		icon.Key.anchorMin = icon.Key.anchorMax = Vector2.zero;
 		icon.Key.sizeDelta = new Vector2(16f * Unit, 16f * Unit);
@@ -731,6 +751,8 @@ internal sealed class PhoneSkin : IDisposable
 				icon.BadgeText.fontSize = icon.BadgeFontSize;
 				icon.Label.fontSize = icon.LabelFontSize;
 				icon.Label.color = icon.LabelColor;
+				icon.Label.resizeTextForBestFit = icon.LabelBestFit;
+				icon.Label.horizontalOverflow = icon.LabelOverflow;
 			});
 			Ui.Step(ref failure, () => UnityEngine.Object.DestroyImmediate(icon.Group));
 			Ui.Step(ref failure, () => UnityEngine.Object.Destroy(icon.Glass.gameObject));
@@ -791,6 +813,17 @@ internal sealed class PhoneSkin : IDisposable
 			});
 		}
 		cases.Clear();
+		foreach ((MeshRenderer renderer, bool enabled) in hidden)
+		{
+			Ui.Step(ref failure, () =>
+			{
+				if (renderer != null)
+				{
+					renderer.enabled = enabled;
+				}
+			});
+		}
+		hidden.Clear();
 		foreach (RectTransform? added in new[] { wallpaper, card, wake, onlineDot })
 		{
 			if (added != null)
