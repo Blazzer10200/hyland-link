@@ -641,14 +641,15 @@ internal sealed class PhoneSkin : IDisposable
 		icon.Label.color = glyph == Art.Icon.AppHyland ? Ui.Color(Theme.PhoneAccent) : Ui.Color(Theme.PhoneText);
 		if (glyph == Art.Icon.AppHyland)
 		{
-			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Art.PhoneEdge));
+			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Art.PhoneEdge), mipmaps: true);
 		}
 
-		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack, Unit)), Color.white, sliced: true);
+		// Top left, mirroring the badge: at the bottom left it sat on the label ("3" over the P of Products).
+		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack, Art.PhoneEdge), mipmaps: true), Color.white, sliced: true);
 		icon.Key = key.rectTransform;
-		icon.Key.anchorMin = icon.Key.anchorMax = Vector2.zero;
+		icon.Key.anchorMin = icon.Key.anchorMax = new Vector2(0f, 1f);
 		icon.Key.sizeDelta = new Vector2(16f * Unit, 16f * Unit);
-		icon.Key.anchoredPosition = new Vector2(3f * Unit, 3f * Unit);
+		icon.Key.anchoredPosition = new Vector2(4f * Unit, -4f * Unit);
 		icon.KeyText = Label("Text", icon.Key, 10f, Rgba.Hex(0xC9D1DB), TextAnchor.MiddleCenter, Vector2.zero, icon.Key.sizeDelta, centered: true);
 
 		// Fades and pops the whole tile. Interactable and raycast-blocking, so the game's button keeps working.

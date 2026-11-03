@@ -63,10 +63,11 @@ internal sealed class Sprites : IDisposable
 		return Get("pill" + radius + "/" + color.R + color.G + color.B + color.A, () => Art.Glass(radius, color, color.WithAlpha(0f)));
 	}
 
-	/// <summary>Just the edge of a rounded panel, 2 wide: the selected/hover ring on app tiles.</summary>
+	/// <summary>Just the edge of a rounded panel: the selected/hover ring on app tiles. As wide as the phone's other edges and
+	/// mipmapped like them: a 2-wide unmipmapped line showed at a third of a pixel and broke into fragments.</summary>
 	internal Sprite Ring(double radius, Rgba color)
 	{
-		return Get("ring" + radius, () => Art.Glass(radius, color.WithAlpha(0f), color, 2.0));
+		return Get("ring" + radius + "/" + color.R + color.G + color.B, () => Art.Glass(radius, color.WithAlpha(0f), color, Art.PhoneEdge), mipmaps: true);
 	}
 
 	internal Sprite Disc(double radius, Rgba color)

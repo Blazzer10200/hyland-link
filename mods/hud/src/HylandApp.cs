@@ -158,7 +158,7 @@ internal sealed class HylandApp : IDisposable
 	private float BuildHeader()
 	{
 		float top = 16f * Unit, size = 36f * Unit;
-		Image back = Ui.Image("Back", root, sprites.Get("backButton", () => Art.Glass(18 * Unit, Theme.PhoneChip, Theme.PhoneStroke)), Color.white, sliced: true);
+		Image back = Ui.Image("Back", root, sprites.Get("backButton", () => Art.Glass(18 * Unit, Theme.PhoneChip, Theme.PhoneStroke, Art.PhoneEdge), mipmaps: true), Color.white, sliced: true);
 		back.raycastTarget = true;
 		RectTransform rect = back.rectTransform;
 		TopLeft(rect, new Vector2(Pad, -top), new Vector2(size, size));
