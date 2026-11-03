@@ -40,6 +40,11 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
   release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.
   Then `mods.ps1 publish` as usual.
+- `.gameref/` (gitignored, never public: it's the game's own code and art; its `README.md` maps it): `src/` is the
+  decompiled Mono branch (logic), `assets/build-<id>/` is an AssetRipper export of the live IL2CPP build (prefab
+  layouts, sprites, fonts, audio mixers; the phone is `GameObject/Player.prefab`). `pwsh scripts/game-assets.ps1
+  export` makes one per game build with the pinned, checksum-checked AssetRipper (`setup` installs it, `browse` opens
+  its viewer). Design against these, not screenshots. It reads the game folder only.
 - `manifest/manifest.json`: what friends install and what the server runs. `scripts/mods.ps1`: the only way to change
   mods (server applies first, then push). `scripts/release.sh`: the only way to ship a launcher build.
 
