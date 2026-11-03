@@ -136,7 +136,7 @@ internal sealed class AppsSkin : IDisposable
 		List<(float Area, string Line)> light = new List<(float, string)>();
 		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(false))
 		{
-			if (!graphic.enabled || records.ContainsKey(graphic.GetInstanceID()))
+			if (!graphic.enabled || records.ContainsKey(graphic.GetInstanceID()) || Ours(graphic.transform, app.transform))
 			{
 				continue;
 			}
@@ -157,6 +157,19 @@ internal sealed class AppsSkin : IDisposable
 		{
 			log("  " + light[i].Line);
 		}
+	}
+
+	/// <summary>Whether this is one of AppLayouts' own pieces (a "Hyland …" object or inside one).</summary>
+	private static bool Ours(Transform transform, Transform root)
+	{
+		for (Transform? at = transform; at != null && at != root; at = at.parent)
+		{
+			if (at.name.StartsWith(AppLayouts.Prefix, StringComparison.Ordinal))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static string PathOf(Transform transform, Transform root)
@@ -215,6 +228,12 @@ internal sealed class AppsSkin : IDisposable
 			{
 				continue;
 			}
+			else if (Ours(graphic.transform, app.transform))
+			{
+				// AppLayouts' header and backdrop are drawn in the board's colors already.
+				kept[id] = (color, tint);
+				continue;
+			}
 			Color? target = Target(graphic, color, appBase, tint, tinted);
 			if (target == null)
 			{
@@ -257,7 +276,7 @@ internal sealed class AppsSkin : IDisposable
 	{
 		TMP_Text? pro = label.TryCast<TMP_Text>();
 		Text? legacy = pro == null ? label.TryCast<Text>() : null;
-		if (pro == null && legacy == null)
+		if ((pro == null && legacy == null) || Ours(label.transform, root))
 		{
 			return false;
 		}
