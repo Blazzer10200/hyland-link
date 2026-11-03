@@ -26,6 +26,10 @@ internal sealed class AppsSkin : IDisposable
 		internal Color Original;
 
 		internal Color Applied;
+
+		/// <summary>The button tint it was themed under: Deliveries' Confirm flips between enabled (blue) and disabled
+		/// (gray) every physics tick, and an image darkened for gray turns the blue muddy.</summary>
+		internal Color? Tint;
 	}
 
 	private sealed class Nudge
@@ -61,7 +65,7 @@ internal sealed class AppsSkin : IDisposable
 
 	/// <summary>Graphics judged best left as the game has them, by the color they had then: Messages alone has ~1000, and
 	/// judging each again every pass (a walk up its parents for text) cost a hitch.</summary>
-	private readonly Dictionary<int, Color> kept = new Dictionary<int, Color>();
+	private readonly Dictionary<int, (Color Color, Color? Tint)> kept = new Dictionary<int, (Color, Color?)>();
 
 	private readonly HashSet<string> reported = new HashSet<string>();
 
@@ -183,35 +187,45 @@ internal sealed class AppsSkin : IDisposable
 		{
 			int id = graphic.GetInstanceID();
 			Color color = graphic.color;
-			if (records.TryGetValue(id, out Record? record))
-			{
-				if (Same(color, record.Applied))
-				{
-					continue;
-				}
-				// The game has set a new color since (a selected tab, a hover, a new row's state): that's the original now.
-				record.Original = color;
-			}
-			else if (kept.TryGetValue(id, out Color was) && Same(color, was))
-			{
-				continue;
-			}
 			Color? tint = null;
 			if (tinted.TryGetValue(id, out Selectable? owner))
 			{
 				ColorBlock block = owner.colors;
 				tint = (owner.interactable ? block.normalColor : block.disabledColor) * block.colorMultiplier;
 			}
+			if (records.TryGetValue(id, out Record? record))
+			{
+				if (Same(color, record.Applied))
+				{
+					if (SameTint(tint, record.Tint))
+					{
+						continue;
+					}
+					// Its button's tint changed: back to the game's color, and judge it again under the new one.
+					color = record.Original;
+					graphic.color = color;
+				}
+				else
+				{
+					// The game has set a new color since (a selected tab, a hover, a new row's state): that's the original now.
+					record.Original = color;
+				}
+			}
+			else if (kept.TryGetValue(id, out (Color Color, Color? Tint) was) && Same(color, was.Color) && SameTint(tint, was.Tint))
+			{
+				continue;
+			}
 			Color? target = Target(graphic, color, appBase, tint, tinted);
 			if (target == null)
 			{
 				records.Remove(id);
-				kept[id] = color;
+				kept[id] = (color, tint);
 				continue;
 			}
 			kept.Remove(id);
 			record ??= new Record { Graphic = graphic, Original = color };
 			record.Applied = target.Value;
+			record.Tint = tint;
 			records[id] = record;
 			graphic.color = target.Value;
 			themed++;
@@ -481,6 +495,11 @@ internal sealed class AppsSkin : IDisposable
 	private static float Lightness(Color c)
 	{
 		return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+	}
+
+	private static bool SameTint(Color? a, Color? b)
+	{
+		return a == null ? b == null : b != null && Same(a.Value, b.Value);
 	}
 
 	private static bool Same(Color a, Color b)
