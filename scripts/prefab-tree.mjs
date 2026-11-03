@@ -62,7 +62,14 @@ function parseBlock(lines, start, indent) {
         // A map item: its first key is on the dash line, the rest are indented two more.
         const item = {};
         let j = i + 1;
-        if (m[2] === "") { const [v, n] = parseBlock(lines, j, ind + 4); item[m[1]] = v ?? ""; j = n; }
+        if (m[2] === "") {
+          // Its value is a map indented further, or a list at the key's own indent ("- RoutePoints:" then "  - {...}").
+          const next = lines[j] ?? "";
+          const nind = next.search(/\S/);
+          if (nind > ind + 2 || (nind === ind + 2 && next.slice(nind).startsWith("- "))) {
+            const [v, n] = parseBlock(lines, j, nind); item[m[1]] = v ?? ""; j = n;
+          } else item[m[1]] = "";
+        }
         else item[m[1]] = scalar(m[2]);
         const [more, n] = parseBlock(lines, j, ind + 2);
         if (more && !Array.isArray(more)) Object.assign(item, more);
