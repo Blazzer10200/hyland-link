@@ -59,11 +59,19 @@ internal sealed class AppsSkin : IDisposable
 
 	private readonly Color muted = Ui.Color(Theme.PhoneMuted);
 
+	/// <summary>Graphics judged best left as the game has them, by the color they had then: Messages alone has ~1000, and
+	/// judging each again every pass (a walk up its parents for text) cost a hitch.</summary>
+	private readonly Dictionary<int, Color> kept = new Dictionary<int, Color>();
+
+	private readonly HashSet<string> reported = new HashSet<string>();
+
 	private GameObject? current;
 
 	private float openedAt;
 
 	private float nextPass;
+
+	private float nextCorners;
 
 	internal AppsSkin(Action<string> log)
 	{
@@ -84,6 +92,7 @@ internal sealed class AppsSkin : IDisposable
 			current = app;
 			openedAt = now;
 			nextPass = 0f;
+			nextCorners = 0f;
 		}
 		if (now < nextPass)
 		{
@@ -91,10 +100,62 @@ internal sealed class AppsSkin : IDisposable
 		}
 		// Often enough that panels the game rebuilds (Journal's details, on every hover) don't flash light for long.
 		nextPass = now + (now - openedAt < 2f ? 0.1f : 0.25f);
-		Restyle(app);
+		// Labels only move when the game lays a screen out again: once a second after the first two.
+		bool corners = now >= nextCorners;
+		if (corners)
+		{
+			nextCorners = now + (now - openedAt < 2f ? 0.1f : 1f);
+		}
+		Restyle(app, corners);
+		if (now - openedAt > 3f && reported.Add(app.name))
+		{
+			ReportLeftovers(app);
+		}
 	}
 
-	private void Restyle(GameObject app)
+	/// <summary>
+	/// Once per app per run, a few seconds after it opens: the biggest light panels still on screen that this left alone,
+	/// by path, sprite and color. Something light that should be dark shows up here instead of in a screenshot.
+	/// </summary>
+	private void ReportLeftovers(GameObject app)
+	{
+		List<(float Area, string Line)> light = new List<(float, string)>();
+		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(false))
+		{
+			if (!graphic.enabled || records.ContainsKey(graphic.GetInstanceID()))
+			{
+				continue;
+			}
+			Color color = graphic.color;
+			Rect rect = graphic.rectTransform.rect;
+			float area = Mathf.Abs(rect.width * rect.height);
+			if (color.a < 0.5f || Lightness(color) < 0.6f || area < 1500f || graphic.TryCast<RawImage>() != null)
+			{
+				continue;
+			}
+			Image? image = graphic.TryCast<Image>();
+			string kind = image != null ? "image " + (image.sprite != null ? image.sprite.name : "none") : "text";
+			light.Add((area, $"{PathOf(graphic.transform, app.transform)} [{kind}] #{ColorUtility.ToHtmlStringRGBA(color)} {rect.width:0}x{rect.height:0}"));
+		}
+		light.Sort((a, b) => b.Area.CompareTo(a.Area));
+		log($"Phone: {app.name} left light: {(light.Count == 0 ? "nothing" : light.Count.ToString())}.");
+		for (int i = 0; i < light.Count && i < 10; i++)
+		{
+			log("  " + light[i].Line);
+		}
+	}
+
+	private static string PathOf(Transform transform, Transform root)
+	{
+		string path = transform.name;
+		for (Transform? at = transform.parent; at != null && at != root; at = at.parent)
+		{
+			path = at.name + "/" + path;
+		}
+		return path;
+	}
+
+	private void Restyle(GameObject app, bool corners)
 	{
 		float? appBase = BaseOf(app);
 		// Many of the game's buttons are white images that their Button tints (Confirm: white × #5DBAFF; my bubbles:
@@ -121,6 +182,10 @@ internal sealed class AppsSkin : IDisposable
 				// The game has set a new color since (a selected tab, a hover, a new row's state): that's the original now.
 				record.Original = color;
 			}
+			else if (kept.TryGetValue(id, out Color was) && Same(color, was))
+			{
+				continue;
+			}
 			Color? tint = null;
 			if (tinted.TryGetValue(id, out Selectable? owner))
 			{
@@ -131,8 +196,10 @@ internal sealed class AppsSkin : IDisposable
 			if (target == null)
 			{
 				records.Remove(id);
+				kept[id] = color;
 				continue;
 			}
+			kept.Remove(id);
 			record ??= new Record { Graphic = graphic, Original = color };
 			record.Applied = target.Value;
 			records[id] = record;
@@ -141,7 +208,7 @@ internal sealed class AppsSkin : IDisposable
 		}
 		int moved = 0;
 		RectTransform? root = app.GetComponent<RectTransform>();
-		if (root != null)
+		if (root != null && corners)
 		{
 			foreach (Graphic label in app.GetComponentsInChildren<Graphic>(false))
 			{
@@ -181,7 +248,7 @@ internal sealed class AppsSkin : IDisposable
 			// The game placed it again: start over from where it put it.
 			nudges.Remove(id);
 		}
-		if (string.IsNullOrEmpty(pro != null ? pro.text : legacy!.text) || label.GetComponentInParent<ScrollRect>() != null)
+		if (string.IsNullOrEmpty(pro != null ? pro.text : legacy!.text))
 		{
 			return false;
 		}
@@ -210,7 +277,8 @@ internal sealed class AppsSkin : IDisposable
 		{
 			shift = area.xMax - inset - x1;
 		}
-		if (Mathf.Abs(shift) < 0.5f)
+		// Last, being the dear one: labels in scroll lists only pass the corner.
+		if (Mathf.Abs(shift) < 0.5f || label.GetComponentInParent<ScrollRect>() != null)
 		{
 			return false;
 		}
@@ -287,7 +355,8 @@ internal sealed class AppsSkin : IDisposable
 		if (image != null)
 		{
 			Sprite? sprite = image.sprite;
-			if (sprite != null && sprite.border == Vector4.zero && !Plain(sprite.name))
+			// A mask's own shape (Messages' #DCDCDC avatar rings, around every face) is UI, not the picture inside it.
+			if (sprite != null && sprite.border == Vector4.zero && !Plain(sprite.name) && image.GetComponent<Mask>() == null)
 			{
 				return null;
 			}
@@ -355,7 +424,9 @@ internal sealed class AppsSkin : IDisposable
 			}
 			if (color.a > 0.5f)
 			{
-				return !Gray(color);
+				// Text on a picture (Map's place names on the map art) keeps its color like the picture does.
+				Sprite? sprite = image.sprite;
+				return !Gray(color) || (sprite != null && sprite.border == Vector4.zero && !Plain(sprite.name) && image.GetComponent<Mask>() == null);
 			}
 		}
 		return false;
@@ -379,6 +450,7 @@ internal sealed class AppsSkin : IDisposable
 	{
 		return name.Contains("UISprite", StringComparison.OrdinalIgnoreCase)
 			|| name == "Tile"
+			|| name.Contains("Triangle", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("SlotBackground", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Background", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Rect", StringComparison.OrdinalIgnoreCase)
