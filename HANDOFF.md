@@ -20,22 +20,31 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | What | State | Where |
 |---|---|---|
 | HUD 0.1.1 (Respawn instead of "Load last save" on the server) | On `main`, staged, **not seen in game**, not published | `dist/hud-v0.1.1/HylandHud.zip` |
-| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level) | **Parked on branch `hud-phone`** (Blazzer: phone stays out of the next release). Builds with 0 warnings, not run in game | `hud-phone` = main before the revert |
+| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps themed and framed like the board, the call screen) | **Parked on branch `hud-phone`, not ready** (Blazzer 2026-11-03: "not too bad, could be better, still needs work"). Runs in the test copy with no errors | `hud-phone` (a22a571), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` is ahead of `origin/main` (nothing pushed since revision 8). `mod-release.ps1 -Publish` refuses an unpushed
 tree, so pushing comes first when a HUD ships.
 
 ## Next steps
-1. **See 0.1.1 work once in the test copy** (`C:\Games\Schedule I (HUD test)`, join the server, never single player):
-   copy `mods/hud/bin/Release/net6.0/HylandHud.dll` into its `Mods/` with the game closed, die once, and the death
-   screen should offer Respawn, not "Load last save".
+1. **See 0.1.1 work once in the test copy** (join the server, never single player). The test copy has the phone build
+   right now: `pwsh scripts/hud-testcopy.ps1 use main` with the game closed, `launch`, die once, and the death screen
+   should offer Respawn, not "Load last save".
 2. Ship 0.1.1 on Blazzer's go-ahead: push `main`, `pwsh scripts/mod-release.ps1 hud -Publish`,
    `pwsh scripts/mods.ps1 publish` (the server applies it first, waiting until nobody's online unless `-Now`). Live =
    the launcher log says `Mod list: revision 9 from Online`. Then `dist/hud-v0.1.0` can go (Blazzer's OK).
-3. Phone later: on `main`, `git revert` the "Park the phone" commit (that brings all of it back; `hud-phone` is
-   already an ancestor of `main`, so a rebase or merge of it would bring nothing). Keep the version at 0.2.0 if 0.1.1
-   went out, test with the checklist in `mods/hud/README.md`, ship the same way.
+3. **Phone, still to do** (work in `.worktrees/hud-phone`; test with `hud-testcopy.ps1 use phone`, `launch`, `log`).
+   Done on the branch: home screen, frame and blur fixes, the Hyland app, the game's apps restyled in place
+   (`AppsSkin`: colors read off each screen, button image × tint, titles off the rounded corners, the call screen) and
+   framed (`AppLayouts`: the board's header with a back button on every app, insets, Deliveries' tabs on top, the map
+   in a rounded card). Left, per the board (`Phone.dc.html`): Deliveries' 2-column shop cards with the colored left
+   stripe and the order form's side card; Dealers' one-dealer picker card; Messages' bottom sheets (counteroffer, deal
+   window) and response buttons; Journal's and Products' card styling and tile sections; Contacts' web; then a polish
+   round with Blazzer. Each app logs `left light:` once per run (the biggest light panels it left), so leftovers show
+   up in `log` without screenshots. The last run's lists were all art (map, mugshots), as they should be.
+4. Bringing the phone back to `main`: `git revert a25f0de` (the park) on `main`, then `git merge hud-phone` (the
+   branch has 10 commits past where it was parked). Keep the version at 0.2.0 if 0.1.1 went out, test with the
+   checklist in `mods/hud/README.md`, ship the same way.
 
 ## Open items
 - **This file is public** (tracked and pushed). Sessions 1–10 held server and network details; they're out of the
@@ -51,8 +60,12 @@ tree, so pushing comes first when a HUD ships.
 - The server console's `bring <player> <player>` answers "Brought …" but the player doesn't move: the game teleports
   only the local player (`PlayerMovement.Teleport`, no RPC), so the server moves its own copy. A server mod gap, not
   ours. Names with non-ASCII (BLAZZER™) don't resolve over the console either: use the Steam ID from `listops`.
-- HUD 0.1.1's Respawn hasn't been seen yet: the test copy (`C:\Games\Schedule I (HUD test)`) has it; everything else
-  in it (rail, compass, clock, friends, bank-only panel) passed in game on 2026-11-03.
+- HUD 0.1.1's Respawn hasn't been seen yet; everything else in it (rail, compass, clock, friends, bank-only panel)
+  passed in game on 2026-11-03.
+- A hotbar missing in a test screenshot was the game, not the HUD: at the 4 AM pass-out, on arrest and on death,
+  `Player.ExitAll` / `OnDied` call `SetInventoryEnabled(false)`, which hides `HotbarContainer` and the cash slot with it.
+- Stale, for Blazzer to OK deleting: five `%TEMP%\Hyland Link-0.1.x-updater-*` folders (old self-update runs on this
+  PC, outside the project) and `dist/v0.1.4` (that launcher is released).
 
 ## Gotchas worth keeping
 - **"Live" means a launcher read it:** the raw manifest is cached up to 5 min per CDN edge and query strings don't

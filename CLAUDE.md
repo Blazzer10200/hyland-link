@@ -35,8 +35,10 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
   restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.0`, id
   `hyland-hud`, mod list r8). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
-  real prefab's layout to the log. In-game testing: see its README ("Testing in game"). The phone (0.2.0: glass
-  home screen, Hyland app, rain level) is parked off `main` on branch `hud-phone`; HANDOFF says how it comes back.
+  real prefab's layout to the log. In-game testing: see its README ("Testing in game");
+  `pwsh scripts/hud-testcopy.ps1 use main|phone`, `launch`, `log` drive the test copy. The phone (0.2.0: glass home
+  screen, Hyland app, rain level, the game's apps restyled and framed) is parked off `main` on branch `hud-phone`,
+  checked out at `.worktrees/hud-phone` (gitignored); HANDOFF says what's left and how it comes back.
 - `scripts/mod-release.ps1 hud|minimap`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
   Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
   release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.

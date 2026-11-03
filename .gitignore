@@ -2,6 +2,8 @@
 dist/
 # The game's own code (Mono branch DLLs + decompiled C#), for reading only. Never public.
 .gameref/
+# Checkouts of other branches (git worktree add .worktrees/<branch> <branch>): the parked phone lives in hud-phone.
+.worktrees/
 # This repo is public: local tool settings (Claude Code's allowlist names server commands) and anything key-like stay out.
 .claude/settings.local.json
 .secrets/
