@@ -11,6 +11,18 @@ anyone yet.
   from the server. You now get Respawn (hospital, or your property during curfew), like co-op. Single player and
   co-op hosts keep the game's normal screen.
 
+### Hyland HUD 0.2.0, the phone (parked on branch `hud-phone`, not ready: see HANDOFF for what's left)
+- **A new phone.** A slim dark body in place of the game's chunky 3D model, sharp at any screen size. The home screen
+  has a card with the time, the day and the weather, your bank balance and who's on the server, and glass app tiles
+  with new icons. Each tile shows its number key (1–8), and the bar at the bottom works as the home button.
+- **The Hyland app** (key 8): every HUD setting on the phone itself, with no config file to edit.
+- **Rain you can turn down**, and much quieter indoors (the game drops it only a little under a roof).
+- **The game's apps match the phone.** Messages, Journal, Products, Contacts, Map, Dealers and Deliveries go dark like
+  the home screen, with a back button and the app's name at the top. Colors that mean something stay: message
+  bubbles, prices, relationship rings, faces and the map itself. Deliveries' tabs move to the top, and the map sits
+  in a rounded card. Titles no longer get cut off by the screen's rounded corners.
+- **Incoming calls** use the same dark style, with Answer and Decline still green and red.
+
 ## Shipped
 
 ### 2026-11-02, mod list revision 8
