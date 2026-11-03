@@ -64,10 +64,12 @@ installed launchers can't verify another update, and everyone has to reinstall o
 app/                 the Tauri 2 + Svelte 5 app (see app/README.md)
 manifest/            the version file the launcher and the server both follow (built in, and fetched from main)
 mods/minimap/        Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT)
-mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass and money
+mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass, money and phone
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap)
 scripts/release.sh   build, sign and publish a launcher release
 scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)
 scripts/logs.sh      print the launcher log, the game log and the console setting on this PC
+scripts/game-assets.ps1  export the live game's prefabs and art into .gameref/ (local only, never committed)
+scripts/prefab-tree.mjs  print one UI subtree of that export (rects, images, texts, layout)
 ```

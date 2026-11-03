@@ -109,6 +109,7 @@ mod tests {
         let doc: Value = serde_json::from_str(&fs::read_to_string(file(&game)).unwrap()).unwrap();
         assert_eq!(doc["Favorites"][0]["Port"], 38465);
         assert_eq!(doc["History"], json!([]));
+        fs::remove_dir_all(&game).unwrap();
     }
 
     #[test]
@@ -127,6 +128,7 @@ mod tests {
         assert_eq!(favorites[0]["Host"], "69.50.245.12");
         assert_eq!(favorites[1], original["Favorites"][0]);
         assert_eq!(doc["History"], original["History"]);
+        fs::remove_dir_all(&game).unwrap();
     }
 
     #[test]
@@ -143,6 +145,7 @@ mod tests {
                 .collect();
             assert_eq!(kept.len(), 1, "{name}: the damaged file is kept");
             assert_eq!(fs::read_to_string(game.join("UserData").join(&kept[0])).unwrap(), broken);
+            fs::remove_dir_all(&game).unwrap();
         }
     }
 }

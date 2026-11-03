@@ -53,8 +53,7 @@ button {
   cursor: pointer;
 }
 
-button:focus-visible,
-a:focus-visible {
+button:focus-visible {
   outline: 2px solid var(--sodium);
   outline-offset: 2px;
 }

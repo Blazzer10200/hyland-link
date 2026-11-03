@@ -31,7 +31,7 @@
 
   const steps = [
     { n: 1, title: "Find Schedule I", doneTitle: "Schedule I found", preview: "Looks through your Steam libraries" },
-    { n: 2, title: "Install the server mod", doneTitle: "Server mod installed", preview: "MelonLoader + the server mod, one click" },
+    { n: 2, preview: "MelonLoader + the server mod, one click" },
     { n: 3, title: "Launch once to finish setup", doneTitle: "Setup run finished", preview: "A one-time setup run" },
     { n: 4, title: "Join the server", doneTitle: "Join the server", preview: "Servers → Favorites → Join" },
   ] as const;

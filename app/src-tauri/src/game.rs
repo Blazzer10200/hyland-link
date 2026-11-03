@@ -210,6 +210,7 @@ mod tests {
         assert_eq!(beta_branch(&acf), None);
         fs::write(&acf, "\t\t\"BetaKey\"\t\t\"public\"\n").unwrap();
         assert_eq!(beta_branch(&acf), None);
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -224,6 +225,7 @@ mod tests {
         let libraries = library_folders(&steam);
         assert!(libraries.contains(&PathBuf::from(r"C:\Program Files (x86)\Steam")));
         assert!(libraries.contains(&PathBuf::from(r"D:\SteamLibrary")));
+        fs::remove_dir_all(&steam).unwrap();
     }
 
     #[test]
