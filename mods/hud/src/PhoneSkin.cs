@@ -6,6 +6,7 @@ using Il2CppScheduleOne.GameTime;
 using Il2CppScheduleOne.Money;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.UI.Phone;
+using GameplayMenu = Il2CppScheduleOne.UI.GameplayMenu;
 using Il2CppScheduleOne.Weather;
 using UnityEngine;
 using UnityEngine.UI;
@@ -134,6 +135,16 @@ internal sealed class PhoneSkin : IDisposable
 
 	private readonly List<(MeshRenderer Renderer, bool Enabled)> hidden = new List<(MeshRenderer, bool)>();
 
+	private readonly List<(Collider Collider, bool Enabled)> colliders = new List<(Collider, bool)>();
+
+	private readonly List<(CanvasScaler Scaler, float Pixels)> scalers = new List<(CanvasScaler, float)>();
+
+	private float nextSharpen;
+
+	private Image? backdrop;
+
+	private bool timeEnabled;
+
 	private Image? background;
 
 	private Color backgroundColor;
@@ -156,7 +167,7 @@ internal sealed class PhoneSkin : IDisposable
 
 	private int timeSize;
 
-	private Vector2 timePosition, dataPosition;
+	private Vector2 dataPosition;
 
 	private Text? dataText;
 
@@ -223,6 +234,11 @@ internal sealed class PhoneSkin : IDisposable
 			wallpaper = paper.rectTransform;
 			Stretch(wallpaper);
 			wallpaper.SetAsFirstSibling();
+			// The game's Background stops 40 short of the top for its info bar, whose gray band goes below: without this the
+			// screen's gray mesh showed through as a band behind the bar.
+			backdrop = Ui.Image("Hyland backdrop", screen, null!, Ui.Color(Theme.PhoneWallpaper));
+			Stretch(backdrop.rectTransform);
+			backdrop.rectTransform.SetAsFirstSibling();
 
 			// The info bar keeps its texts (the game writes the time every minute); its gray band and shadow go.
 			Transform bar = Find(screen, "InfoBar");
@@ -252,9 +268,10 @@ internal sealed class PhoneSkin : IDisposable
 			dataSize = dataText.fontSize;
 			dataText.color = Ui.Color(Rgba.Hex(0xC9D1DB));
 			dataText.fontSize = Mathf.RoundToInt(12f * Unit);
-			// In from the frame's rounded screen corners, where the board keeps them.
-			timePosition = timeText.rectTransform.anchoredPosition;
-			timeText.rectTransform.anchoredPosition = timePosition + new Vector2(BarInset, 0f);
+			// The clock card shows the time, so the bar's own goes (the game keeps writing it). "5G" moves in from the frame's
+			// rounded screen corner.
+			timeEnabled = timeText.enabled;
+			timeText.enabled = false;
 			dataPosition = dataText.rectTransform.anchoredPosition;
 			dataText.rectTransform.anchoredPosition = dataPosition - new Vector2(BarInset, 0f);
 			// The board's green "connected" dot, left of "5G".
@@ -290,7 +307,7 @@ internal sealed class PhoneSkin : IDisposable
 
 			BuildBody(phone, screen);
 			Refresh();
-			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {hidden.Count} model mesh(es) hidden for our frame (sorting {frame?.GetComponent<Canvas>().sortingOrder}, layer {screen.gameObject.layer}).");
+			log($"Phone: home {screen.rect.width:F0}x{screen.rect.height:F0}, {home.appIconContainer.childCount} icons, {hidden.Count} model mesh(es) hidden for our frame (sorting {frame?.GetComponent<Canvas>().sortingOrder}, layer {screen.gameObject.layer}), home bar is the button ({colliders.Count} old collider(s) off, Overlay layer {LayerMask.NameToLayer("Overlay")}).");
 		}
 		catch
 		{
@@ -392,6 +409,16 @@ internal sealed class PhoneSkin : IDisposable
 				}
 				hidden.Add((renderer, renderer.enabled));
 				renderer.enabled = false;
+				// The home button's collider is what an open app's click test hits (App.IsHoveringButton: a ray on the Overlay
+				// layer that must hit a collider named "Button"). Ours sits on the home bar instead, so this one goes too.
+				if (renderer.gameObject.name == "Button")
+				{
+					foreach (Collider collider in renderer.GetComponents<Collider>())
+					{
+						colliders.Add((collider, collider.enabled));
+						collider.enabled = false;
+					}
+				}
 			}
 		}
 
@@ -413,6 +440,14 @@ internal sealed class PhoneSkin : IDisposable
 		int appsOrder = apps != null && apps.canvas != null ? apps.canvas.sortingOrder : homeCanvas.sortingOrder;
 		canvas.sortingOrder = Math.Max(homeCanvas.sortingOrder, appsOrder) + 1;
 		CanvasScaler homeScaler = homeCanvas.GetComponent<CanvasScaler>();
+		CanvasScaler? appsScaler = apps != null && apps.canvas != null ? apps.canvas.GetComponent<CanvasScaler>() : null;
+		foreach (CanvasScaler? s in new[] { homeScaler, appsScaler })
+		{
+			if (s != null)
+			{
+				scalers.Add((s, s.dynamicPixelsPerUnit));
+			}
+		}
 		if (homeScaler != null)
 		{
 			CanvasScaler scaler = frame.gameObject.AddComponent<CanvasScaler>();
@@ -433,6 +468,45 @@ internal sealed class PhoneSkin : IDisposable
 		{
 			t.gameObject.layer = screen.gameObject.layer;
 		}
+
+		// The home bar is the phone's button: clicking it closes the open app, the game's rule for its own button. Named and
+		// layered for that test; it covers the bar and the bezel under it (not more: on sideways apps the bar runs along an
+		// edge of the app). Deep both ways, so it's in front of the screen whichever way the canvas faces.
+		RectTransform hit = Ui.Rect("Button", frame);
+		hit.gameObject.layer = LayerMask.NameToLayer("Overlay");
+		hit.localPosition = new Vector3(0f, -rect.height / 2f + 4f * Unit, 0f);
+		BoxCollider box = hit.gameObject.AddComponent<BoxCollider>();
+		box.size = new Vector3(110f * Unit, 24f * Unit, 40f);
+	}
+
+	/// <summary>Text on the phone is rasterized at dynamicPixelsPerUnit pixels per canvas unit: the game's 5 (home) and 2
+	/// (apps) against ~1 on screen at 1440p, so glyphs were drawn up to 5× too big and shrunk without mipmaps (fonts have
+	/// none), which reads as crunchy and low-res. This draws them at about the size they show (×1.25), measured through
+	/// the camera that draws the phone. Changed only on a real difference: every text rebuilds when it does.</summary>
+	private void Sharpen()
+	{
+		Camera? camera = Singleton<GameplayMenu>.Instance?.OverlayCamera;
+		RectTransform screen = home.transform.Cast<RectTransform>();
+		if (camera == null)
+		{
+			return;
+		}
+		Rect rect = screen.rect;
+		Vector3 left = camera.WorldToScreenPoint(screen.TransformPoint(new Vector3(rect.xMin, rect.center.y, 0f)));
+		Vector3 right = camera.WorldToScreenPoint(screen.TransformPoint(new Vector3(rect.xMax, rect.center.y, 0f)));
+		float perUnit = Vector2.Distance(left, right) / rect.width;
+		if (perUnit <= 0f || float.IsNaN(perUnit))
+		{
+			return;
+		}
+		float pixels = Mathf.Clamp(perUnit * 1.25f, 0.75f, 5f);
+		foreach ((CanvasScaler scaler, float _) in scalers)
+		{
+			if (scaler != null && Mathf.Abs(scaler.dynamicPixelsPerUnit - pixels) > 0.1f)
+			{
+				scaler.dynamicPixelsPerUnit = pixels;
+			}
+		}
 	}
 
 	internal void Update(float dt)
@@ -448,6 +522,11 @@ internal sealed class PhoneSkin : IDisposable
 			}
 		}
 		phoneWasOpen = open;
+		if (open && Time.unscaledTime >= nextSharpen)
+		{
+			nextSharpen = Time.unscaledTime + 0.5f;
+			Sharpen();
+		}
 		shown = open && home.isOpen;
 		if (!shown)
 		{
@@ -819,7 +898,7 @@ internal sealed class PhoneSkin : IDisposable
 			{
 				timeText.color = timeColor;
 				timeText.fontSize = timeSize;
-				timeText.rectTransform.anchoredPosition = timePosition;
+				timeText.enabled = timeEnabled;
 			});
 		}
 		if (dataText != null)
@@ -842,7 +921,29 @@ internal sealed class PhoneSkin : IDisposable
 			});
 		}
 		hidden.Clear();
-		foreach (RectTransform? added in new[] { wallpaper, card, wake, onlineDot, frame })
+		foreach ((Collider collider, bool enabled) in colliders)
+		{
+			Ui.Step(ref failure, () =>
+			{
+				if (collider != null)
+				{
+					collider.enabled = enabled;
+				}
+			});
+		}
+		colliders.Clear();
+		foreach ((CanvasScaler scaler, float pixels) in scalers)
+		{
+			Ui.Step(ref failure, () =>
+			{
+				if (scaler != null)
+				{
+					scaler.dynamicPixelsPerUnit = pixels;
+				}
+			});
+		}
+		scalers.Clear();
+		foreach (RectTransform? added in new[] { wallpaper, card, wake, onlineDot, frame, backdrop?.rectTransform })
 		{
 			if (added != null)
 			{
