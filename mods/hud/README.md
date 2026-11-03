@@ -31,15 +31,6 @@ Beyond the concept:
 | Friends on the compass | `Player.PlayerList`, `Player.PlayerName`, `UnitsUtility.FormatShortDistance` | A cyan dot (the minimap's co-op color) with "Name · 140m" under it per co-op player, clamped to the strip's ends when behind you; metres or feet follow the game's setting. The dedicated server's own headless player (still named the class default "Player", since it has no Steam login) is skipped |
 | Respawn on the server | `DeathScreen.CanRespawn` (= `Lobby.IsInLobby`) | The game shows Respawn only in a Steam lobby; a server client joins by IP, so it got "Load last save", which exits to the menu and drops you off the server. A Harmony postfix on `DeathScreen.Open` (`DeathScreenFix`) shows Respawn and hides Load last save whenever you're a client of someone else's server. Single player and co-op hosts keep the game's choice. Not tied to `Enabled`: it's a fix, not a style |
 
-The phone (0.2.0; the game's layout and our design are in `PHONE.md`):
-
-| Feature | Game source | How |
-|---|---|---|
-| Glass phone | `HomeScreen` (`Background`, `InfoBar`, `AppIcons` grid, each `AppIcon`), `Phone.phoneModel` | `PhoneSkin`: restyled in place, like the HUD. Dark wallpaper with rings, a clock card above a 4-column grid of glass tiles with our glyphs (other mods' apps keep their own art in a tile), white badge pills the game's red tints, a 1–9 chip per tile in `HomeScreen.appIcons` order (what the number keys open), and the `phone_Case` material recolored on a copy (only your phone). Motion when the phone comes up: wake from black 0.38 s, card drop 0.42 s, tiles pop 0.6→1.06→1 staggered 40 ms, badges pop once; a pressed tile squishes. Off with `GlassPhone` or `Enabled` |
-| Clock card | `TimeManager`, `EnvironmentManager.GetCurrentWeather`, `MoneyManager.onlineBalance`, `Player.PlayerList` | Time and day, a cloud with falling drops when the current weather id has "Rain", the bank, and initials plus a count of who's online (the server's headless player skipped, as on the compass). Four times a second |
-| Hyland app | `App<T>`, `HomeScreen.GenerateAppIcon`, `Phone.closeApps`, `GameInput.RegisterExitListener` | `HylandApp`: built the way the game builds an app without being one. An icon from the game's icon prefab (key 8, controller-selectable), a 655×1201 screen in `AppsCanvas` turned 90° like Messages, and the game's open/close rules: Escape closes it first, so does clicking the phone's button, and the game can close it before opening another app. Zooms out of its icon 0.34 s. A ScrollRect holds the switches (`Enabled`…`Friends`, `GlassPhone`, `KeyHints`), the slot gap, rain volume with a meter, and "Much quieter indoors". Changes write the cfg 0.5 s after the last one. Stays up with the HUD off, so you can turn it back on |
-| Rain level | `RainController._audioSources` (`Rain`, `RainRoof`), `AudioSourceController.VolumeMultiplier`, `EffectController._enclosureBlend` | `RainLevel`: the game rewrites each rain source's multiplier from its weather profile when you go in or out, so this keeps the game's last value and plays it × `RainVolume`, × a slide to 35% as the enclosure blend goes indoors (`QuieterIndoors`). The game's Weather slider still applies. Off puts the game's values back. Not tied to `Enabled` |
-
 Left out on purpose: deal countdowns. The game's HUD quest list already shows "(Expires in N hrs)" on tracked deals, red under 2 hours (`Contract.UpdateTiming`), and replacing it would also drop the quest objectives that share that list.
 
 Turning it off (`Enabled = false`) or any error puts the game's HUD back exactly (every change is recorded and restored),
@@ -59,12 +50,10 @@ then retries after 5, 10, 20, 40, then 60 s.
 
 ## Settings
 
-The Hyland app on the phone, or `[HylandHud]` in `UserData/MelonPreferences.cfg`: `Enabled`, `Hotbar`, `SlotGap` (6),
-`MoneyPanel`, `IdleFade`, `IdleSeconds` (4), `IdleOpacity` (0.55), `Compass`, `CompassSmoothing` (0.08 s), `Clock`,
-`TimeWarnings`, `Friends`, `GlassPhone`, `KeyHints`, `RainVolume` (100), `QuieterIndoors` (on).
-`Clock`, `TimeWarnings` and `Friends` live on the compass strip, so they need `Compass` on. The hotbar, the compass,
-the glass phone, the Hyland app and the rain level fail and retry separately: a problem in one leaves the others up.
-Phone settings rebuild only the phone, so the app stays open while you flip them.
+`[HylandHud]` in `UserData/MelonPreferences.cfg`: `Enabled`, `Hotbar`, `SlotGap` (6), `MoneyPanel`, `IdleFade`,
+`IdleSeconds` (4), `IdleOpacity` (0.55), `Compass`, `CompassSmoothing` (0.08 s), `Clock`, `TimeWarnings`, `Friends`.
+`Clock`, `TimeWarnings` and `Friends` live on the compass strip, so they need `Compass` on. The hotbar and the compass
+fail and retry separately: a problem in one leaves the other up.
 
 ## Build
 
@@ -75,9 +64,7 @@ dotnet build -c Release mods/hud
 Same requirements as the minimap (a Schedule I install that has run MelonLoader once; `-p:GamePath=...` for another
 path). Output: `bin/Release/net6.0/HylandHud.dll`.
 
-Preview the generated sprites in the concept's layout, without the game (text is left out, it's the game's font).
-It writes `hud-layout.png`, `hud-sprites.png` and `hud-phone.png` (the home screen and the Hyland app at the game's
-655×1201):
+Preview the generated sprites in the concept's layout, without the game (text is left out, it's the game's font):
 
 ```bash
 dotnet run --project mods/hud/preview -c Release -- <output folder>
@@ -90,12 +77,6 @@ whole game folder plus a `steam_appid.txt` (3164500), so its `Schedule I.exe` ru
 Steam starting the real install. Copy a fresh `bin/Release/net6.0/HylandHud.dll` into its `Mods/` (with the game closed),
 launch the exe, and **join the server**: both copies share the save folder in `AppData\LocalLow`, so a single-player
 test would write to Blazzer's real saves.
-
-For the phone (0.2.0), check: open it (wake, card, tiles pop), 1–9 chips match what the keys open, badges on
-Messages/Deliveries, key 8 opens the Hyland app, Escape and Back close it, the phone's button closes it, the wheel
-scrolls the list, a switch flips the HUD live, "Glass phone" off gives the game's home screen back, and rain outside vs
-inside with "Much quieter indoors" on and off. The phone logs a line per build too ("Phone: home …", "Phone: Hyland
-app is icon N").
 
 Each session the mod logs one line about the hotbar and one about the compass (slot size, parents, canvas scale, which
 bank readout it hid) to that copy's `MelonLoader/Latest.log`. When a screenshot shows something out of place, log the

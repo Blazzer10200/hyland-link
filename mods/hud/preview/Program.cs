@@ -20,121 +20,9 @@ internal static class Program
 		Png.Write(layout, Layout());
 		string sheet = Path.Combine(args[0], "hud-sprites.png");
 		Png.Write(sheet, Sheet());
-		string phone = Path.Combine(args[0], "hud-phone.png");
-		Png.Write(phone, Phone());
 		Console.WriteLine(layout);
 		Console.WriteLine(sheet);
-		Console.WriteLine(phone);
 		return 0;
-	}
-
-	/// <summary>Board pixels to the phone canvas's units, as in PhoneSkin and HylandApp.</summary>
-	private const double U = 655.0 / 316.0;
-
-	/// <summary>The glass phone in the game's home canvas units (655×1201): the home screen as PhoneSkin lays it out, and
-	/// the top of the Hyland app as HylandApp does. Gray bars stand in for text (the game's font draws it).</summary>
-	private static Canvas Phone()
-	{
-		const int W = 655, H = 1201, Gap = 60;
-		Canvas c = new Canvas(W * 2 + Gap * 3, H + Gap * 2);
-		c.Fill(0, 0, c.Width, c.Height, Rgba.Hex(0x24282E));
-		Home(c, Gap, Gap);
-		App(c, Gap * 2 + W, Gap);
-		return c;
-	}
-
-	private static void Home(Canvas c, double ox, double oy)
-	{
-		c.Fill(ox, oy, 655, 1201, Theme.PhoneWallpaper);
-		c.Draw(Art.Wallpaper(655, 1161), ox, oy + 40, 655, 1161, 1f, sliced: false);
-		// Info bar: the time left, the green dot and "5G" right.
-		Text(c, ox + 10, oy + 8, 150, 24 * 0.9);
-		c.Draw(Art.Disc(3, Theme.Online), ox + 655 - 10 - 40 - 8 * U - 6 * U, oy + 20 - 3 * U, 6 * U, 6 * U, 1f, sliced: false);
-		Text(c, ox + 655 - 10 - 40, oy + 8, 40, 24 * 0.9);
-
-		double cardTop = oy + 40 + 8 * U, cardH = 154 * U, cardW = 655 - 32 * U, cardX = ox + 16 * U;
-		c.Draw(Art.Glass(20 * U, Theme.PhoneGlass, Theme.PhoneStroke), cardX, cardTop, cardW, cardH, 1f);
-		Text(c, cardX + 16 * U, cardTop + 14 * U, 110 * U, 40 * U, Theme.PhoneText);
-		Text(c, cardX + 16 * U, cardTop + 62 * U, 70 * U, 13 * U, Theme.PhoneMuted);
-		c.Draw(Art.Render(Art.Icon.Rain, 128), cardX + cardW - 38 * U - 17 * U, cardTop + 30 * U - 17 * U, 34 * U, 34 * U, 1f, sliced: false);
-		double chipW = (cardW - 40 * U) / 2, chipH = 48 * U, chipY = cardTop + cardH - 14 * U - chipH;
-		Bitmap chip = Art.Glass(12 * U, Theme.PhoneChip, Theme.PhoneChip.WithAlpha(0f));
-		for (int i = 0; i < 2; i++)
-		{
-			double x = cardX + 16 * U + i * (chipW + 8 * U);
-			c.Draw(chip, x, chipY, chipW, chipH, 1f);
-			Text(c, x + 10 * U, chipY + 7 * U, 40 * U, 11 * U, Theme.PhoneMuted);
-			Text(c, x + 10 * U, chipY + 25 * U, 70 * U, 15 * U, i == 0 ? Theme.PhoneAccent : Theme.PhoneText);
-		}
-
-		const double tile = 58 * U, radius = 17 * U;
-		double gap = 73 * U - tile, gridW = 4 * tile + 3 * gap, gx = ox + (655 - gridW) / 2, gy = cardTop + cardH + 26 * U;
-		Art.Icon[] apps = { Art.Icon.AppMessages, Art.Icon.AppJournal, Art.Icon.AppProducts, Art.Icon.AppContacts, Art.Icon.AppMap, Art.Icon.AppDealers, Art.Icon.AppDeliveries, Art.Icon.AppHyland };
-		for (int i = 0; i < apps.Length; i++)
-		{
-			double x = gx + i % 4 * (tile + gap), y = gy + i / 4 * 98 * U;
-			bool hyland = apps[i] == Art.Icon.AppHyland;
-			c.Draw(Art.Glass(radius, Theme.PhoneGlass, hyland ? Theme.PhoneAccent : Theme.PhoneStroke), x, y, tile, tile, 1f);
-			c.Draw(Art.Render(apps[i], 128), x + (tile - 26 * U) / 2, y + (tile - 26 * U) / 2, 26 * U, 26 * U, 1f, sliced: false);
-			c.Draw(Art.Glass(5 * U, Theme.PhoneLine, Theme.PhoneTrack), x + 3 * U - 8 * U, y + tile - 3 * U - 8 * U, 16 * U, 16 * U, 1f);
-			Text(c, x + tile / 2 - 22 * U, y + tile + 8 * U, 44 * U, 11 * U, hyland ? Theme.PhoneAccent : Theme.PhoneText);
-			if (apps[i] == Art.Icon.AppMessages || apps[i] == Art.Icon.AppDeliveries)
-			{
-				c.Draw(Art.Glass(9 * U, Theme.Badge, Theme.Badge.WithAlpha(0f)), x + tile - 4 * U - 9 * U, y + 4 * U - 9 * U, 18 * U, 18 * U, 1f);
-			}
-		}
-	}
-
-	private static void App(Canvas c, double ox, double oy)
-	{
-		c.Fill(ox, oy, 655, 1201, Theme.PhoneApp);
-		double pad = 16 * U, y = oy + 16 * U;
-		c.Draw(Art.Glass(18 * U, Theme.PhoneChip, Theme.PhoneStroke), ox + pad, y, 36 * U, 36 * U, 1f);
-		c.Draw(Art.Render(Art.Icon.Back, 128), ox + pad + 9 * U, y + 9 * U, 18 * U, 18 * U, 1f, sliced: false);
-		Text(c, ox + pad + 46 * U, y + 8 * U, 70 * U, 20 * U, Theme.PhoneText);
-		y += 36 * U + 10 * U;
-
-		double width = 655 - 2 * pad, inner = width - 28 * U;
-		y += 6 * U;
-		Text(c, ox + pad, y, 26 * U, 11 * U, Theme.PhoneAccent);
-		y += 20 * U;
-		double rows = 2 * U + 7 * 44 * U + 10 * U + 42 * U + 12 * U;
-		c.Draw(Art.Glass(16 * U, Theme.PhoneGlass, Theme.PhoneStroke), ox + pad, y, width, rows, 1f);
-		double row = y + 2 * U, left = ox + pad + 14 * U;
-		Bitmap knob = Art.Disc(9 * U, Rgba.Hex(0xF1F3F5));
-		for (int i = 0; i < 7; i++)
-		{
-			bool on = i != 3;
-			Text(c, left, row + 15 * U, 110 * U, 14 * U, Theme.PhoneText);
-			double tx = left + inner - 40 * U, ty = row + 10 * U;
-			c.Draw(Art.Glass(12 * U, on ? Theme.PhoneAccent : Theme.PhoneTrack, Theme.White.WithAlpha(0f)), tx, ty, 40 * U, 24 * U, 1f);
-			c.Draw(knob, tx + (on ? 19 : 3) * U, ty + 3 * U, 18 * U, 18 * U, 1f, sliced: false);
-			row += 44 * U;
-			if (i < 6)
-			{
-				c.Fill(left, row, inner, Math.Max(1, U), Theme.PhoneLine);
-			}
-		}
-		row += 10 * U;
-		Text(c, left, row, 60 * U, 14 * U, Theme.PhoneText);
-		Text(c, left + inner - 12 * U, row, 12 * U, 14 * U, Theme.PhoneMuted);
-		row += 24 * U;
-		double fill = 6 / 20.0;
-		c.Draw(Art.Glass(2 * U, Theme.PhoneTrack, Theme.White.WithAlpha(0f)), left, row + 7 * U, inner, 4 * U, 1f);
-		c.Draw(Art.Glass(2 * U, Theme.PhoneAccent, Theme.White.WithAlpha(0f)), left, row + 7 * U, 8 * U + (inner - 16 * U) * fill, 4 * U, 1f);
-		c.Draw(Art.Disc(8 * U, Theme.PhoneAccent), left + 8 * U + (inner - 16 * U) * fill - 8 * U, row + 1 * U, 16 * U, 16 * U, 1f, sliced: false);
-		y += rows;
-
-		y += 16 * U;
-		Text(c, ox + pad, y, 40 * U, 11 * U, Theme.PhoneAccent);
-		y += 20 * U;
-		c.Draw(Art.Glass(16 * U, Theme.PhoneGlass, Theme.PhoneStroke), ox + pad, y, width, 92 * U, 1f);
-	}
-
-	/// <summary>A rounded bar where a line of text would sit.</summary>
-	private static void Text(Canvas c, double x, double y, double w, double h, Rgba? color = null)
-	{
-		c.Fill(x, y + h * 0.2, w, h * 0.6, (color ?? Theme.White).WithAlpha(0.35f));
 	}
 
 	private static Canvas Layout()
@@ -226,12 +114,9 @@ internal static class Program
 			Art.Shadow(22, 16, 0.3f), Art.GlowBar(72, Theme.Accent), Art.Pointer(Theme.Accent), Art.Dot(),
 			Art.Render(Art.Icon.SunCore, 64), Art.Render(Art.Icon.SunRays, 64), Art.Render(Art.Icon.DuskSun, 64),
 			Art.Render(Art.Icon.DuskHorizon, 64), Art.Render(Art.Icon.Moon, 64), Art.Render(Art.Icon.Cash, 64),
-			Art.Render(Art.Icon.Bank, 64), Art.Render(Art.Icon.AppMessages, 128), Art.Render(Art.Icon.AppJournal, 128),
-			Art.Render(Art.Icon.AppProducts, 128), Art.Render(Art.Icon.AppContacts, 128), Art.Render(Art.Icon.AppMap, 128),
-			Art.Render(Art.Icon.AppDealers, 128), Art.Render(Art.Icon.AppDeliveries, 128), Art.Render(Art.Icon.AppHyland, 128),
-			Art.Render(Art.Icon.Back, 128), Art.Render(Art.Icon.Rain, 128)
+			Art.Render(Art.Icon.Bank, 64)
 		};
-		Canvas c = new Canvas(items.Length * 140 + 20, 180);
+		Canvas c = new Canvas(13 * 140 + 20, 180);
 		c.Fill(0, 0, c.Width, c.Height, Rgba.Hex(0x3A4048));
 		for (int i = 0; i < items.Length; i++)
 		{

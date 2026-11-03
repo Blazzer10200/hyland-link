@@ -19,21 +19,23 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 ## Built, not shipped
 | What | State | Where |
 |---|---|---|
-| HUD 0.1.1 (Respawn instead of "Load last save" on the server) | Staged, not published | `dist/hud-v0.1.1/HylandHud.zip`, commit 1a51292 |
-| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level; includes 0.1.1) | Builds with 0 warnings, **not run in game**, not staged | commit f6b1fd9 |
-| Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the Hyland app) | claude.ai artifact "Hyland phone" |
+| HUD 0.1.1 (Respawn instead of "Load last save" on the server) | On `main`, staged, **not seen in game**, not published | `dist/hud-v0.1.1/HylandHud.zip` |
+| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level) | **Parked on branch `hud-phone`** (Blazzer: phone stays out of the next release). Builds with 0 warnings, not run in game | `hud-phone` = main before the revert |
+| Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` is ahead of `origin/main` (nothing pushed since revision 8). `mod-release.ps1 -Publish` refuses an unpushed
 tree, so pushing comes first when a HUD ships.
 
 ## Next steps
-1. **Test HUD 0.2.0 in the test copy** (`C:\Games\Schedule I (HUD test)`, join the server, never single player). The
-   checklist is in `mods/hud/README.md` → "Testing in game". Its `Mods/` still holds an older dev HUD build: copy a
-   fresh `bin/Release/net6.0/HylandHud.dll` in with the game closed.
-2. Pick what ships: 0.1.1 alone (staged, the respawn fix) or straight to 0.2.0 after step 1. On Blazzer's go-ahead:
-   push `main`, `pwsh scripts/mod-release.ps1 hud -Publish`, `pwsh scripts/mods.ps1 publish` (the server applies it
-   first, waiting until nobody's online unless `-Now`). Live = the launcher log says `Mod list: revision 9 from Online`.
-3. After 0.2.0 ships, `dist/hud-v0.1.0` and `dist/hud-v0.1.1` can go (Blazzer's OK).
+1. **See 0.1.1 work once in the test copy** (`C:\Games\Schedule I (HUD test)`, join the server, never single player):
+   copy `mods/hud/bin/Release/net6.0/HylandHud.dll` into its `Mods/` with the game closed, die once, and the death
+   screen should offer Respawn, not "Load last save".
+2. Ship 0.1.1 on Blazzer's go-ahead: push `main`, `pwsh scripts/mod-release.ps1 hud -Publish`,
+   `pwsh scripts/mods.ps1 publish` (the server applies it first, waiting until nobody's online unless `-Now`). Live =
+   the launcher log says `Mod list: revision 9 from Online`. Then `dist/hud-v0.1.0` can go (Blazzer's OK).
+3. Phone later: on `main`, `git revert` the "Park the phone" commit (that brings all of it back; `hud-phone` is
+   already an ancestor of `main`, so a rebase or merge of it would bring nothing). Keep the version at 0.2.0 if 0.1.1
+   went out, test with the checklist in `mods/hud/README.md`, ship the same way.
 
 ## Open items
 - **This file is public** (tracked and pushed). Sessions 1–10 held server and network details; they're out of the

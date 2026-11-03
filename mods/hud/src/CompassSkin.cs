@@ -489,7 +489,7 @@ internal sealed class CompassSkin : IDisposable
 	/// <summary>A cyan dot on the baseline and "Name · 140m" under it for each co-op player (the minimap's co-op color),
 	/// clamped to the strip's ends when they're behind you. The distance uses the game's own formatter, so it follows the
 	/// player's metric or imperial setting.</summary>
-	internal sealed class Friends : IDisposable
+	private sealed class Friends : IDisposable
 	{
 		private sealed class Marker
 		{

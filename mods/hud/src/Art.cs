@@ -51,23 +51,6 @@ internal static class Theme
 	internal static readonly Rgba Moon = Hex(0xCFE3FF);
 	internal static readonly Rgba White = new Rgba(1f, 1f, 1f, 1f);
 
-	// The phone (the "Hyland HUD" canvas, phone board).
-	internal static readonly Rgba PhoneGlass = Hex(0x0F1317, 0.88f);
-	internal static readonly Rgba PhoneStroke = Hex(0x2E3845);
-	internal static readonly Rgba PhoneChip = Hex(0x1B2128);
-	internal static readonly Rgba PhoneWallpaper = Hex(0x0D1014);
-	internal static readonly Rgba PhoneApp = Hex(0x0F1317);
-	internal static readonly Rgba PhoneText = Hex(0xE8EAED);
-	internal static readonly Rgba PhoneMuted = Hex(0x8A95A3);
-	internal static readonly Rgba PhoneTrack = Hex(0x39424D);
-	internal static readonly Rgba PhoneLine = Hex(0x262D35);
-	internal static readonly Rgba PhoneAccent = Hex(0xFFE652);
-	internal static readonly Rgba PhoneCase = Hex(0x1B1F24);
-	internal static readonly Rgba Online = Hex(0x7DDC6F);
-	internal static readonly Rgba Friend = Hex(0x5CC4FF);
-	/// <summary>The game's own badge red (AppIcon prefab, Notifications).</summary>
-	internal static readonly Rgba Badge = Hex(0xFF4949);
-
 	private static Rgba Hex(int rgb, float a = 1f)
 	{
 		return Rgba.Hex(rgb, a);
@@ -278,55 +261,7 @@ internal static class Art
 		DuskHorizon,
 		Moon,
 		Cash,
-		Bank,
-		AppMessages,
-		AppJournal,
-		AppProducts,
-		AppContacts,
-		AppMap,
-		AppDealers,
-		AppDeliveries,
-		AppHyland,
-		Back,
-		Rain
-	}
-
-	/// <summary>The phone's wallpaper: <see cref="Theme.PhoneWallpaper"/> with five faint rings around a point low on the
-	/// right, at <paramref name="width"/>×<paramref name="height"/> canvas units drawn at half resolution (they're soft lines,
-	/// and the image is stretched to the screen).</summary>
-	internal static Bitmap Wallpaper(int width, int height)
-	{
-		int w = width / 2, h = height / 2;
-		double cx = width * 0.79, cy = height * 0.19;
-		double[] radii = { 0.28, 0.47, 0.68, 0.9, 1.14 };
-		Rgba[] rings = { Rgba.Hex(0x1A2129), Rgba.Hex(0x171D24), Rgba.Hex(0x151A20), Rgba.Hex(0x13181D), Rgba.Hex(0x12161B) };
-		Bitmap bitmap = new Bitmap(w, h, 1, 0);
-		for (int row = 0; row < h; row++)
-		{
-			for (int col = 0; col < w; col++)
-			{
-				double x = (col + 0.5) * 2.0, y = (row + 0.5) * 2.0;
-				Rgba color = Theme.PhoneWallpaper;
-				for (int i = 0; i < radii.Length; i++)
-				{
-					// 4.5 canvas units wide: the board's 1.5 px lines, the phone screen being about 2× the board's.
-					float line = Coverage((Math.Abs(Circle(x, y, cx, cy, radii[i] * width)) - 2.25) / 2.0);
-					if (line > 0f)
-					{
-						color = Rgba.Over(rings[i].WithAlpha(line), color);
-					}
-				}
-				bitmap.Pixels[row * w + col] = color;
-			}
-		}
-		return bitmap;
-	}
-
-	/// <summary>A filled disc, for avatars and switch knobs.</summary>
-	internal static Bitmap Disc(double radius, Rgba color)
-	{
-		int side = (int)Math.Ceiling(radius + 1.0) * 2 * Scale;
-		return new Bitmap(side, side, Scale, 0).Fill((x, y) => color.WithAlpha(color.A * Coverage(Circle(x, y, 0, 0, radius) * Scale)));
+		Bank
 	}
 
 	/// <summary>The concept's 24×24 SVG icons as layers of (color, distance in viewBox units, y down like SVG). Parts
@@ -364,41 +299,6 @@ internal static class Art
 		case Icon.Bank:
 			return new (Rgba, Func<double, double, double>)[] { (Theme.Bank, (x, y) => Min(
 				Math.Abs(RoundedBox(x - 12, y - 12, 10, 7, 2)) - 1.0, Stroke(x, y, 2, 10, 22, 10, 2.0))) };
-		// The phone's app glyphs: the board's 24×24 SVG strokes (width 2, round caps and joins), one color each.
-		case Icon.AppMessages:
-			// M4 5h16v11H9l-5 4z
-			return One(Rgba.Hex(0x7DDC6F), (x, y) => Path(x, y, 4, 5, 20, 5, 20, 16, 9, 16, 4, 20, 4, 5));
-		case Icon.AppJournal:
-			return One(Rgba.Hex(0xFF8A5C), (x, y) => Min(Math.Abs(RoundedBox(x - 12, y - 12, 6, 9, 1)) - 1.0,
-				Stroke(x, y, 9, 8, 15, 8, 2), Stroke(x, y, 9, 12, 15, 12, 2)));
-		case Icon.AppProducts:
-			// A box: the hexagon, its top face's front edges and the middle seam.
-			return One(Rgba.Hex(0xFF8A7A), (x, y) => Min(Path(x, y, 3, 8, 12, 3, 21, 8, 21, 16, 12, 21, 3, 16, 3, 8),
-				Path(x, y, 3, 8, 12, 13, 21, 8), Stroke(x, y, 12, 13, 12, 21, 2)));
-		case Icon.AppContacts:
-			return One(Theme.Friend, (x, y) => Min(Ring(x, y, 12, 9, 4), Arc(x, y, 12, 21, 8)));
-		case Icon.AppMap:
-			return One(Rgba.Hex(0x7DDC6F), (x, y) => Min(Path(x, y, 3, 6, 9, 3, 15, 6, 21, 3, 21, 18, 15, 21, 9, 18, 3, 21, 3, 6),
-				Stroke(x, y, 9, 3, 9, 18, 2), Stroke(x, y, 15, 6, 15, 21, 2)));
-		case Icon.AppDealers:
-			return One(Rgba.Hex(0xA86BFF), (x, y) => Min(Ring(x, y, 8, 8, 3), Ring(x, y, 16, 8, 3), Arc(x, y, 8, 20, 6), Arc(x, y, 16, 20, 6)));
-		case Icon.AppDeliveries:
-			return One(Rgba.Hex(0xE58BFF), (x, y) => Min(Path(x, y, 2, 6, 14, 6, 14, 16, 2, 16, 2, 6),
-				Path(x, y, 14, 10, 18, 10, 21, 13, 21, 16, 14, 16), Ring(x, y, 6, 18, 2), Ring(x, y, 17, 18, 2)));
-		case Icon.AppHyland:
-			// Three sliders; the knobs are punched out in the wallpaper color, ringed in the accent. First layer on top.
-			return new (Rgba, Func<double, double, double>)[]
-			{
-				(Theme.PhoneAccent, (x, y) => Min(Ring(x, y, 9, 6, 2), Ring(x, y, 15, 12, 2), Ring(x, y, 11, 18, 2))),
-				(Theme.PhoneWallpaper, (x, y) => Min(Circle(x, y, 9, 6, 2), Circle(x, y, 15, 12, 2), Circle(x, y, 11, 18, 2))),
-				(Theme.PhoneAccent, (x, y) => Min(Stroke(x, y, 5, 6, 19, 6, 2), Stroke(x, y, 5, 12, 19, 12, 2), Stroke(x, y, 5, 18, 19, 18, 2)))
-			};
-		case Icon.Back:
-			return One(Theme.PhoneText, (x, y) => Path(x, y, 15, 5, 8, 12, 15, 19));
-		case Icon.Rain:
-			// The board's cloud: three lobes on a flat bottom, outlined.
-			return One(Theme.Friend, (x, y) => Math.Abs(Min(Circle(x, y, 7.5, 14, 4.2), Circle(x, y, 12.5, 10.5, 5.8),
-				Circle(x, y, 17.5, 13.5, 4.2), RoundedBox(x - 12.5, y - 15.5, 5, 2.5, 0))) - 1.0);
 		default:
 			throw new ArgumentOutOfRangeException(nameof(icon));
 		}
@@ -430,35 +330,6 @@ internal static class Art
 			}
 		}
 		return bitmap;
-	}
-
-	private static (Rgba Color, Func<double, double, double> Distance)[] One(Rgba color, Func<double, double, double> distance)
-	{
-		return new (Rgba, Func<double, double, double>)[] { (color, distance) };
-	}
-
-	/// <summary>An open or closed polyline through (x0, y0), (x1, y1)…, stroked 2 wide with round joins.</summary>
-	private static double Path(double x, double y, params double[] points)
-	{
-		double d = double.MaxValue;
-		for (int i = 0; i + 3 < points.Length; i += 2)
-		{
-			d = Math.Min(d, Stroke(x, y, points[i], points[i + 1], points[i + 2], points[i + 3], 2.0));
-		}
-		return d;
-	}
-
-	/// <summary>A circle outline, stroke 2.</summary>
-	private static double Ring(double x, double y, double cx, double cy, double r)
-	{
-		return Math.Abs(Circle(x, y, cx, cy, r)) - 1.0;
-	}
-
-	/// <summary>The upper half of a circle outline (SVG "a r r 0 0 1 2r 0"), stroke 2, round ends.</summary>
-	private static double Arc(double x, double y, double cx, double cy, double r)
-	{
-		double half = Math.Max(Ring(x, y, cx, cy, r), y - cy);
-		return Math.Min(half, Math.Min(Circle(x, y, cx - r, cy, 1.0), Circle(x, y, cx + r, cy, 1.0)));
 	}
 
 	private static double Min(params double[] values)

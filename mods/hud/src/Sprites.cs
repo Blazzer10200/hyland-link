@@ -43,40 +43,6 @@ internal sealed class Sprites : IDisposable
 		return Get("icon" + icon, () => Art.Render(icon, 64), mipmaps: true);
 	}
 
-	/// <summary>The phone's glass (tiles, the clock card, the app's groups): darker than the HUD's, with a slate edge.</summary>
-	internal Sprite PhoneGlass(double radius)
-	{
-		return Get("phoneGlass" + radius, () => Art.Glass(radius, Theme.PhoneGlass, Theme.PhoneStroke));
-	}
-
-	/// <summary>A solid rounded panel with no edge: badges, chips, switch tracks. White ones are for tinting.</summary>
-	internal Sprite Pill(double radius, Rgba color)
-	{
-		return Get("pill" + radius + "/" + color.R + color.G + color.B + color.A, () => Art.Glass(radius, color, color.WithAlpha(0f)));
-	}
-
-	/// <summary>Just the edge of a rounded panel, 2 wide: the selected/hover ring on app tiles.</summary>
-	internal Sprite Ring(double radius, Rgba color)
-	{
-		return Get("ring" + radius, () => Art.Glass(radius, color.WithAlpha(0f), color, 2.0));
-	}
-
-	internal Sprite Disc(double radius, Rgba color)
-	{
-		return Get("disc" + radius + "/" + color.R + color.G + color.B, () => Art.Disc(radius, color));
-	}
-
-	/// <summary>Glyphs drawn bigger than the HUD's icons: the phone's tiles show them at ~60 canvas units.</summary>
-	internal Sprite Glyph(Art.Icon icon)
-	{
-		return Get("glyph" + icon, () => Art.Render(icon, 128), mipmaps: true);
-	}
-
-	internal Sprite Wallpaper(int width, int height)
-	{
-		return Get("wallpaper" + width + "x" + height, () => Art.Wallpaper(width, height));
-	}
-
 	private Sprite Create(Bitmap bitmap, bool mipmaps)
 	{
 		Texture2D texture = new Texture2D(bitmap.Width, bitmap.Height, TextureFormat.RGBA32, mipmaps);
