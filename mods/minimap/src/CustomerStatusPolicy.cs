@@ -22,7 +22,7 @@ internal static class CustomerStatusPolicy
 	internal static CustomerStatus Classify(bool offerValid, string? invalidReason, bool activeContract)
 	{
 		CustomerStatus customerStatus = (activeContract ? CustomerStatus.ActiveDeal : CustomerStatus.None);
-		if (!offerValid && string.Equals(invalidReason, "Customer recently completed a deal", StringComparison.Ordinal))
+		if (!offerValid && string.Equals(invalidReason, RecentPurchaseReason, StringComparison.Ordinal))
 		{
 			customerStatus |= CustomerStatus.AlreadyPurchased;
 		}

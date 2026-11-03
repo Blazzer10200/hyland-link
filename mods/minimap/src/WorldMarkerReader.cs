@@ -26,7 +26,7 @@ internal static class WorldMarkerReader
 			{
 				return list;
 			}
-			int num = Math.Min(allPlayerDealers.Count, 4096);
+			int num = Math.Min(allPlayerDealers.Count, MaximumScanItems);
 			for (int i = 0; i < num; i++)
 			{
 				try
@@ -106,7 +106,7 @@ internal static class WorldMarkerReader
 		{
 			return;
 		}
-		int num = Math.Min(vehicles.Count, 4096);
+		int num = Math.Min(vehicles.Count, MaximumScanItems);
 		for (int i = 0; i < num; i++)
 		{
 			try
@@ -145,7 +145,7 @@ internal static class WorldMarkerReader
 			{
 				return;
 			}
-			int num = Math.Min(playerList.Count, 4096);
+			int num = Math.Min(playerList.Count, MaximumScanItems);
 			for (int i = 0; i < num; i++)
 			{
 				try
