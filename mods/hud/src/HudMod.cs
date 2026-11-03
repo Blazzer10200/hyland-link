@@ -84,6 +84,8 @@ public sealed class HudMod : MelonMod
 
 	private PhoneSkin? phoneSkin;
 
+	private AppsSkin? appsSkin;
+
 	private HylandApp? app;
 
 	private RainLevel? rain;
@@ -100,6 +102,8 @@ public sealed class HudMod : MelonMod
 	private readonly Backoff phoneShared = new Backoff("phone");
 
 	private readonly Backoff phoneSkinRetry = new Backoff("glass phone");
+
+	private readonly Backoff appsSkinRetry = new Backoff("game apps");
 
 	private readonly Backoff appRetry = new Backoff("phone app");
 
@@ -229,6 +233,7 @@ public sealed class HudMod : MelonMod
 			if (phoneDirty || !(settings.Enabled.Value && settings.GlassPhone.Value))
 			{
 				DisposePhoneSkin();
+				DisposeAppsSkin();
 				phoneDirty = false;
 			}
 			phoneSprites ??= new Sprites();
@@ -269,6 +274,20 @@ public sealed class HudMod : MelonMod
 				phoneSkinRetry.Failed(ex, LoggerInstance);
 			}
 		}
+		if (settings.Enabled.Value && settings.GlassPhone.Value && appsSkinRetry.Due)
+		{
+			try
+			{
+				appsSkin ??= new AppsSkin(LoggerInstance.Msg);
+				appsSkin.Update();
+				appsSkinRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposeAppsSkin();
+				appsSkinRetry.Failed(ex, LoggerInstance);
+			}
+		}
 		if (rainRetry.Due)
 		{
 			try
@@ -294,6 +313,7 @@ public sealed class HudMod : MelonMod
 		compassRetry.Reset();
 		phoneShared.Reset();
 		phoneSkinRetry.Reset();
+		appsSkinRetry.Reset();
 		appRetry.Reset();
 		rainRetry.Reset();
 	}
@@ -316,6 +336,19 @@ public sealed class HudMod : MelonMod
 			LoggerInstance.Warning("Putting the game's phone back failed: " + ex.Message);
 		}
 		phoneSkin = null;
+	}
+
+	private void DisposeAppsSkin()
+	{
+		try
+		{
+			appsSkin?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			LoggerInstance.Warning("Putting the game's app colors back failed: " + ex.Message);
+		}
+		appsSkin = null;
 	}
 
 	private void DisposeApp()
@@ -348,6 +381,7 @@ public sealed class HudMod : MelonMod
 	{
 		// The restyle first, so it puts the Hyland icon back to plain before the app removes it.
 		DisposePhoneSkin();
+		DisposeAppsSkin();
 		DisposeApp();
 		DisposeRain();
 		phoneSprites?.Dispose();

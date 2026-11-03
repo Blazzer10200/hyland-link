@@ -23,6 +23,8 @@ internal sealed class HylandApp : IDisposable
 	/// <summary>The icon's object name, which <see cref="PhoneSkin"/> knows it by.</summary>
 	internal const string IconName = "Hyland";
 
+	internal const string RootName = "Hyland app";
+
 	/// <summary>Canvas units per board pixel (the board's phone screen is 316 wide, the game's 655).</summary>
 	private const float Unit = 655f / 316f;
 
@@ -122,7 +124,7 @@ internal sealed class HylandApp : IDisposable
 		home.uiPanel.AddSelectable(iconSelectable);
 
 		// The screen: like Messages, a 655×1201 rect turned 90° inside the sideways AppsCanvas.
-		root = Ui.Rect("Hyland app", apps.canvas.transform);
+		root = Ui.Rect(RootName, apps.canvas.transform);
 		root.sizeDelta = new Vector2(655f, 1201f);
 		root.localRotation = Quaternion.Euler(0f, 0f, 90f);
 		group = root.gameObject.AddComponent<CanvasGroup>();
