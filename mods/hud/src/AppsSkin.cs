@@ -53,7 +53,7 @@ internal sealed class AppsSkin : IDisposable
 
 	private readonly Color background = Ui.Color(Theme.PhoneApp);
 
-	private readonly Color raised = Ui.Color(Theme.PhoneStroke);
+	private readonly Color raised = Ui.Color(Theme.PhoneLine);
 
 	private readonly Color text = Ui.Color(Theme.PhoneText);
 
@@ -89,13 +89,24 @@ internal sealed class AppsSkin : IDisposable
 		{
 			return;
 		}
-		nextPass = now + (now - openedAt < 2f ? 0.2f : 1f);
+		// Often enough that panels the game rebuilds (Journal's details, on every hover) don't flash light for long.
+		nextPass = now + (now - openedAt < 2f ? 0.1f : 0.25f);
 		Restyle(app);
 	}
 
 	private void Restyle(GameObject app)
 	{
 		float? appBase = BaseOf(app);
+		// Many of the game's buttons are white images that their Button tints (Confirm: white × #5DBAFF; my bubbles:
+		// white × #4BAFE1), so the color seen is image × tint.
+		Dictionary<int, Selectable> tinted = new Dictionary<int, Selectable>();
+		foreach (Selectable selectable in app.GetComponentsInChildren<Selectable>(true))
+		{
+			if (selectable.transition == Selectable.Transition.ColorTint && selectable.targetGraphic != null)
+			{
+				tinted[selectable.targetGraphic.GetInstanceID()] = selectable;
+			}
+		}
 		int themed = 0;
 		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(true))
 		{
@@ -110,7 +121,13 @@ internal sealed class AppsSkin : IDisposable
 				// The game has set a new color since (a selected tab, a hover, a new row's state): that's the original now.
 				record.Original = color;
 			}
-			Color? target = Target(graphic, color, appBase);
+			Color? tint = null;
+			if (tinted.TryGetValue(id, out Selectable? owner))
+			{
+				ColorBlock block = owner.colors;
+				tint = (owner.interactable ? block.normalColor : block.disabledColor) * block.colorMultiplier;
+			}
+			Color? target = Target(graphic, color, appBase, tint, tinted);
 			if (target == null)
 			{
 				records.Remove(id);
@@ -126,7 +143,7 @@ internal sealed class AppsSkin : IDisposable
 		RectTransform? root = app.GetComponent<RectTransform>();
 		if (root != null)
 		{
-			foreach (TMP_Text label in app.GetComponentsInChildren<TMP_Text>(false))
+			foreach (Graphic label in app.GetComponentsInChildren<Graphic>(false))
 			{
 				if (ClearCorner(root, label))
 				{
@@ -145,8 +162,14 @@ internal sealed class AppsSkin : IDisposable
 	/// edge: "Map" lost its M) sideways until they clear it. Labels in scroll lists are left alone, since they only pass
 	/// the corner. Returns whether it moved the label.
 	/// </summary>
-	private bool ClearCorner(RectTransform root, TMP_Text label)
+	private bool ClearCorner(RectTransform root, Graphic label)
 	{
+		TMP_Text? pro = label.TryCast<TMP_Text>();
+		Text? legacy = pro == null ? label.TryCast<Text>() : null;
+		if (pro == null && legacy == null)
+		{
+			return false;
+		}
 		RectTransform rect = label.rectTransform;
 		int id = rect.GetInstanceID();
 		if (nudges.TryGetValue(id, out Nudge? nudge))
@@ -158,11 +181,11 @@ internal sealed class AppsSkin : IDisposable
 			// The game placed it again: start over from where it put it.
 			nudges.Remove(id);
 		}
-		if (string.IsNullOrEmpty(label.text) || label.GetComponentInParent<ScrollRect>() != null)
+		if (string.IsNullOrEmpty(pro != null ? pro.text : legacy!.text) || label.GetComponentInParent<ScrollRect>() != null)
 		{
 			return false;
 		}
-		Bounds glyphs = label.textBounds;
+		Bounds glyphs = pro != null ? pro.textBounds : Glyphs(legacy!);
 		if (glyphs.size.x <= 0f)
 		{
 			return false;
@@ -198,6 +221,20 @@ internal sealed class AppsSkin : IDisposable
 		return true;
 	}
 
+	/// <summary>Where a legacy Text's letters are, in its own rect's space: Unity keeps no bounds for them, so this goes by
+	/// the line's width and the alignment (a line is about 1.2 font sizes tall).</summary>
+	private static Bounds Glyphs(Text text)
+	{
+		Rect rect = text.rectTransform.rect;
+		float width = Mathf.Min(text.preferredWidth, rect.width);
+		float height = Mathf.Min(text.fontSize * 1.2f, rect.height);
+		int alignment = (int)text.alignment;
+		int column = alignment % 3, row = alignment / 3;
+		float x = column == 0 ? rect.xMin + width / 2f : column == 1 ? rect.center.x : rect.xMax - width / 2f;
+		float y = row == 0 ? rect.yMax - height / 2f : row == 1 ? rect.center.y : rect.yMin + height / 2f;
+		return new Bounds(new Vector3(x, y, 0f), new Vector3(width, height, 0f));
+	}
+
 	/// <summary>How far in from the side the screen's rounded corner reaches at this depth below (or above) the edge.</summary>
 	private static float Inset(float depth)
 	{
@@ -223,14 +260,30 @@ internal sealed class AppsSkin : IDisposable
 	}
 
 	/// <summary>The board's color for one of the game's graphics, or null to leave it as the game has it.</summary>
-	private Color? Target(Graphic graphic, Color color, float? appBase)
+	private Color? Target(Graphic graphic, Color color, float? appBase, Color? tint, Dictionary<int, Selectable> tinted)
 	{
-		if (color.a <= 0.01f || graphic.TryCast<RawImage>() != null || !Gray(color))
+		Image? image = graphic.TryCast<Image>();
+		if (image != null && color.a > 0.01f)
+		{
+			// The board has no colored app bars (Journal's orange, Products' maroon): they're the app's background.
+			if (image.sprite == null && Header(graphic.transform))
+			{
+				return new Color(background.r, background.g, background.b, color.a);
+			}
+			// Black drop shades under bars and at list edges pile up into heavy bands on a dark phone.
+			if (image.sprite != null && image.sprite.name.Contains("gradient", StringComparison.OrdinalIgnoreCase)
+				&& (graphic.name.Contains("Shade") || graphic.name.Contains("Gradient")) && Lightness(color) < 0.1f)
+			{
+				return new Color(color.r, color.g, color.b, 0f);
+			}
+		}
+		// A button clear at rest (a list row that only shows on hover) is judged by its own color: that's its hover look.
+		Color seen = image != null && tint != null && tint.Value.a > 0.01f ? color * tint.Value : color;
+		if (color.a <= 0.01f || graphic.TryCast<RawImage>() != null || !Gray(seen))
 		{
 			return null;
 		}
-		float light = Lightness(color);
-		Image? image = graphic.TryCast<Image>();
+		float light = Lightness(seen);
 		if (image != null)
 		{
 			Sprite? sprite = image.sprite;
@@ -245,11 +298,24 @@ internal sealed class AppsSkin : IDisposable
 			}
 			// The background itself is the board's darkest; the further a panel is from it, lighter or darker, the more raised.
 			float from = appBase ?? (light >= 0.5f ? 0.94f : 0.125f);
-			Color dark = Color.Lerp(background, raised, Mathf.Clamp01(Mathf.Abs(light - from) / 0.3f));
+			float lift = Mathf.Clamp01(Mathf.Abs(light - from) / 0.15f);
+			// A shaped panel (rounded, sliced) is a card even in the background's own gray (Deliveries' rows, Products'
+			// price box): it keeps a step of lift so it doesn't vanish into the background.
+			if (sprite != null)
+			{
+				lift = Mathf.Max(lift, 0.4f);
+			}
+			Color dark = Color.Lerp(background, raised, lift);
+			if (tint != null && tint.Value.a > 0.01f)
+			{
+				// What the image needs to be so that the tint lands it on the slate (as near as a dark tint allows).
+				Color t = tint.Value;
+				dark = new Color(Divide(dark.r, t.r), Divide(dark.g, t.g), Divide(dark.b, t.b));
+			}
 			return new Color(dark.r, dark.g, dark.b, color.a);
 		}
 		// Text: on a colored button (white on blue, black on yellow) it's already right.
-		if (OnColor(graphic.transform))
+		if (OnColor(graphic.transform, tinted))
 		{
 			return null;
 		}
@@ -264,30 +330,65 @@ internal sealed class AppsSkin : IDisposable
 		return null;
 	}
 
-	/// <summary>Whether the nearest solid image behind this text (it or one of 3 parents) is colored, not gray.</summary>
-	private static bool OnColor(Transform transform)
+	/// <summary>Whether the nearest solid image behind this text (it or one of 3 parents) shows colored, not gray, its
+	/// button's tint included. The original colors count, not the slate this put on them.</summary>
+	private bool OnColor(Transform transform, Dictionary<int, Selectable> tinted)
 	{
 		Transform? at = transform;
 		for (int i = 0; i < 4 && at != null; i++, at = at.parent)
 		{
 			Image? image = at.GetComponent<Image>();
-			if (image != null && image.color.a > 0.5f && image.enabled)
+			if (image == null || !image.enabled)
 			{
-				return !Gray(image.color);
+				continue;
+			}
+			int id = image.GetInstanceID();
+			Color color = records.TryGetValue(id, out Record? record) && Same(image.color, record.Applied) ? record.Original : image.color;
+			if (tinted.TryGetValue(id, out Selectable? owner))
+			{
+				ColorBlock block = owner.colors;
+				Color tint = (owner.interactable ? block.normalColor : block.disabledColor) * block.colorMultiplier;
+				if (tint.a > 0.01f)
+				{
+					color *= tint;
+				}
+			}
+			if (color.a > 0.5f)
+			{
+				return !Gray(color);
 			}
 		}
 		return false;
 	}
 
-	/// <summary>UI shapes that may be drawn unsliced: Unity's built-ins and the game's rectangles. Circles stay: they're
-	/// Contacts' relationship rings and avatar backs.</summary>
+	/// <summary>An app's top bar: "Topbar" (Journal, Map), its "Background" (a Messages chat) or "Header/Background"
+	/// (Products).</summary>
+	private static bool Header(Transform transform)
+	{
+		if (transform.name == "Topbar")
+		{
+			return true;
+		}
+		Transform? parent = transform.parent;
+		return transform.name == "Background" && parent != null && (parent.name == "Topbar" || parent.name == "Header");
+	}
+
+	/// <summary>UI shapes that may be drawn unsliced: Unity's built-ins, the game's rectangles, Contacts' tiled backdrop and
+	/// Products' plain white slots. Circles stay: they're Contacts' relationship rings and avatar backs.</summary>
 	private static bool Plain(string name)
 	{
 		return name.Contains("UISprite", StringComparison.OrdinalIgnoreCase)
+			|| name == "Tile"
+			|| name.Contains("SlotBackground", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Background", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Rect", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Round", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("Square", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static float Divide(float value, float by)
+	{
+		return by > 0.01f ? Mathf.Clamp01(value / by) : 1f;
 	}
 
 	private static bool Gray(Color c)
