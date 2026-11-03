@@ -48,6 +48,11 @@ tree, so pushing comes first when a HUD ships.
 - Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer). Losing it means every friend
   reinstalls by hand.
 - The server watchdog fix (schedule1-server) is live, but its crash path hasn't been seen firing yet.
+- The server console's `bring <player> <player>` answers "Brought …" but the player doesn't move: the game teleports
+  only the local player (`PlayerMovement.Teleport`, no RPC), so the server moves its own copy. A server mod gap, not
+  ours. Names with non-ASCII (BLAZZER™) don't resolve over the console either: use the Steam ID from `listops`.
+- HUD 0.1.1's Respawn hasn't been seen yet: the test copy (`C:\Games\Schedule I (HUD test)`) has it; everything else
+  in it (rail, compass, clock, friends, bank-only panel) passed in game on 2026-11-03.
 
 ## Gotchas worth keeping
 - **"Live" means a launcher read it:** the raw manifest is cached up to 5 min per CDN edge and query strings don't
