@@ -78,6 +78,8 @@ internal sealed class WantedStatus : Surface
 
 	private Look? shown;
 
+	private string lineText = "";
+
 	private float changedAt;
 
 	private float alarmAt;
@@ -141,7 +143,13 @@ internal sealed class WantedStatus : Surface
 			}
 			// The game's own rule: seen in the last 3 s, else they search for GetSearchTime() more.
 			bool lost = pursued && crime.TimeSinceSighted >= 3f;
-			line!.text = lost ? "Searching · " + Clock(Mathf.Max(0f, crime.GetSearchTime() - (crime.TimeSinceSighted - 3f))) : look.Line;
+			string text = lost ? "Searching · " + Clock(Mathf.Max(0f, crime.GetSearchTime() - (crime.TimeSinceSighted - 3f))) : look.Line;
+			// Set only on change: each set copies the string into the game's runtime.
+			if (text != lineText)
+			{
+				lineText = text;
+				line!.text = text;
+			}
 		}
 		Look current = shown!;
 		color = Color.Lerp(color, current.Color, 1f - Mathf.Exp(-7f * f.Dt));
@@ -178,6 +186,7 @@ internal sealed class WantedStatus : Surface
 		box = null;
 		appear.Value = appear.Target = 0f;
 		shown = null;
+		lineText = "";
 		Steps(() => m?.Release(), () => Destroy(b));
 	}
 

@@ -85,6 +85,16 @@ internal sealed class Toasts : Surface
 
 	private readonly List<Card> cards = new List<Card>();
 
+	/// <summary>Per-frame scratch collections, kept so a frame allocates nothing.</summary>
+	private readonly HashSet<int> alive = new HashSet<int>();
+
+	private readonly List<int> dead = new List<int>();
+
+	private readonly List<Card> remove = new List<Card>();
+
+	/// <summary>The count the badge shows, so its text is set (and measured) only when it changes.</summary>
+	private int badgeShown = -1;
+
 	internal Toasts()
 		: base("toasts")
 	{
@@ -132,6 +142,7 @@ internal sealed class Toasts : Surface
 		sources.Clear();
 		badgeAppear.Value = badgeAppear.Target = 0f;
 		lastUnread = 0;
+		badgeShown = -1;
 		Steps(() => t?.Release(), () => b?.Release(), () => Destroy(badgeRect), () =>
 		{
 			foreach (Card card in old)
@@ -184,15 +195,19 @@ internal sealed class Toasts : Surface
 		badgeGroup!.alpha = a;
 		Glass.Pin(badge, new Vector2(0f, 1f), new Vector2(f.Layout.ColumnX, -f.Layout.BadgeTop), new Vector2(ScreenLayout.BadgeSize, ScreenLayout.BadgeSize));
 		badge.localScale = Vector3.one * (0.85f + 0.15f * HylandHud.Motion.EaseOutCubic(a));
-		badgeCount!.text = unread > 99 ? "99+" : unread.ToString();
-		float w = Mathf.Max(18f, Mathf.Ceil(badgeCount.preferredWidth) + 10f);
-		badgeCountBack!.rectTransform.sizeDelta = new Vector2(w, 18f);
-		badgeCountBack.rectTransform.localScale = Vector3.one * (1f + 0.3f * Mathf.Sin(badgeBump * Mathf.PI));
+		if (unread != badgeShown)
+		{
+			badgeShown = unread;
+			badgeCount!.text = unread > 99 ? "99+" : unread.ToString();
+			float w = Mathf.Max(18f, Mathf.Ceil(badgeCount.preferredWidth) + 10f);
+			badgeCountBack!.rectTransform.sizeDelta = new Vector2(w, 18f);
+		}
+		badgeCountBack!.rectTransform.localScale = Vector3.one * (1f + 0.3f * Mathf.Sin(badgeBump * Mathf.PI));
 	}
 
 	private void Read(Frame f, RectTransform container)
 	{
-		HashSet<int> alive = new HashSet<int>();
+		alive.Clear();
 		for (int i = 0; i < container.childCount; i++)
 		{
 			Transform entry = container.GetChild(i);
@@ -217,7 +232,7 @@ internal sealed class Toasts : Surface
 				}
 			}
 		}
-		List<int> dead = new List<int>();
+		dead.Clear();
 		foreach (int id in sources.Keys)
 		{
 			if (!alive.Contains(id))
@@ -317,7 +332,7 @@ internal sealed class Toasts : Surface
 		float top = f.ColumnY;
 		float y = 0f;
 		int shown = 0;
-		List<Card> remove = new List<Card>();
+		remove.Clear();
 		foreach (Card card in cards)
 		{
 			bool visible = !card.Gone && shown < MaxCards;

@@ -146,6 +146,11 @@ internal sealed class Tracker : Surface
 
 	private readonly Dictionary<string, Row> rows = new Dictionary<string, Row>();
 
+	/// <summary>Per-frame scratch sets, kept so a frame allocates nothing.</summary>
+	private readonly HashSet<string> present = new HashSet<string>();
+
+	private readonly List<string> remove = new List<string>();
+
 	private List<Data> data = new List<Data>();
 
 	private float nextRead;
@@ -177,12 +182,13 @@ internal sealed class Tracker : Surface
 		{
 			Build(f);
 		}
-		if (Time.unscaledTime >= nextRead)
+		bool fresh = Time.unscaledTime >= nextRead;
+		if (fresh)
 		{
 			nextRead = Time.unscaledTime + 0.25f;
 			data = Read(hud);
 		}
-		Layout(f);
+		Layout(f, fresh);
 	}
 
 	internal override void Teardown()
@@ -368,13 +374,16 @@ internal sealed class Tracker : Surface
 		return minutes / 60 + "h" + (m > 0 ? " " + m + "m" : "");
 	}
 
-	private void Layout(Frame f)
+	/// <param name="fresh">The game's list was just re-read: only then do the rows' texts change. Setting a TMP text copies
+	/// the string into the game's runtime, so it isn't done every frame.</param>
+	private void Layout(Frame f, bool fresh)
 	{
 		float dt = f.Dt;
-		HashSet<string> present = new HashSet<string>();
+		present.Clear();
 		foreach (Data d in data)
 		{
 			present.Add(d.Key);
+			bool made = false;
 			if (!rows.TryGetValue(d.Key, out Row row) || row.Gone)
 			{
 				if (row != null)
@@ -383,8 +392,12 @@ internal sealed class Tracker : Surface
 				}
 				row = MakeRow(f, d);
 				rows[d.Key] = row;
+				made = true;
 			}
-			Fill(row, d);
+			if (fresh || made)
+			{
+				Fill(row, d);
+			}
 		}
 		foreach (Row row in rows.Values)
 		{
@@ -471,7 +484,7 @@ internal sealed class Tracker : Surface
 		}
 
 		// Rows that left: a finished quest ticks for a moment first, then each folds its height away.
-		List<string> remove = new List<string>();
+		remove.Clear();
 		foreach (Row row in rows.Values)
 		{
 			if (row.Gone)
