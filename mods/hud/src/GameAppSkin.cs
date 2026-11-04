@@ -379,6 +379,20 @@ internal abstract class GameAppSkin : IDisposable
 		return text;
 	}
 
+	/// <summary>Adds a component to one of the game's objects, removed again in <see cref="Dispose"/>.</summary>
+	protected T Add<T>(GameObject owner) where T : Component
+	{
+		T added = owner.AddComponent<T>();
+		undo.Add(() =>
+		{
+			if (added != null)
+			{
+				UnityEngine.Object.Destroy(added);
+			}
+		});
+		return added;
+	}
+
 	/// <summary>Records a rect's placement, then lets <paramref name="change"/> move it.</summary>
 	protected void Move(RectTransform? rect, Action<RectTransform> change)
 	{
