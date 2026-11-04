@@ -53,15 +53,37 @@ internal sealed class Popups : Surface
 	{
 		private DealCompletionPopup? popup;
 
+		private const float Pad = 16f;
+
+		/// <summary>Where the text after the check badge starts.</summary>
+		private const float TextX = 62f;
+
+		/// <summary>Where the satisfaction bar and the relationship chip start (after their 82-wide labels).</summary>
+		private const float ValueX = Pad + 82f + 10f;
+
 		private TextMeshProUGUI? name;
 
 		private TextMeshProUGUI? pay;
 
+		private RectTransform? check;
+
+		private TextMeshProUGUI? satisfactionCaption;
+
+		private Image? satisfactionTrack;
+
+		private Image? satisfactionFill;
+
 		private TextMeshProUGUI? satisfaction;
+
+		private TextMeshProUGUI? relationshipCaption;
+
+		private Image? relationshipChip;
 
 		private TextMeshProUGUI? relationship;
 
 		private readonly List<TextMeshProUGUI> bonuses = new List<TextMeshProUGUI>();
+
+		internal override float Width => 360f;
 
 		internal override bool Find(Frame f)
 		{
@@ -82,17 +104,47 @@ internal sealed class Popups : Surface
 
 		internal override void Build(Frame f, RectTransform rect)
 		{
-			Caps(f, rect, "DEAL DONE", Glass.Green, 14f);
-			name = Line(f, rect, 18f, Glass.Text, 32f, Width - 150f, bold: true);
-			pay = Glass.Label("Pay", rect, f.Font, 28f, Glass.Green, TextAlignmentOptions.MidlineRight);
+			// The board's layout: a green check badge, "DEAL DONE" over the name, the pay level with them on the right;
+			// bonuses under the name; then satisfaction as a bar and relationship as a chip.
+			check = Glass.Solid("Check", rect, f.Sprites, 17, Glass.Tint(Glass.Green, 0.16f)).rectTransform;
+			check.anchorMin = check.anchorMax = new Vector2(0f, 1f);
+			check.pivot = new Vector2(0.5f, 0.5f);
+			check.anchoredPosition = new Vector2(Pad + 17f, -31f);
+			check.sizeDelta = new Vector2(34f, 34f);
+			Tracker.Tick(f, check, Glass.Green);
+			TextMeshProUGUI caps = Glass.Label("Caps", rect, f.Font, 11f, Glass.Muted);
+			caps.text = "DEAL DONE";
+			caps.characterSpacing = 8f;
+			Glass.Pin(caps.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -15f), new Vector2(150f, 14f));
+			name = Glass.Label("Name", rect, f.Font, 16f, Glass.Text);
+			name.fontStyle = FontStyles.Bold;
+			Glass.Pin(name.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -29f), new Vector2(Width - TextX - 130f, 20f));
+			pay = Glass.Label("Pay", rect, f.Font, 22f, Glass.Green, TextAlignmentOptions.MidlineRight);
 			pay.fontStyle = FontStyles.Bold;
-			Glass.Pin(pay.rectTransform, new Vector2(1f, 1f), new Vector2(-18f, -16f), new Vector2(150f, 40f));
-			Stat(f, rect, "SATISFACTION", 18f, out satisfaction);
-			Stat(f, rect, "RELATIONSHIP", 18f + (Width - 36f) / 2f, out relationship);
+			Glass.Pin(pay.rectTransform, new Vector2(1f, 1f), new Vector2(-Pad, -17f), new Vector2(120f, 28f));
 			for (int i = 0; i < 4; i++)
 			{
-				bonuses.Add(Line(f, rect, 13f, Glass.Soft, 116f + 20f * i, Width - 36f));
+				TextMeshProUGUI bonus = Glass.Label("Bonus", rect, f.Font, 12f, Glass.Soft);
+				Glass.Pin(bonus.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -(58f + 18f * i)), new Vector2(Width - TextX - Pad, 16f));
+				bonuses.Add(bonus);
 			}
+			satisfactionCaption = Caption(f, rect, "Satisfaction");
+			satisfactionTrack = Glass.Solid("Track", rect, f.Sprites, 3, Glass.Line);
+			satisfactionFill = Glass.Solid("Fill", satisfactionTrack.transform, f.Sprites, 3, Glass.Green);
+			Glass.Pin(satisfactionFill.rectTransform, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
+			satisfaction = Glass.Label("Value", rect, f.Font, 12f, Glass.Soft, TextAlignmentOptions.MidlineRight);
+			relationshipCaption = Caption(f, rect, "Relationship");
+			relationshipChip = Glass.Solid("Chip", rect, f.Sprites, 9, Glass.Tint(Glass.Blue, 0.16f));
+			relationship = Glass.Label("Value", relationshipChip.transform, f.Font, 11f, Glass.Blue, TextAlignmentOptions.Center);
+			relationship.fontStyle = FontStyles.Bold;
+			Glass.Fill(relationship.rectTransform);
+		}
+
+		private static TextMeshProUGUI Caption(Frame f, RectTransform rect, string text)
+		{
+			TextMeshProUGUI label = Glass.Label("Caption", rect, f.Font, 12f, Glass.Soft);
+			label.text = text;
+			return label;
 		}
 
 		internal override void Fill(Frame f)
@@ -100,10 +152,18 @@ internal sealed class Popups : Surface
 			DealCompletionPopup p = popup!;
 			name!.text = Glass.Plain(p.Title.text).Replace("Deal completed for ", "");
 			pay!.text = Glass.Plain(p.PaymentLabel.text);
-			satisfaction!.text = Glass.Plain(p.SatisfactionValueLabel.text);
-			satisfaction.color = Opaque(p.SatisfactionValueLabel.color);
+			// The badge pops in with the card.
+			float a = HylandHud.Motion.EaseOutCubic(Appear.Value);
+			check!.localScale = Vector3.one * (0.6f + 0.4f * a);
+			// The game counts "0 %" up to "87 %"; the bar follows its number and its color.
+			string percent = Glass.Plain(p.SatisfactionValueLabel.text).Replace(" ", "");
+			satisfaction!.text = percent;
+			Color satColor = Opaque(p.SatisfactionValueLabel.color);
+			float sat01 = float.TryParse(percent.TrimEnd('%'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float n) ? Mathf.Clamp01(n / 100f) : 0f;
 			relationship!.text = Glass.Plain(p.RelationshipLabel.text);
-			relationship.color = Opaque(p.RelationshipLabel.color);
+			Color relColor = Opaque(p.RelationshipLabel.color);
+			relationship.color = relColor;
+			relationshipChip!.color = Glass.Tint(relColor, 0.16f);
 			int shown = 0;
 			for (int i = 0; i < bonuses.Count; i++)
 			{
@@ -116,7 +176,18 @@ internal sealed class Popups : Surface
 					shown++;
 				}
 			}
-			Height = 112f + (shown > 0 ? 20f * shown + 6f : 0f);
+			float satTop = 58f + (shown > 0 ? 18f * shown + 6f : 0f);
+			float relTop = satTop + 24f;
+			Glass.Pin(satisfactionCaption!.rectTransform, new Vector2(0f, 1f), new Vector2(Pad, -satTop), new Vector2(82f, 18f));
+			float trackWidth = Width - ValueX - 10f - 40f - Pad;
+			Glass.Pin(satisfactionTrack!.rectTransform, new Vector2(0f, 1f), new Vector2(ValueX, -(satTop + 6f)), new Vector2(trackWidth, 6f));
+			satisfactionFill!.rectTransform.sizeDelta = new Vector2(Mathf.Max(6f, trackWidth * sat01), 6f);
+			satisfactionFill.color = satColor;
+			Glass.Pin(satisfaction.rectTransform, new Vector2(1f, 1f), new Vector2(-Pad, -satTop), new Vector2(40f, 18f));
+			Glass.Pin(relationshipCaption!.rectTransform, new Vector2(0f, 1f), new Vector2(Pad, -relTop), new Vector2(82f, 18f));
+			float chipWidth = Mathf.Ceil(relationship.preferredWidth) + 14f;
+			Glass.Pin(relationshipChip.rectTransform, new Vector2(0f, 1f), new Vector2(ValueX, -relTop), new Vector2(chipWidth, 18f));
+			Height = relTop + 18f + 14f;
 		}
 
 		internal override void Forget()
@@ -598,17 +669,5 @@ internal sealed class Popups : Surface
 		}
 		Glass.Pin(label.rectTransform, new Vector2(0f, 1f), new Vector2(18f, -top), new Vector2(width, size + 8f));
 		return label;
-	}
-
-	/// <summary>A small caps caption with a bold value under it, for the deal card's two stats.</summary>
-	private static void Stat(Frame f, RectTransform rect, string caption, float x, out TextMeshProUGUI value)
-	{
-		TextMeshProUGUI label = Glass.Label("Caption", rect, f.Font, 10f, Glass.Muted);
-		label.text = caption;
-		label.characterSpacing = 8f;
-		Glass.Pin(label.rectTransform, new Vector2(0f, 1f), new Vector2(x, -66f), new Vector2(180f, 14f));
-		value = Glass.Label("Value", rect, f.Font, 16f, Glass.Text);
-		value.fontStyle = FontStyles.Bold;
-		Glass.Pin(value.rectTransform, new Vector2(0f, 1f), new Vector2(x, -82f), new Vector2(180f, 22f));
 	}
 }

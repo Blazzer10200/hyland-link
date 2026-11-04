@@ -588,7 +588,7 @@ internal sealed class Tracker : Surface
 		Glass.Pin(row.Check, new Vector2(0f, 1f), avatarAt, new Vector2(34f, 34f));
 		row.Check.pivot = new Vector2(0.5f, 0.5f);
 		row.Check.anchoredPosition = new Vector2(avatarAt.x + 17f, avatarAt.y - 17f);
-		Tick(f, row.Check);
+		Tick(f, row.Check, Color.white);
 		row.Check.gameObject.SetActive(false);
 
 		float textX = 56f;
@@ -611,13 +611,13 @@ internal sealed class Tracker : Surface
 	}
 
 	/// <summary>A check mark from two rounded bars.</summary>
-	internal static void Tick(Frame f, RectTransform parent)
+	internal static void Tick(Frame f, RectTransform parent, Color color)
 	{
-		Image shortBar = Glass.Solid("Tick1", parent, f.Sprites, 1.5, Color.white);
+		Image shortBar = Glass.Solid("Tick1", parent, f.Sprites, 1.5, color);
 		shortBar.rectTransform.sizeDelta = new Vector2(8f, 3f);
 		shortBar.rectTransform.anchoredPosition = new Vector2(-4f, -1.5f);
 		shortBar.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
-		Image longBar = Glass.Solid("Tick2", parent, f.Sprites, 1.5, Color.white);
+		Image longBar = Glass.Solid("Tick2", parent, f.Sprites, 1.5, color);
 		longBar.rectTransform.sizeDelta = new Vector2(14f, 3f);
 		longBar.rectTransform.anchoredPosition = new Vector2(2.5f, 1f);
 		longBar.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
