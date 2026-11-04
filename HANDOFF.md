@@ -20,7 +20,7 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | What | State | Where |
 |---|---|---|
 | HUD 0.1.1 (Respawn instead of "Load last save" on the server) | On `main`, staged, **not seen in game**, not published | `dist/hud-v0.1.1/HylandHud.zip` |
-| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps themed and framed like the board, the call screen) | **Parked on branch `hud-phone`, not ready** (Blazzer 2026-11-03: "not too bad, could be better, still needs work"). Runs in the test copy with no errors | `hud-phone` (a22a571), checked out at `.worktrees/hud-phone` |
+| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (9bcdf6b), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` is ahead of `origin/main` (nothing pushed since revision 8). `mod-release.ps1 -Publish` refuses an unpushed
@@ -33,17 +33,24 @@ tree, so pushing comes first when a HUD ships.
 2. Ship 0.1.1 on Blazzer's go-ahead: push `main`, `pwsh scripts/mod-release.ps1 hud -Publish`,
    `pwsh scripts/mods.ps1 publish` (the server applies it first, waiting until nobody's online unless `-Now`). Live =
    the launcher log says `Mod list: revision 9 from Online`. Then `dist/hud-v0.1.0` can go (Blazzer's OK).
-3. **Phone, still to do** (work in `.worktrees/hud-phone`; test with `hud-testcopy.ps1 use phone`, `launch`, `log`).
-   Done on the branch: home screen, frame and blur fixes, the Hyland app, the game's apps restyled in place
-   (`AppsSkin`: colors read off each screen, button image × tint, titles off the rounded corners, the call screen) and
-   framed (`AppLayouts`: the board's header with a back button on every app, insets, Deliveries' tabs on top, the map
-   in a rounded card). Left, per the board (`Phone.dc.html`): Deliveries' 2-column shop cards with the colored left
-   stripe and the order form's side card; Dealers' one-dealer picker card; Messages' bottom sheets (counteroffer, deal
-   window) and response buttons; Journal's and Products' card styling and tile sections; Contacts' web; then a polish
-   round with Blazzer. Each app logs `left light:` once per run (the biggest light panels it left), so leftovers show
-   up in `log` without screenshots. The last run's lists were all art (map, mugshots), as they should be.
+3. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
+   `hud-testcopy.ps1 use phone`, `launch`, `log`). On the branch now: the home screen, the Hyland app, and the game's 7
+   apps redesigned the HUD way, one skin per app (`GameAppSkin` + `MessagesSkin`, `DeliveriesSkin`, `DealersSkin`,
+   `JournalSkin`, `ProductsSkin`, `ContactsSkin`; `mods/hud/PHONE.md` "What we built"), with zoom in/out of the icon.
+   Seen and accepted in game on 2026-11-03: the Messages list (rows, previews, the ✕ hiding a chat) and the home
+   screen's icon names and number keys. **Not yet checked against the board in game:** the Messages chat and its
+   popups, Deliveries, Dealers, Journal, Products, Contacts, Map, the Hyland app, and the frame "tearing" Blazzer saw
+   (never pinned down). Known gaps: the chat strip is empty for dealers, bubbles keep the game's big gaps, Products'
+   detail toggles are plain.
+   **How to run the next pass:** turn on computer use in the Claude desktop app (Settings → This computer → Computer
+   use; tools load at session start, so start a fresh session after). Then drive the test copy yourself: open every
+   app, screen and popup, screenshot each one, compare with the board (`Phone.dc.html` on the "Hyland HUD" artifact),
+   fix, repeat. Navigate only: no deals accepted, nothing bought or sent (the save is shared with the server). The
+   last few rounds of "Blazzer screenshots, I guess" were slow; checking the board and the game's code yourself first
+   finds most of it (e.g. the cramped icon names were the game's label box sitting 3 px inside the tile).
 4. Bringing the phone back to `main`: `git revert a25f0de` (the park) on `main`, then `git merge hud-phone` (the
-   branch has 10 commits past where it was parked). Keep the version at 0.2.0 if 0.1.1 went out, test with the
+   branch has 21 commits past where it was parked; it only changed `mods/hud/` and `PHONE.md`, so main's HANDOFF,
+   CHANGELOG and CLAUDE.md win the merge cleanly). Keep the version at 0.2.0 if 0.1.1 went out, test with the
    checklist in `mods/hud/README.md`, ship the same way.
 
 ## Open items
@@ -75,3 +82,9 @@ tree, so pushing comes first when a HUD ships.
 - `game-log.ts` stage detection matches DedicatedServerClient 1.1.6 log strings: recheck them on a server mod update.
 - `minimap-v1.2.0`'s tag points at the pre-1.2.0 source (released before the push); the zip is right.
 - MelonLoader #1181 (no load on Win 11 25H2 in compat mode): rename `version.dll` to `winhttp.dll`.
+- Il2CppInterop: `GetComponentInParent<T>(true)` throws a VerificationException; walk the parents by hand.
+- The game's legacy `Text` drops any line that doesn't fit its rect (OpenSans needs ~1.36× the font size per line),
+  so restyled labels that grow need `verticalOverflow = Overflow`.
+- A closed game can linger in the process list with no threads while Steam holds its handle. `hud-testcopy.ps1
+  launch` now ignores it (e150ef9); before that it refused with "Another Schedule I is running ()".
+- Screen grabs from a non-DPI-aware PowerShell come out at 2048×1152 on this 2560×1440 screen (125% scaling).

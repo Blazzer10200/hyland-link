@@ -29,7 +29,7 @@ anyone yet.
 - **Progress bar** (being cuffed, every hold-to action) in glass, in the same spot as before.
 - **Ticket, arrest notice and hospital bill** go from paper to dark glass. Their buttons and keys work as before.
 
-### Hyland HUD 0.2.0, the phone (parked on branch `hud-phone`, not ready: see HANDOFF for what's left)
+### Hyland HUD 0.2.0, the phone (back-burnered on branch `hud-phone`, needs a lot more work: see HANDOFF)
 - **A new phone.** A slim dark body in place of the game's chunky 3D model, sharp at any screen size. The home screen
   has a card with the time, the day and the weather, your bank balance and who's on the server, and glass app tiles
   with new icons. Each tile shows its number key (1–8), and the bar at the bottom works as the home button.
@@ -38,7 +38,10 @@ anyone yet.
 - **The game's apps match the phone.** Messages, Journal, Products, Contacts, Map, Dealers and Deliveries go dark like
   the home screen, with a back button and the app's name at the top. Colors that mean something stay: message
   bubbles, prices, relationship rings, faces and the map itself. Deliveries' tabs move to the top, and the map sits
-  in a rounded card. Titles no longer get cut off by the screen's rounded corners.
+  in a rounded card. Titles no longer get cut off by the screen's rounded corners. Apps zoom out of their icon when
+  you open them, and the back button shrinks them back in.
+- **Messages reads at a glance.** Each chat shows its latest message on one line, a dealer's "what they got" list
+  included, and a customer's waiting offer shows its timer as a thin bar along the row.
 - **Incoming calls** use the same dark style, with Answer and Decline still green and red.
 
 ## Shipped
