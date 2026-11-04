@@ -209,8 +209,12 @@ internal sealed class Toasts : Surface
 					source.Icon = inner.Find("AppIcon/Mask/Image")?.GetComponent<Image>();
 				}
 				sources[id] = source;
+				// The container also holds things that aren't toasts (its vibrate sound): only real entries get a card.
 				// The game fills the texts right after it makes the entry, in the same call, so they're there now.
-				Attach(f, id, source);
+				if (source.Title != null)
+				{
+					Attach(f, id, source);
+				}
 			}
 		}
 		List<int> dead = new List<int>();
