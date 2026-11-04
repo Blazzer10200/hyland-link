@@ -9,7 +9,6 @@
     <Nullable>annotations</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DebugType>none</DebugType>
     <GamePath Condition="'$(GamePath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Schedule I</GamePath>
     <Il2Cpp>$(GamePath)\MelonLoader\Il2CppAssemblies</Il2Cpp>

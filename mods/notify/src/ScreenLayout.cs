@@ -109,7 +109,11 @@ internal sealed class ScreenLayout
 			return;
 		}
 		corner = map.GetEntry("Corner")?.BoxedValue?.ToString() ?? "TopRight";
-		size = Melon<int>(map, "Size", 240);
+		// The map's outer size: its border and outline (or the round map's rim, at least 1) sit outside Size, and that
+		// outer edge is at the margin (MinimapHud places the map's center at margin + border + outline + Size / 2).
+		int border = Melon<bool>(map, "BorderEnabled", true) ? Mathf.Clamp(Melon<int>(map, "BorderWidth", 4), 0, 24) : 0;
+		int outline = Melon<bool>(map, "OutlineEnabled", true) ? Mathf.Clamp(Melon<int>(map, "OutlineWidth", 2), 0, 12) : 0;
+		size = Melon<int>(map, "Size", 240) + 2f * Mathf.Max(border + outline, 1);
 		margin = Melon<int>(map, "Margin", 24);
 		offsetX = Melon<int>(map, "OffsetX", 0);
 		offsetY = Melon<int>(map, "OffsetY", 0);

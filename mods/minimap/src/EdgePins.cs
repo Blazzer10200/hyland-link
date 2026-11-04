@@ -17,6 +17,9 @@ internal sealed class EdgePins
 
 	private readonly List<RectTransform> pool = new List<RectTransform>();
 
+	/// <summary>Each pooled pin's Image, so a frame doesn't look it up again per pin.</summary>
+	private readonly List<Image> images = new List<Image>();
+
 	private int used;
 
 	private float radius;
@@ -47,12 +50,13 @@ internal sealed class EdgePins
 			return;
 		}
 		RectTransform pin = ((used < pool.Count) ? pool[used] : Create());
+		Image image = images[used];
 		used++;
 		double angle = Math.Atan2(y, x);
 		(double, double) point = MapMath.EdgePoint(angle, radius, circle);
 		pin.anchoredPosition = new Vector2((float)point.Item1, (float)point.Item2);
 		pin.localRotation = Quaternion.Euler(0f, 0f, (float)(angle * 180.0 / Math.PI));
-		pin.GetComponent<Image>().color = color;
+		image.color = color;
 		pin.gameObject.SetActive(value: true);
 	}
 
@@ -77,6 +81,7 @@ internal sealed class EdgePins
 		outline.effectColor = new Color(0.02f, 0.025f, 0.03f, 0.95f);
 		outline.effectDistance = new Vector2(1f, -1f);
 		pool.Add(rect);
+		images.Add(image);
 		return rect;
 	}
 }

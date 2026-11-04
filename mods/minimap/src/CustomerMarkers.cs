@@ -159,7 +159,7 @@ internal sealed class CustomerMarkers : IDisposable
 		nextRefresh = 0f;
 	}
 
-	internal void Update(Settings settings, MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, IReadOnlySet<int>? dealerNpcIds = null, EdgePins? pins = null)
+	internal void Update(MapProjection projection, Vector2 center, float zoom, float rotation, float viewportSize, bool circle, IReadOnlySet<int>? dealerNpcIds = null, EdgePins? pins = null)
 	{
 		this.dealerNpcIds = dealerNpcIds;
 		occupiedLabels.Clear();

@@ -424,7 +424,7 @@ internal sealed class MinimapHud : IDisposable
 		// Pins and the N ride the middle of the border band (or the thin rim when the border is off).
 		float edge = size / 2f + ((borderWidth > 0f) ? (borderWidth / 2f) : (RimBand() / 2f));
 		pins.Begin(showPins, edge, circular);
-		customers.Update(settings, projection2, vector, z, num2, size, circular, worldMarkers.DealerNpcIds, pins);
+		customers.Update(projection2, vector, z, num2, size, circular, worldMarkers.DealerNpcIds, pins);
 		worldMarkers.Update(player, settings.ShowCoop.Value, projection2, vector, z, num2, size, circular, customers.OccupiedLabels, pins);
 		pins.End();
 		north.gameObject.SetActive(showNorth);
