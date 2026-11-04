@@ -5,30 +5,9 @@ anyone yet.
 
 ## Unreleased
 
-### Hyland HUD 0.1.1 (staged in `dist/hud-v0.1.1`, not published)
-- **Dying on the server no longer kicks you out.** The game's death screen shows "Respawn" only inside a Steam lobby.
-  On the server you join by IP, so it offered only "Load last save", which quits to the main menu and drops you
-  from the server. You now get Respawn (hospital, or your property during curfew), like co-op. Single player and
-  co-op hosts keep the game's normal screen.
-
-### Hyland Notifications 0.1.0, a new mod (built, in the HUD test copy, not published; one in-game run so far)
-- **Every on-screen notification in the HUD's glass**, with smooth slide-ins and fades. Each one shows exactly as long
-  as the game's own would, and turning the mod off brings the game's back.
-- **Deal tracker** (top left): each deal shows the customer's face, the goods, the place and the pay, with a chip for
-  when the window opens and how long is left. Under 2 hours it turns orange and the face pulses. Cartel deals and quests
-  sit under it with their current steps; past 5 rows (your pick, 2–10) the rest fold into "+N more".
-- **Toasts and messages:** texts and app notices as glass cards. Several texts from one person fold into one card with
-  a count. The unread messages bubble shows how many chats are waiting.
-- **Incoming calls:** the caller's face and name, with a ringing pulse.
-- **Police status** under the compass: investigating, under arrest, wanted, wanted dead or alive, or a body search, each
-  with its own icon and color. Wanted pulses an alarm ring, and once they lose sight of you it counts down how long
-  they'll keep searching.
-- **Big moments** at the top center: deal done (pay counting up, satisfaction, relationship, bonuses), new customers
-  with their faces, cartel influence and cartel status changes. The special customers' arrival card shows bottom left.
-- **Hints and "Game saved"** sit under the minimap instead of on top of it. Nothing of ours lands on the minimap,
-  whichever corner you put it in.
-- **Progress bar** (being cuffed, every hold-to action) in glass, in the same spot as before.
-- **Ticket, arrest notice and hospital bill** go from paper to dark glass. Their buttons and keys work as before.
+### Hyland Notifications, next version (on `main`, not released)
+- **Lighter on the game.** The deal tracker, the unread bubble and the police status no longer rewrite their text every
+  frame, only when it changes.
 
 ### Hyland HUD 0.2.0, the phone (back-burnered on branch `hud-phone`, needs a lot more work: see HANDOFF)
 - **A new phone.** A slim dark body in place of the game's chunky 3D model, sharp at any screen size. The home screen
@@ -46,6 +25,29 @@ anyone yet.
 - **Incoming calls** use the same dark style, with Answer and Decline still green and red.
 
 ## Shipped
+
+### 2026-11-03, mod list revision 9
+- **Hyland HUD 0.1.1: dying on the server no longer kicks you out.** The game's death screen shows "Respawn" only
+  inside a Steam lobby. On the server you join by IP, so it offered only "Load last save", which quits to the main
+  menu and drops you from the server. You now get Respawn (hospital, or your property during curfew), like co-op.
+- **Hyland Notifications 0.1.0** (new for everyone): every on-screen notification in the HUD's glass, with smooth
+  slide-ins and fades, each shown exactly as long as the game's own would be.
+  - **Deal tracker** (top left): each deal shows the customer's face, the goods, the place and the pay, with a chip
+    for when the window opens and how long is left. Under 2 hours it turns orange and the face pulses. Cartel deals
+    and quests sit under it with their current steps; past 5 rows (your pick, 2–10) the rest fold into "+N more".
+  - **Toasts and messages:** texts and app notices as glass cards. Several texts from one person fold into one card
+    with a count. The unread messages bubble shows how many chats are waiting.
+  - **Incoming calls:** the caller's face and name, with a ringing pulse.
+  - **Police status** under the compass: investigating, under arrest, wanted, wanted dead or alive, or a body search,
+    each with its own icon and color. Wanted pulses an alarm ring, and once they lose sight of you it counts down how
+    long they'll keep searching.
+  - **Big moments** at the top center: deal done (pay counting up, satisfaction bar, relationship, bonuses), new
+    customers with their faces, cartel influence and cartel status changes. The special customers' arrival card shows
+    bottom left.
+  - **Hints and "Game saved"** sit under the minimap instead of on top of it. Nothing of ours lands on the minimap,
+    whichever corner you put it in.
+  - **Progress bar** (being cuffed, every hold-to action) in glass, in the same spot as before.
+  - **Ticket, arrest notice and hospital bill** go from paper to dark glass. Their buttons and keys work as before.
 
 ### 2026-11-02, mod list revision 8
 - **Hyland HUD 0.1.0** (new for everyone): the "Glass Rail" hotbar with rounded slots and a lift on the selected one,
