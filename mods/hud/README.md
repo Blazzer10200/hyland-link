@@ -3,8 +3,8 @@
 A restyled HUD for Schedule I (IL2CPP, MelonLoader 0.7.2+): the "Glass Rail" concept (`hud-prototype.html`, Blazzer's
 design). It's our own code, not a fork.
 
-**Shipped:** 0.1.0 (`hud-v0.1.0`, id `hyland-hud`, client side) is on the server's mod list from revision 8
-(2026-11-02). Players get it through the launcher's Update.
+**Shipped:** 0.1.1 (`hud-v0.1.1`, id `hyland-hud`, client side) is on the server's mod list from revision 9
+(2026-11-03; 0.1.0 came in revision 8). Players get it through the launcher's Update.
 
 ## What it does
 

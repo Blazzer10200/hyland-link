@@ -33,13 +33,13 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `mods/minimap/`: Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT, decompiled; see its README). Players get
   it as `hyland-minimap` (client side) from a `minimap-v<version>` release.
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
-  restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.0`, id
-  `hyland-hud`, mod list r8). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
+  restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.1`, id
+  `hyland-hud`, mod list r9). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
   real prefab's layout to the log. In-game testing: see its README ("Testing in game");
   `pwsh scripts/hud-testcopy.ps1 use main|phone|notify`, `launch`, `log` drive the test copy. The phone (0.2.0: glass home
   screen, Hyland app, rain level, the game's apps restyled and framed) is parked off `main` on branch `hud-phone`,
   checked out at `.worktrees/hud-phone` (gitignored); HANDOFF says what's left and how it comes back.
-- `mods/notify/`: Hyland Notifications (id `hyland-notify`, not shipped yet), every on-screen notification in HUD's
+- `mods/notify/`: Hyland Notifications (id `hyland-notify`, shipped `notify-v0.1.1`, mod list r10), every on-screen notification in HUD's
   glass: deal/quest tracker, toasts, unread badge, call card, police status, hints, game saved, progress bar, big
   popups, and the ticket/arrest/hospital screens restyled in place. Mirrors the game's pieces (`Muffle` hides them
   without touching what the game reads back); `ScreenLayout` keeps it off Hyland Minimap in any corner. One file per
