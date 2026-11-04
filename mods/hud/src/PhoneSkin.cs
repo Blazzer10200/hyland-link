@@ -361,10 +361,13 @@ internal sealed class PhoneSkin : IDisposable
 		float ax = -chipW / 2f + 10f * Unit + 8f * Unit, ay = chipH / 2f - 31f * Unit;
 		for (int i = 0; i < 3; i++)
 		{
-			// Back to front, so each avatar overlaps the one before it like the board's.
-			RectTransform avatar = Ui.Image("Avatar", onlineChip, sprites.Disc(8, Theme.Friend), Color.white).rectTransform;
-			Ui.Place(avatar, new Vector2(ax + i * 7f * Unit, ay), new Vector2(16f * Unit, 16f * Unit));
-			Text letter = Label("Initial", avatar, 9f, Rgba.Hex(0x052033), TextAnchor.MiddleCenter, Vector2.zero, avatar.sizeDelta, centered: true);
+			// Back to front, so each avatar overlaps the one before it like the board's, cut out of it by the board's 1.5 px
+			// ring in the chip's color (without it two avatars ran together into one blob).
+			RectTransform avatar = Ui.Image("Avatar", onlineChip, sprites.Disc(10, Theme.PhoneChip), Color.white).rectTransform;
+			Ui.Place(avatar, new Vector2(ax + i * 7f * Unit, ay), new Vector2(19f * Unit, 19f * Unit));
+			RectTransform face = Ui.Image("Face", avatar, sprites.Disc(8, Theme.Friend), Color.white).rectTransform;
+			Ui.Place(face, Vector2.zero, new Vector2(16f * Unit, 16f * Unit));
+			Text letter = Label("Initial", avatar, 9f, Rgba.Hex(0x052033), TextAnchor.MiddleCenter, Vector2.zero, face.sizeDelta, centered: true);
 			letter.fontStyle = FontStyle.Bold;
 			initials.Add(letter);
 		}

@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Text.RegularExpressions;
-using Il2CppScheduleOne;
 using Il2CppScheduleOne.UI.Phone;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace HylandHud;
@@ -107,38 +104,6 @@ internal sealed class MessagesSkin : GameAppSkin
 		if (chatFace != null)
 		{
 			PlaceFace(chatFace);
-		}
-		if (GameInput.GetButtonDown(GameInput.ButtonCode.PrimaryClick))
-		{
-			Probe();
-		}
-	}
-
-	/// <summary>Temporary, while the row's ✕ doesn't hide it in game: logs what's under the cursor on each click.</summary>
-	private void Probe()
-	{
-		try
-		{
-			EventSystem system = EventSystem.current;
-			if (system == null)
-			{
-				log("Messages click: no EventSystem.");
-				return;
-			}
-			Vector3 mouse = GameInput.MousePosition;
-			PointerEventData data = new PointerEventData(system) { position = new Vector2(mouse.x, mouse.y) };
-			Il2CppSystem.Collections.Generic.List<RaycastResult> hits = new Il2CppSystem.Collections.Generic.List<RaycastResult>();
-			system.RaycastAll(data, hits);
-			StringBuilder sb = new StringBuilder();
-			for (int i = 0; i < hits.Count && i < 3; i++)
-			{
-				sb.Append("\n  hit ").Append(i).Append(':').Append(Diagnostics.Chain(hits[i].gameObject.transform, 3));
-			}
-			log($"Messages click at {data.position}: {hits.Count} hit(s).{sb}");
-		}
-		catch (Exception e)
-		{
-			log($"Messages click probe failed: {e.Message}");
 		}
 	}
 
