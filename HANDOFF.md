@@ -23,8 +23,8 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (88d7c4d), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
-`main` is ahead of `origin/main` (nothing pushed since revision 8). `mod-release.ps1 -Publish` refuses an unpushed
-tree, so pushing comes first when a HUD ships.
+`main` and `hud-phone` are pushed (2026-11-03; the manifest is unchanged, so players saw nothing). `mod-release.ps1
+-Publish` refuses an unpushed tree, so push before shipping a HUD.
 
 ## Next steps
 1. **See 0.1.1 work once in the test copy** (join the server, never single player). The test copy has the phone build
