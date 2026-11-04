@@ -5,17 +5,18 @@ reads commands from the test copy's `UserData\Driver\cmd.txt`, does them inside 
 input would (the phone key's `GameplayMenu` path, Escape's exit listeners, pointer events on the UI), and answers in
 `out.txt`. Screenshots are the game's own frame (`ScreenCapture`), so nothing else on the screen ends up in them.
 
-It also keeps the test copy cheap in the background: windowed at 1600x900, behind the other windows, muted, 20 fps,
-running while unfocused. All of that is set at runtime and never written to the game's settings file. Unity may
-remember the window size in the registry, which the real game shares, but the real game applies its own display
-settings on start.
+It also keeps the test copy cheap and out of the way: windowed at 1600x900, off screen (it still renders, so shots
+work; `window show` brings it on screen), muted, 20 fps, running while unfocused. All of that is set at runtime and
+never written to the game's settings file. Unity may remember the window size in the registry, which the real game
+shares, but the real game applies its own display settings on start. A `res` size is kept in `UserData\Driver\res.txt`
+across restarts and enforced every 2 s, so put it back with `res 1600 900` after a big-screenshot session.
 
 ## Use
 
 ```
 pwsh scripts/dev.ps1 push driver        # build + copy into the test copy (restart the test copy to load it)
 pwsh scripts/dev.ps1 server up
-pwsh scripts/dev.ps1 play               # with the driver in: starts minimized, no focus steal
+pwsh scripts/dev.ps1 play               # with the driver in: starts minimized, then off screen, no focus steal
 pwsh scripts/dev.ps1 drive "state"
 pwsh scripts/dev.ps1 drive "phone open; click Messages; wait 0.5; shot messages Phone"
 ```

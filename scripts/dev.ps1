@@ -17,7 +17,7 @@
 #   pwsh scripts/dev.ps1 drive "<cmd>; <cmd>"   run commands in the test copy through the driver (tools/driver/README.md)
 #
 # Mods: hud, phone (the parked phone, .worktrees/hud-phone), notify, minimap, fixes, driver (tools/driver, test copy
-# only: with it installed, play starts the game minimized and it runs windowed, muted, 20 fps, behind your windows).
+# only: with it installed, play starts the game minimized and it runs windowed, muted, 20 fps, off screen).
 # World backups live in C:\Games\Schedule I dev worlds (copy one down from the server: schedule1-server's pull-world.sh).
 param(
     [Parameter(Position = 0, Mandatory)] [ValidateSet("server", "play", "push", "watch", "jointest", "status", "log", "drive")]

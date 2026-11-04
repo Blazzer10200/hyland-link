@@ -112,7 +112,9 @@ public sealed class DriverMod : MelonMod
 		}
 		if (!windowPlaced)
 		{
-			windowPlaced = Window.Place("back", width, height) != null;
+			// Off screen, not just behind: nobody watches the test copy, and a click on the taskbar or Alt+Tab would
+			// otherwise bring it up in front. It still renders, so shots work; `window show` brings it back.
+			windowPlaced = Window.Place("hide", width, height) != null;
 		}
 	}
 
