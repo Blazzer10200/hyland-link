@@ -313,6 +313,13 @@ internal sealed class CompassSkin : IDisposable
 
 		private float width;
 
+		/// <summary>A text changed and its width isn't measured yet. TMP measures a label that has never been active
+		/// (the compass hidden on the phone or in a menu) as a few units wide, and at 04:00 the clock stops, so nothing
+		/// would measure it again: the pill stayed too narrow and "SLEEP NOW" was drawn over the time.</summary>
+		private bool timeDirty;
+
+		private bool tagDirty;
+
 		internal Clock(Transform parent, Sprites sprites, TMP_FontAsset font, HUD? hudForWarnings)
 		{
 			pill = Ui.Rect("Clock", parent);
@@ -416,7 +423,12 @@ internal sealed class CompassSkin : IDisposable
 			{
 				shownTime = now;
 				text.text = TimeManager.Get12HourTime(now, true);
+				timeDirty = true;
+			}
+			if (timeDirty && text.isActiveAndEnabled)
+			{
 				timeWidth = text.preferredWidth;
+				timeDirty = false;
 			}
 			// The game's night is 18:00–06:00; the last daylight hour gets the setting sun.
 			bool isNight = time.IsNight;
@@ -465,8 +477,13 @@ internal sealed class CompassSkin : IDisposable
 					}
 					tagShown = shown;
 					tagText.text = shown;
-					tagWidth = tagText.preferredWidth + 16f;
+					tagDirty = true;
 				}
+			}
+			if (tagDirty && tagText.isActiveAndEnabled)
+			{
+				tagWidth = tagText.preferredWidth + 16f;
+				tagDirty = false;
 			}
 			if (warning == null)
 			{
