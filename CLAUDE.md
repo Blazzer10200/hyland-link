@@ -33,8 +33,8 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `mods/minimap/`: Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT, decompiled; see its README). Players get
   it as `hyland-minimap` (client side) from a `minimap-v<version>` release.
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
-  restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.1`, id
-  `hyland-hud`, mod list r9). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
+  restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.2`, id
+  `hyland-hud`, mod list r11). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
   real prefab's layout to the log. In-game testing: see its README ("Testing in game");
   `pwsh scripts/hud-testcopy.ps1 use main|phone|notify`, `launch`, `log` drive the test copy. The phone (0.2.0: glass home
   screen, Hyland app, rain level, the game's apps restyled and framed) is parked off `main` on branch `hud-phone`,

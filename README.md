@@ -35,7 +35,7 @@ pwsh scripts/mods.ps1 publish                                # server applies it
 unless `-Now`), confirms the server booted on the same MelonLoader players get, and only then pushes `main`. Each mod
 has a `side`: `both` (default), `server` (never reaches players) or `client` (players only).
 
-Our own client mods (`mods/hud`, `mods/minimap`, `mods/notify`): bump the mod's `src/AssemblyInfo.cs`, commit and push `main`, then
+Our own client mods (`mods/hud`, `mods/minimap`, `mods/notify`, `mods/fixes`): bump the mod's `src/AssemblyInfo.cs`, commit and push `main`, then
 
 ```bash
 pwsh scripts/mod-release.ps1 hud -Publish   # GitHub release hud-v<version> (never "latest") + mods.ps1 add
@@ -66,9 +66,12 @@ manifest/            the version file the launcher and the server both follow (b
 mods/minimap/        Hyland Minimap, our fork of nacho's Schedule I Minimap (MIT)
 mods/hud/            Hyland HUD, our restyle of the game's hotbar, compass and money
 mods/notify/         Hyland Notifications: the game's tracker, toasts, police status, popups and paperwork in HUD glass
+mods/fixes/          Hyland Fixes: client-side workarounds for game bugs on our server, one file per fix
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
-scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap, notify)
+scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap, notify, fixes)
 scripts/hud-testcopy.ps1  put a mod build into the HUD test copy of the game, launch it, read its log
+scripts/join-test.ps1     one unattended join from the test copy: prints LOADED IN or STUCK
+tools/joindiag/      test-only mod that logs which object's init threw during a join (never shipped)
 scripts/release.sh   build, sign and publish a launcher release
 scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)
 scripts/logs.sh      print the launcher log, the game log and the console setting on this PC
