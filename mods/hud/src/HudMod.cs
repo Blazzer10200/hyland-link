@@ -311,6 +311,8 @@ public sealed class HudMod : MelonMod
 				{
 					new MessagesSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
 					new DeliveriesSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
+					new DealersSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
+					new JournalSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
 				};
 				GameObject? open = Phone.ActiveApp;
 				foreach (GameAppSkin skin in appSkins)
