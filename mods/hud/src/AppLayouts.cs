@@ -351,7 +351,18 @@ internal sealed class AppLayouts : IDisposable
 			return;
 		}
 		int was = bar.GetSiblingIndex();
-		bar.SetSiblingIndex(contents.GetSiblingIndex());
+		// The game's container lays out in reverse, so "on top" means after the contents there.
+		VerticalLayoutGroup? stack = box.GetComponent<VerticalLayoutGroup>();
+		bool reverse = stack != null && stack.reverseArrangement;
+		int target = contents.GetSiblingIndex();
+		if (reverse && was < target)
+		{
+			bar.SetSiblingIndex(target);
+		}
+		else if (!reverse && was > target)
+		{
+			bar.SetSiblingIndex(target);
+		}
 		undo.Add(() =>
 		{
 			if (bar != null)

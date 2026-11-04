@@ -15,10 +15,15 @@ namespace HylandHud;
 /// </summary>
 internal sealed class DeliveriesSkin : GameAppSkin
 {
-	/// <summary>The frame's width inside AppLayouts' insets, less the lists' 15 padding a side.</summary>
-	private const float ListWidth = 1201f - 2f * 16f * Unit - 30f;
+	/// <summary>The lists' grid width as laid out (the frame inside AppLayouts' insets, less the viewport's edge and the
+	/// lists' 15 padding a side: 1099 measured). Two cells wider than this wrap to one column.</summary>
+	private const float ListWidth = 1098f;
 
 	private const float TabWidth = 96f;
+
+	/// <summary>The order header's height and the side card's width (board px).</summary>
+	private const float HeaderHeight = 40f;
+	private const float SideWidth = 168f;
 
 	private static readonly Color Cash = Ui.Color(Rgba.Hex(0x7DDC6F));
 
@@ -53,7 +58,7 @@ internal sealed class DeliveriesSkin : GameAppSkin
 			{
 				Stretch(Find(shops, "List"));
 				Stretch(Find(shops, "Order"));
-				Grid(Find<GridLayoutGroup>(shops, "List/Scroll View/Viewport/Content/Container"), new Vector2((ListWidth - 8f * Unit) / 2f, 48f * Unit), new Vector2(8f * Unit, 8f * Unit));
+				Grid(Find<GridLayoutGroup>(shops, "List/Scroll View/Viewport/Content/Container"), new Vector2((ListWidth - 8f * Unit) / 2f, 48f * Unit), new Vector2(8f * Unit, 8f * Unit), columns: 2);
 				Ghost(shops, "List/Scroll View/Viewport/Gradient");
 				Scrollbar(Find(shops, "List/Scroll View/Scrollbar Vertical"));
 			}
@@ -116,7 +121,14 @@ internal sealed class DeliveriesSkin : GameAppSkin
 			{
 				Transform tab = items.GetChild(i);
 				Prefer(tab.gameObject, TabWidth, null);
-				Label(tab, "Name", 11f);
+				Text? name = Find<Text>(tab, "Name");
+				Label(name, 11f);
+				if (name != null)
+				{
+					// Active Orders' label is narrowed for its badge and wrapped onto two lines.
+					Text kept = name;
+					Set(kept, () => kept.horizontalOverflow, v => kept.horizontalOverflow = v, HorizontalWrapMode.Overflow);
+				}
 				Image? badge = Find<Image>(tab, "Indicator");
 				if (badge != null)
 				{
@@ -202,7 +214,9 @@ internal sealed class DeliveriesSkin : GameAppSkin
 			Ghost(gradient != null ? gradient.GetComponent<Graphic>() : null);
 			Grid(Find<GridLayoutGroup>(form, "Content/Divider/Entries/ScrollView/Viewport/Listings"), new Vector2(350f, 34f * Unit), new Vector2(6f * Unit, 6f * Unit));
 			Details(Find(form, "Content/Divider/Details"));
+			SideCard(form);
 		}
+		PlaceLabel(Find(form, "Content/Divider/Details/Container/Confirm"));
 		Transform? listings = Find(form, "Content/Divider/Entries/ScrollView/Viewport/Listings");
 		if (listings != null)
 		{
@@ -226,7 +240,7 @@ internal sealed class DeliveriesSkin : GameAppSkin
 			return;
 		}
 		Ghost(header.GetComponent<Graphic>());
-		Height(header.gameObject, 40f);
+		Height(header.gameObject, HeaderHeight);
 		Spacing(Find<HorizontalLayoutGroup>(header, "Container"), 8f, Pad(0f, 0f, 4f, 4f));
 		Transform? back = Find(header, "Container/Interaction/Container/BackButton");
 		if (back != null)
@@ -245,6 +259,66 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		}
 		Label(header, "Container/Labels/Container/Title", 13f, C(Theme.PhoneText));
 		Label(header, "Container/Labels/Container/Description", 10f, C(Theme.PhoneMuted));
+		// The board's header reads left to right: Back, face, name. The game centers the name between two 394 wide
+		// blocks, so Back's block hugs the chip and the right one takes the slack.
+		Transform? interaction = Find(header, "Container/Interaction");
+		Flexible(interaction, 0f);
+		Prefer(interaction != null ? interaction.gameObject : null, 80f, null);
+		Flexible(Find(header, "Container/Spacer"), 1f);
+		LeftAlign(Find<Text>(header, "Container/Labels/Container/Title"));
+		LeftAlign(Find<Text>(header, "Container/Labels/Container/Description"));
+	}
+
+	/// <summary>The side card as the board's: as tall as the header and the items together, on the right. Out of the
+	/// divider's layout, which keeps its width free on the right for it.</summary>
+	private void SideCard(Transform form)
+	{
+		Transform? details = Find(form, "Content/Divider/Details");
+		LayoutElement? element = details != null ? details.GetComponent<LayoutElement>() : null;
+		if (details == null || element == null)
+		{
+			return;
+		}
+		Set(element, () => element.ignoreLayout, v => element.ignoreLayout = v, true);
+		Move(details.Cast<RectTransform>(), r =>
+		{
+			r.anchorMin = new Vector2(1f, 0f);
+			r.anchorMax = new Vector2(1f, 1f);
+			r.pivot = new Vector2(1f, 0.5f);
+			r.offsetMin = new Vector2(-SideWidth * Unit, 0f);
+			r.offsetMax = new Vector2(0f, HeaderHeight * Unit);
+		});
+		Spacing(Find<HorizontalLayoutGroup>(form, "Content/Divider"), null, Pad(0f, SideWidth + 10f, 0f, 0f));
+	}
+
+	/// <summary>A layout child's flexible width, recorded (a spacer that should take the slack).</summary>
+	private void Flexible(Transform? child, float flexible)
+	{
+		if (child == null)
+		{
+			return;
+		}
+		LayoutElement element = child.GetComponent<LayoutElement>() ?? Add<LayoutElement>(child.gameObject);
+		Set(element, () => element.flexibleWidth, v => element.flexibleWidth = v, flexible);
+		Set(element, () => element.preferredWidth, v => element.preferredWidth = v, 0f);
+		Set(element, () => element.minWidth, v => element.minWidth = v, 0f);
+	}
+
+	private void LeftAlign(Text? text)
+	{
+		if (text == null)
+		{
+			return;
+		}
+		TextAnchor left = text.alignment switch
+		{
+			TextAnchor.UpperCenter or TextAnchor.UpperRight => TextAnchor.UpperLeft,
+			TextAnchor.LowerCenter or TextAnchor.LowerRight => TextAnchor.LowerLeft,
+			TextAnchor.MiddleCenter or TextAnchor.MiddleRight => TextAnchor.MiddleLeft,
+			_ => text.alignment,
+		};
+		Text kept = text;
+		Set(kept, () => kept.alignment, v => kept.alignment = v, left);
 	}
 
 	/// <summary>The side card: destination and dock chips, the totals with green amounts, the note, Place order in the
@@ -263,13 +337,52 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		{
 			return;
 		}
-		Spacing(stack.GetComponent<VerticalLayoutGroup>(), 6f, Pad(11f, 11f, 9f, 9f));
+		Spacing(stack.GetComponent<VerticalLayoutGroup>(), 2f, Pad(11f, 11f, 8f, 8f));
 		Transform? confirm = Find(stack, "Confirm");
+		// The board's rows, sized to fit the card (the game squeezes its own until they overlap).
+		for (int i = 0; i < stack.childCount; i++)
+		{
+			Transform row = stack.GetChild(i);
+			switch (row.name)
+			{
+				case "Destination":
+				case "LoadingDock":
+					Height(row.gameObject, 31f);
+					Spacing(row.GetComponent<VerticalLayoutGroup>(), 1f);
+					Transform? label = Find(row, "Label");
+					Height(label != null ? label.gameObject : null, 12f);
+					Transform? pick = Find(row, "Dropdown (Legacy)");
+					Height(pick != null ? pick.gameObject : null, 18f);
+					break;
+				case "Spacer":
+					Height(row.gameObject, 1f);
+					break;
+				case "Note":
+					Height(row.gameObject, 12f);
+					break;
+				case "Confirm":
+					Height(row.gameObject, 26f);
+					break;
+				default:
+					if (row.GetComponent<HorizontalLayoutGroup>() != null)
+					{
+						// Label left, amount right, as the board's space-between rows.
+						Height(row.gameObject, 13f);
+						Flexible(Find(row, "Spacer"), 1f);
+					}
+					break;
+			}
+		}
 		foreach (Dropdown dropdown in stack.GetComponentsInChildren<Dropdown>(true))
 		{
 			Recolor(dropdown.targetGraphic, C(0x222831));
 			ChipTints(dropdown);
 			Label(dropdown.captionText, 11f, C(Theme.PhoneText));
+			Text? caption = dropdown.captionText;
+			if (caption != null)
+			{
+				Set(caption, () => caption.verticalOverflow, v => caption.verticalOverflow = v, VerticalWrapMode.Overflow);
+			}
 			Recolor(Find<Graphic>(dropdown.transform, "Arrow"), C(Theme.PhoneMuted));
 			RectTransform template = dropdown.template;
 			if (template != null)
@@ -324,7 +437,29 @@ internal sealed class DeliveriesSkin : GameAppSkin
 			Swap(confirm.GetComponent<Image>(), Solid(10f));
 			foreach (Text label in confirm.GetComponentsInChildren<Text>(true))
 			{
-				Label(label, 14f, C(0x0D1014));
+				// Colored per pass by PlaceLabel (dark on the accent, muted when you can't order yet).
+				Label(label, 14f);
+				Text kept = label;
+				Set(kept, () => kept.color, v => kept.color = v, C(0x0D1014));
+			}
+		}
+	}
+
+	/// <summary>Place order's label follows the button: dark on the accent, muted on the grey it turns when the order
+	/// can't go yet (dark on that grey was unreadable).</summary>
+	private static void PlaceLabel(Transform? confirm)
+	{
+		Selectable? button = confirm != null ? confirm.GetComponent<Selectable>() : null;
+		if (confirm == null || button == null)
+		{
+			return;
+		}
+		Color want = button.interactable ? C(0x0D1014) : C(Theme.PhoneMuted);
+		foreach (Text label in confirm.GetComponentsInChildren<Text>(true))
+		{
+			if (label.color != want)
+			{
+				label.color = want;
 			}
 		}
 	}
@@ -378,6 +513,9 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		foreach (Text label in button.GetComponentsInChildren<Text>(true))
 		{
 			Label(label, 13f, C(Theme.PhoneText));
+			// The game draws - and + at half scale, so at our size they came out half as big.
+			Transform glyph = label.transform;
+			Set(glyph, () => glyph.localScale, v => glyph.localScale = v, Vector3.one);
 		}
 	}
 
@@ -392,7 +530,7 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		Transform? grid = Find(page, "Scroll View/Viewport/Content/Container");
 		if (First(page))
 		{
-			Grid(grid != null ? grid.GetComponent<GridLayoutGroup>() : null, new Vector2((ListWidth - 8f * Unit) / 2f, 215f), new Vector2(8f * Unit, 8f * Unit));
+			Grid(grid != null ? grid.GetComponent<GridLayoutGroup>() : null, new Vector2((ListWidth - 8f * Unit) / 2f, 215f), new Vector2(8f * Unit, 8f * Unit), columns: 2);
 			Scrollbar(Find(page, "Scroll View/Scrollbar Vertical"));
 			Label(page, "DeliveriesIndicator", 13f, C(Theme.PhoneMuted));
 		}

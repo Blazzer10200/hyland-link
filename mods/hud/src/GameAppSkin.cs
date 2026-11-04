@@ -510,23 +510,32 @@ internal abstract class GameAppSkin : IDisposable
 	}
 
 	/// <summary>A grid's cell size and spacing (game units), recorded.</summary>
-	protected void Grid(GridLayoutGroup? grid, Vector2 cell, Vector2 spacing)
+	protected void Grid(GridLayoutGroup? grid, Vector2 cell, Vector2 spacing, int columns = 0)
 	{
 		if (grid == null)
 		{
 			return;
 		}
 		Vector2 wasCell = grid.cellSize, wasSpacing = grid.spacing;
+		GridLayoutGroup.Constraint wasConstraint = grid.constraint;
+		int wasCount = grid.constraintCount;
 		undo.Add(() =>
 		{
 			if (grid != null)
 			{
 				grid.cellSize = wasCell;
 				grid.spacing = wasSpacing;
+				grid.constraint = wasConstraint;
+				grid.constraintCount = wasCount;
 			}
 		});
 		grid.cellSize = cell;
 		grid.spacing = spacing;
+		if (columns > 0)
+		{
+			grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+			grid.constraintCount = columns;
+		}
 		LayoutRebuilder.MarkLayoutForRebuild(grid.transform.Cast<RectTransform>());
 	}
 
