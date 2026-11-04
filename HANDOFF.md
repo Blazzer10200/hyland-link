@@ -64,17 +64,13 @@ tests; `hud-testcopy.ps1 use main` / `use notify` bring it up to date).
 ## Open items
 - **This file is public** (tracked and pushed). Sessions 1–10 held server and network details; they're out of the
   current file but stay in history. Untracking it is Blazzer's call.
-- `mods.ps1 publish` runs `ssh -t` for the server's whole wait-until-empty step, so a dropped connection can kill
-  `s1ds mods apply` midway. The fix belongs in schedule1-server (run the apply detached, poll for the result).
+- Server-side items (the `mods.ps1 publish` ssh drop, the unseen watchdog crash path, the console's `bring`) moved to
+  schedule1-server's HANDOFF "Open" on 2026-11-04. That repo is now private on GitHub (`Blazzer10200/schedule1-server`).
 - Two small gaps in the three-place manifest rules: a trailing dot, space or `~` in a path segment (Windows strips
   them, which gets around the reserved-path check), and Unicode vs ASCII case folding (Python vs Rust). Change all
   three places at once, plus a server deploy.
 - Back up `C:/AI Workflow/.secrets/hyland-link-updater.key` off this PC (Blazzer). Losing it means every friend
   reinstalls by hand.
-- The server watchdog fix (schedule1-server) is live, but its crash path hasn't been seen firing yet.
-- The server console's `bring <player> <player>` answers "Brought …" but the player doesn't move: the game teleports
-  only the local player (`PlayerMovement.Teleport`, no RPC), so the server moves its own copy. A server mod gap, not
-  ours. Names with non-ASCII (BLAZZER™) don't resolve over the console either: use the Steam ID from `listops`.
 - HUD 0.1.1's Respawn swap froze the death screen in game; 0.1.2 (r11) reverts it. A working Respawn needs a fix seen
   in the test copy first. Everything else in the HUD (rail, compass, clock, friends, bank-only panel) passed in game
   on 2026-11-03.
