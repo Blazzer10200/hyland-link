@@ -419,6 +419,12 @@ internal abstract class GameAppSkin : IDisposable
 	/// <summary>Records a row's preferred height (board px) on its LayoutElement, adding one if it has none.</summary>
 	protected void Height(GameObject? row, float boardHeight)
 	{
+		Prefer(row, null, boardHeight);
+	}
+
+	/// <summary>Records an item's preferred width and/or height (board px) on its LayoutElement, adding one if it has none.</summary>
+	protected void Prefer(GameObject? row, float? boardWidth, float? boardHeight)
+	{
 		if (row == null)
 		{
 			return;
@@ -438,19 +444,85 @@ internal abstract class GameAppSkin : IDisposable
 		}
 		else
 		{
-			float min = element.minHeight, pref = element.preferredHeight;
+			float minW = element.minWidth, prefW = element.preferredWidth, minH = element.minHeight, prefH = element.preferredHeight;
 			LayoutElement kept = element;
 			undo.Add(() =>
 			{
 				if (kept != null)
 				{
-					kept.minHeight = min;
-					kept.preferredHeight = pref;
+					kept.minWidth = minW;
+					kept.preferredWidth = prefW;
+					kept.minHeight = minH;
+					kept.preferredHeight = prefH;
 				}
 			});
 		}
-		element.minHeight = boardHeight * Unit;
-		element.preferredHeight = boardHeight * Unit;
+		if (boardWidth != null)
+		{
+			element.minWidth = boardWidth.Value * Unit;
+			element.preferredWidth = boardWidth.Value * Unit;
+		}
+		if (boardHeight != null)
+		{
+			element.minHeight = boardHeight.Value * Unit;
+			element.preferredHeight = boardHeight.Value * Unit;
+		}
+	}
+
+	/// <summary>A grid's cell size and spacing (game units), recorded.</summary>
+	protected void Grid(GridLayoutGroup? grid, Vector2 cell, Vector2 spacing)
+	{
+		if (grid == null)
+		{
+			return;
+		}
+		Vector2 wasCell = grid.cellSize, wasSpacing = grid.spacing;
+		undo.Add(() =>
+		{
+			if (grid != null)
+			{
+				grid.cellSize = wasCell;
+				grid.spacing = wasSpacing;
+			}
+		});
+		grid.cellSize = cell;
+		grid.spacing = spacing;
+		LayoutRebuilder.MarkLayoutForRebuild(grid.transform.Cast<RectTransform>());
+	}
+
+	/// <summary>Stretches a rect over its parent (keeping its position offset, so the game's slides still work).</summary>
+	protected void Stretch(Transform? target)
+	{
+		Move(target != null ? target.Cast<RectTransform>() : null, r =>
+		{
+			r.anchorMin = Vector2.zero;
+			r.anchorMax = Vector2.one;
+			r.pivot = new Vector2(0.5f, 0.5f);
+			r.sizeDelta = Vector2.zero;
+		});
+	}
+
+	/// <summary>Places a rect stretched across its parent between <paramref name="left"/> and <paramref name="right"/>
+	/// (game units in from each side), keeping its vertical placement.</summary>
+	protected static void Across(RectTransform rect, float left, float right)
+	{
+		rect.offsetMin = new Vector2(left, rect.offsetMin.y);
+		rect.offsetMax = new Vector2(-right, rect.offsetMax.y);
+	}
+
+	/// <summary>A button tinted the board's way: white image tint (so the image's own color shows), a step lighter on hover.</summary>
+	protected void ChipTints(Selectable? selectable)
+	{
+		Tints(selectable, b =>
+		{
+			b.normalColor = Color.white;
+			b.highlightedColor = new Color(1.2f, 1.2f, 1.2f, 1f);
+			b.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+			b.selectedColor = Color.white;
+			b.disabledColor = new Color(0.6f, 0.6f, 0.6f, 0.6f);
+			b.colorMultiplier = 1f;
+			return b;
+		});
 	}
 
 	/// <summary>The first object called <paramref name="name"/> anywhere under <paramref name="root"/>, inactive ones too.</summary>
