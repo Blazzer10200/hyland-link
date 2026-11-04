@@ -108,6 +108,10 @@ internal sealed class PhoneSkin : IDisposable
 
 		internal HorizontalWrapMode LabelOverflow;
 
+		internal Font LabelFont = null!;
+
+		internal RectState LabelRect;
+
 		internal RectTransform Glass = null!;
 
 		internal RectTransform Key = null!;
@@ -192,6 +196,8 @@ internal sealed class PhoneSkin : IDisposable
 	private Image? wakeImage;
 
 	private Text? bigTime, ampm, day, bank, online;
+
+	private Font? labelFont;
 
 	private RectTransform? rain;
 
@@ -610,6 +616,8 @@ internal sealed class PhoneSkin : IDisposable
 		icon.LabelColor = icon.Label.color;
 		icon.LabelBestFit = icon.Label.resizeTextForBestFit;
 		icon.LabelOverflow = icon.Label.horizontalOverflow;
+		icon.LabelFont = icon.Label.font;
+		icon.LabelRect = new RectState(icon.Label.rectTransform);
 
 		icon.Shade.SetActive(false);
 		// The game tints Outline clear normally and near-white on hover or controller selection: with our accent ring as its
@@ -639,22 +647,46 @@ internal sealed class PhoneSkin : IDisposable
 		icon.Label.horizontalOverflow = HorizontalWrapMode.Overflow;
 		icon.Label.fontSize = Mathf.RoundToInt(11f * Unit);
 		icon.Label.color = glyph == Art.Icon.AppHyland ? Ui.Color(Theme.PhoneAccent) : Ui.Color(Theme.PhoneText);
+		// The game's label box starts 3 px up inside the tile, so the name sat glued to it: the board's 6 px gap under the
+		// tile, in the board's regular weight (the game's is SemiBold).
+		Pin(icon.Label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, -(6f + 8f) * Unit), new Vector2(Tile + 30f * Unit, 16f * Unit));
+		labelFont ??= RegularFont();
+		if (labelFont != null)
+		{
+			icon.Label.font = labelFont;
+		}
 		if (glyph == Art.Icon.AppHyland)
 		{
 			glass.sprite = sprites.Get("hylandTile", () => Art.Glass(Radius, Theme.PhoneGlass, Theme.PhoneAccent, Art.PhoneEdge), mipmaps: true);
 		}
 
-		// Top left, mirroring the badge: at the bottom left it sat on the label ("3" over the P of Products).
+		// The board's bottom-left chip (.hp-key), sticking out 5 like the badge; the label sits clear under it.
 		Image key = Ui.Image("Hyland key", root, sprites.Get("keyChip", () => Art.Glass(5 * Unit, Theme.PhoneLine, Theme.PhoneTrack, Art.PhoneEdge), mipmaps: true), Color.white, sliced: true);
 		icon.Key = key.rectTransform;
-		icon.Key.anchorMin = icon.Key.anchorMax = new Vector2(0f, 1f);
-		icon.Key.sizeDelta = new Vector2(16f * Unit, 16f * Unit);
-		icon.Key.anchoredPosition = new Vector2(4f * Unit, -4f * Unit);
+		Pin(icon.Key, Vector2.zero, new Vector2(3f * Unit, 3f * Unit), new Vector2(16f * Unit, 16f * Unit));
 		icon.KeyText = Label("Text", icon.Key, 10f, Rgba.Hex(0xC9D1DB), TextAnchor.MiddleCenter, Vector2.zero, icon.Key.sizeDelta, centered: true);
 
 		// Fades and pops the whole tile. Interactable and raycast-blocking, so the game's button keeps working.
 		icon.Group = root.gameObject.AddComponent<CanvasGroup>();
 		return icon;
+	}
+
+	/// <summary>The game's OpenSans-Regular if it's loaded, else its Medium; null keeps the game's own font.</summary>
+	private static Font? RegularFont()
+	{
+		Font? medium = null;
+		foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
+		{
+			if (font.name == "OpenSans-Regular")
+			{
+				return font;
+			}
+			if (font.name == "OpenSans-Medium")
+			{
+				medium = font;
+			}
+		}
+		return medium;
 	}
 
 	/// <summary>Our glyph for one of the game's seven apps (by its icon sprite) or the Hyland app; null keeps another mod's
@@ -861,6 +893,8 @@ internal sealed class PhoneSkin : IDisposable
 				icon.Label.color = icon.LabelColor;
 				icon.Label.resizeTextForBestFit = icon.LabelBestFit;
 				icon.Label.horizontalOverflow = icon.LabelOverflow;
+				icon.Label.font = icon.LabelFont;
+				icon.LabelRect.Apply(icon.Label.rectTransform);
 			});
 			Ui.Step(ref failure, () => UnityEngine.Object.DestroyImmediate(icon.Group));
 			Ui.Step(ref failure, () => UnityEngine.Object.Destroy(icon.Glass.gameObject));
