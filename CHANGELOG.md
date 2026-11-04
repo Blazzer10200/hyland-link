@@ -5,20 +5,6 @@ anyone yet.
 
 ## Unreleased
 
-### Hyland Notifications, next version (on `main`, not released)
-- **Lighter on the game.** The deal tracker, the unread bubble and the police status no longer rewrite their text every
-  frame, only when it changes.
-- Hints and "Game saved" leave room for the minimap's border and outline too, so a thick border can't touch them.
-
-### Hyland Minimap, next version (on `main`, not released)
-- **Lighter on the game.** Placing markers takes one calculation per frame instead of two calls into the game per
-  marker, and edge pins no longer look up their image every frame.
-
-### Launcher, next version (on `main`, not released)
-- **Lighter while it sits open.** It no longer re-reads and checksums your mod files (about 2 MB) every 4 seconds; it
-  checks them again only when one actually changes. Downloads update the progress bar once per percent instead of
-  hundreds of times.
-
 ### Hyland HUD 0.2.0, the phone (back-burnered on branch `hud-phone`, needs a lot more work: see HANDOFF)
 - **A new phone.** A slim dark body in place of the game's chunky 3D model, sharp at any screen size. The home screen
   has a card with the time, the day and the weather, your bank balance and who's on the server, and glass app tiles
@@ -35,6 +21,16 @@ anyone yet.
 - **Incoming calls** use the same dark style, with Answer and Decline still green and red.
 
 ## Shipped
+
+### 2026-11-03, launcher 0.1.5 and mod list revision 10
+- **Launcher 0.1.5: lighter while it sits open.** It no longer re-reads and checksums your mod files (about 2 MB) every
+  4 seconds; it checks them again only when one actually changes. Downloads update the progress bar once per percent
+  instead of hundreds of times.
+- **Hyland Minimap 1.2.3: lighter on the game.** Placing markers takes one calculation per frame instead of two calls
+  into the game per marker, and edge pins no longer look up their image every frame.
+- **Hyland Notifications 0.1.1: lighter on the game.** The deal tracker, the unread bubble and the police status no
+  longer rewrite their text every frame, only when it changes. Hints and "Game saved" also leave room for the
+  minimap's border and outline, so a thick border can't touch them.
 
 ### 2026-11-03, mod list revision 9
 - **Hyland HUD 0.1.1: dying on the server no longer kicks you out.** The game's death screen shows "Respawn" only

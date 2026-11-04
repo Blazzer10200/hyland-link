@@ -11,35 +11,32 @@ One page of where things stand. Older session logs (sessions 1–10, 2026-11-02)
 commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedule1-server HANDOFF (private).
 
 ## Live right now
-- **Launcher 0.1.4** is `releases/latest`. Installed launchers update themselves to it.
-- **Mod list revision 9** (2026-11-03): MelonLoader 0.7.3, the server mod (DedicatedServerClient 1.1.6), Hyland
-  Minimap 1.2.2, Hyland HUD 0.1.1, Hyland Notifications 0.1.0. Players get it with one Update click in the launcher.
-  Shipped on Blazzer's call without the last in-game check: HUD 0.1.1's Respawn was never seen in game, and of
-  Notifications only the tracker, unread badge, deal-done card and police status were (in their earlier looks).
-- **The server's save before the r9 restart failed** ("save command failed (console unreachable?)"; it stopped anyway).
-  Anything since its last autosave may be lost; the backup taken after the stop is
+- **Launcher 0.1.5** is `releases/latest` (2026-11-03: mod hashes cached by size + mtime, one progress event per
+  percent, Latest.log head only). Installed launchers update themselves to it on their next start.
+- **Mod list revision 10** (2026-11-03): MelonLoader 0.7.3, the server mod (DedicatedServerClient 1.1.6), Hyland
+  Minimap 1.2.3, Hyland HUD 0.1.1, Hyland Notifications 0.1.1. Players get it with one Update click in the launcher.
+  Revisions 9 and 10 went out on Blazzer's call without an in-game check of the final builds: HUD 0.1.1's Respawn
+  was never seen in game; of Notifications, the tracker, unread badge, deal-done card and police status were seen in
+  earlier looks; Minimap 1.2.3's projection rewrite (one matrix per frame) wasn't seen in game.
+- **The server's save before the r9 restart failed** ("save command failed (console unreachable?)"; it stopped anyway;
+  the r10 save worked). Anything between its last autosave and 19:15 may be lost; the backup taken after the stop is
   `/opt/s1ds/backups/s1-world-20261103-191532-pre-mods-r9.tar.zst`. Why the save failed belongs to schedule1-server.
 - The server is live with players on it. **No mod publishes or server restarts without Blazzer's go-ahead.**
 
 ## Built, not shipped
 | What | State | Where |
 |---|---|---|
-| Notifications, next (no per-frame text sets or allocations; room for the minimap's border) | On `main`, built, not released | `mods/notify` |
-| Minimap, next (one projection matrix per frame, pins keep their Image) | On `main`, built, not released | `mods/minimap` |
-| Launcher, next (mod hashes cached by size + mtime, fewer progress events, log head only) | On `main`, `cargo test` incl. the ignored install test pass, not released | `app/` |
 | HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (88d7c4d), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
-`hud-phone` is pushed. `main` has local commits after r9 (the notify speedups, docs); `mod-release.ps1 -Publish`
-refuses an unpushed tree, so push before the next mod release. The test copy has main's HUD 0.1.1 and the latest
-notify build.
+`main` and `hud-phone` are pushed. `mod-release.ps1 -Publish` refuses an unpushed tree, so push before the next mod
+release. The test copy has main's HUD 0.1.1 and a notify build from before 0.1.1's speedups.
 
 ## Next steps
-1. **Watch for reports on r9** (Respawn on death, the notification cards). If something's off, fix it on `main` and
-   ship the next version the same way: bump `src/AssemblyInfo.cs`, push, `mod-release.ps1 <mod> -Publish`,
-   `mods.ps1 publish`.
-2. Next Notifications release carries the speedups already on `main` (bump to 0.1.1).
-3. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
+1. **Watch for reports on r10** (Respawn on death, the notification cards, minimap markers in the right places). If
+   something's off, fix it on `main` and ship the next version the same way: bump `src/AssemblyInfo.cs`, push,
+   `mod-release.ps1 <mod> -Publish`, `mods.ps1 publish`.
+2. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
    `hud-testcopy.ps1 use phone`, `launch`, `log`). On the branch now: the home screen, the Hyland app, and the game's 7
    apps redesigned the HUD way, one skin per app (`GameAppSkin` + `MessagesSkin`, `DeliveriesSkin`, `DealersSkin`,
    `JournalSkin`, `ProductsSkin`, `ContactsSkin`; `mods/hud/PHONE.md` "What we built"), with zoom in/out of the icon.
@@ -54,7 +51,7 @@ notify build.
    fix, repeat. Navigate only: no deals accepted, nothing bought or sent (the save is shared with the server). The
    last few rounds of "Blazzer screenshots, I guess" were slow; checking the board and the game's code yourself first
    finds most of it (e.g. the cramped icon names were the game's label box sitting 3 px inside the tile).
-4. Bringing the phone back to `main`: `git revert a25f0de` (the park) on `main`, then `git merge hud-phone` (the
+3. Bringing the phone back to `main`: `git revert a25f0de` (the park) on `main`, then `git merge hud-phone` (the
    branch has 21 commits past where it was parked; it only changed `mods/hud/` and `PHONE.md`, so main's HANDOFF,
    CHANGELOG and CLAUDE.md win the merge cleanly). Keep the version at 0.2.0 if 0.1.1 went out, test with the
    checklist in `mods/hud/README.md`, ship the same way.
