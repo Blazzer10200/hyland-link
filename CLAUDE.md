@@ -48,7 +48,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - **Dev loop** (`docs/DEV-WORKFLOW.md`, `scripts/dev.ps1`): a dev server on this PC (`C:\Games\Schedule I (dev server)`,
   127.0.0.1:38465, its own world from `C:\Games\Schedule I dev worlds`), the test copy joining it (`dev.ps1 play`), and
   HotReload (test copy's `Plugins\` only; pinned source in `.gameref/tools/hotreload`) swapping builds into the running
-  game (`dev.ps1 push|watch <mod>`). All mod testing happens here, never on the live server. `dev.ps1 status` compares
+  game (`dev.ps1 push|watch <mod>`). All mod testing happens here, never on the live server. Hands-off testing:
+  `tools/driver/` (test copy only, never shipped) and `dev.ps1 drive "<cmd>; ..."` open the phone, click, dump UI
+  trees and screenshot the game's own frame without the real mouse or focus. `dev.ps1 status` compares
   the test copy with your builds and the live mod list. World backups come down with schedule1-server's `pull-world.sh`.
 - Join bugs ("stuck loading in"): `pwsh scripts/dev.ps1 jointest [<dll>...]` does one unattended join from the test copy
   against the dev server and prints LOADED IN or STUCK (`dev.ps1 server world <backup>` loads the broken world).

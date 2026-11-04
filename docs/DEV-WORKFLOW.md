@@ -58,6 +58,14 @@ launch, and a HUD rebuild lands in the running game in ~70 ms. The server can st
 Only one client at a time: close Blazzer's real game before `play` (one Steam account, one game). If Windows asks
 whether `Schedule I.exe` may use the network, Cancel is fine: the dev server only needs 127.0.0.1.
 
+## Hands-off: the driver
+
+For work where nobody sits at the test copy (Claude checking the phone screen by screen while Blazzer plays something
+else): `pwsh scripts/dev.ps1 push driver` once, then `play` starts the test copy minimized, and the driver keeps it
+windowed, muted, 20 fps and behind other windows. `dev.ps1 drive "phone open; click Messages; shot messages Phone"`
+opens, clicks and screenshots inside the game without the real mouse or focus. Commands: `tools/driver/README.md`.
+It's one Steam account, so the test copy still can't run while Blazzer's real game is open.
+
 ## Writing mods that reload
 
 HotReload unloads the old build (Harmony patches, MelonLoader callbacks, preference categories, objects it made)

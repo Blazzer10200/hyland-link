@@ -14,11 +14,13 @@
 #   pwsh scripts/dev.ps1 jointest [<dll>...]    one unattended join against the dev server (join-test.ps1)
 #   pwsh scripts/dev.ps1 status                 dev server, and each mod in the test copy vs your build vs the live list
 #   pwsh scripts/dev.ps1 log                    the test copy's log: our mods, HotReload, errors
+#   pwsh scripts/dev.ps1 drive "<cmd>; <cmd>"   run commands in the test copy through the driver (tools/driver/README.md)
 #
-# Mods: hud, phone (the parked phone, .worktrees/hud-phone), notify, minimap, fixes.
+# Mods: hud, phone (the parked phone, .worktrees/hud-phone), notify, minimap, fixes, driver (tools/driver, test copy
+# only: with it installed, play starts the game minimized and it runs windowed, muted, 20 fps, behind your windows).
 # World backups live in C:\Games\Schedule I dev worlds (copy one down from the server: schedule1-server's pull-world.sh).
 param(
-    [Parameter(Position = 0, Mandatory)] [ValidateSet("server", "play", "push", "watch", "jointest", "status", "log")]
+    [Parameter(Position = 0, Mandatory)] [ValidateSet("server", "play", "push", "watch", "jointest", "status", "log", "drive")]
     [string] $Command,
     [Parameter(Position = 1, ValueFromRemainingArguments)] [string[]] $Rest = @()
 )
@@ -38,7 +40,9 @@ $Mods = [ordered]@{
     notify  = @{ Dir = "$Root\mods\notify"; Dll = "HylandNotify.dll" }
     minimap = @{ Dir = "$Root\mods\minimap"; Dll = "HylandMinimap.dll" }
     fixes   = @{ Dir = "$Root\mods\fixes"; Dll = "HylandFixes.dll" }
+    driver  = @{ Dir = "$Root\tools\driver"; Dll = "HylandDriver.dll" }
 }
+$DriverDir = "$Test\UserData\Driver"
 
 function Get-Game([string] $folder) {
     Get-CimInstance Win32_Process -Filter "Name='Schedule I.exe'" |
@@ -181,8 +185,11 @@ switch ($Command) {
         $other = Get-CimInstance Win32_Process -Filter "Name='Schedule I.exe'" | Where-Object { $_.ThreadCount -gt 0 -and -not $_.ExecutablePath.StartsWith("$Server\", [StringComparison]::OrdinalIgnoreCase) }
         if ($other) { throw "Another Schedule I is open ($($other.ExecutablePath)). Close it first: one Steam account, one game." }
         if (-not (Get-Game $Server)) { throw "The dev server isn't running: pwsh scripts/dev.ps1 server up" }
-        Start-Process -FilePath "$Test\Schedule I.exe" -WorkingDirectory $Test -ArgumentList "--server-ip 127.0.0.1 --server-port $Port"
-        "Started the test copy; it joins the dev server by itself. Then: pwsh scripts/dev.ps1 watch <mod>"
+        # With the driver in, nobody sits at the test copy: start it minimized so it doesn't take focus from whatever
+        # is in front, and the driver brings it back up behind the other windows without activating it.
+        $driver = Test-Path "$Test\Mods\$($Mods.driver.Dll)"
+        Start-Process -FilePath "$Test\Schedule I.exe" -WorkingDirectory $Test -ArgumentList "--server-ip 127.0.0.1 --server-port $Port" -WindowStyle $(if ($driver) { "Minimized" } else { "Normal" })
+        "Started the test copy$(if ($driver) { ' (minimized, driver in)' }); it joins the dev server by itself. Then: pwsh scripts/dev.ps1 watch <mod>"
     }
     "push" {
         if (-not $Rest) { throw "Which mods? $($Mods.Keys -join ', ')" }
@@ -212,12 +219,12 @@ switch ($Command) {
     "status" {
         $s = Get-Game $Server
         "Dev server: $(if ($s) { "running (pid $($s.ProcessId)), 127.0.0.1:$Port" } else { 'not running' })"
-        "Test copy:  $(if (Get-Game $Test) { 'running' } else { 'closed' })$(if (Test-Path "$Test\Plugins\HotReload.dll") { ', HotReload installed' } else { ', NO HotReload' })"
+        "Test copy:  $(if (Get-Game $Test) { 'running' } else { 'closed' })$(if (Test-Path "$Test\Plugins\HotReload.dll") { ', HotReload installed' } else { ', NO HotReload' })$(if (Test-Path "$Test\Mods\$($Mods.driver.Dll)") { ', driver in' })"
         $live = (Get-Content "$Root\manifest\manifest.json" -Raw | ConvertFrom-Json).mods
         ""
         "{0,-8} {1,-16} {2,-12} {3}" -f "mod", "test copy", "your build", "live list"
         foreach ($name in $Mods.Keys) {
-            if ($name -eq "phone") { continue }
+            if ($name -in "phone", "driver") { continue }
             $m = $Mods[$name]
             $inTest = "$Test\Mods\$($m.Dll)"
             $built = "$($m.Dir)\bin\Release\net6.0\$($m.Dll)"
@@ -228,6 +235,31 @@ switch ($Command) {
             $builtText = if (Test-Path $built) { (Get-Item $built).VersionInfo.FileVersion } else { "-" }
             "{0,-8} {1,-16} {2,-12} {3}" -f $name, $testText, $builtText, $(if ($liveMod) { $liveMod.version } else { "-" })
         }
+    }
+    "drive" {
+        # One batch: the id line plus one command per line into cmd.txt; the driver answers in out.txt under the same id.
+        if (-not $Rest) { throw 'Which commands? e.g. drive "phone open; wait 1; shot home"  (tools/driver/README.md)' }
+        if (-not (Test-Path "$Test\Mods\$($Mods.driver.Dll)")) { throw "The driver isn't in the test copy: pwsh scripts/dev.ps1 push driver, then restart the test copy." }
+        if (-not (Get-Game $Test)) { throw "The test copy isn't running: pwsh scripts/dev.ps1 play" }
+        New-Item -ItemType Directory -Force $DriverDir | Out-Null
+        $steps = @(($Rest -join " ") -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $id = [guid]::NewGuid().ToString("N").Substring(0, 8)
+        $logStart = if (Test-Path $TestLog) { (Get-Item $TestLog).Length } else { 0 }
+        Set-Content "$DriverDir\cmd.tmp" (@($id) + $steps) -Encoding utf8NoBOM
+        Move-Item "$DriverDir\cmd.tmp" "$DriverDir\cmd.txt" -Force
+        $waits = ($steps | Where-Object { $_ -match '^wait\s+[\d.]+$' } | ForEach-Object { [double]($_ -replace '^wait\s+', '') } | Measure-Object -Sum).Sum
+        $deadline = (Get-Date).AddSeconds(30 + $waits + 2 * $steps.Count)
+        $tick = 0
+        while ($true) {
+            $lines = if (Test-Path "$DriverDir\out.txt") { Get-Content "$DriverDir\out.txt" }
+            if ($lines -and $lines[0] -eq $id) { $lines | Select-Object -Skip 1; break }
+            if ((++$tick % 10) -eq 0 -and -not (Get-Game $Test)) { throw "The test copy closed during the batch." }
+            if ((Get-Date) -gt $deadline) { throw "The driver didn't answer in time (game frozen, still loading, or the driver not loaded). pwsh scripts/dev.ps1 log" }
+            Start-Sleep -Milliseconds 200
+        }
+        $err = (Get-LogFrom $TestLog $logStart) -split "`r?`n" | Where-Object { $_ -match '\[ERROR\]|Exception' }
+        if ($err) { "--- new errors in the game log: $(@($err).Count)"; $err | Select-Object -Last 15 }
+        if (($lines -match '^\s+ERROR: ') -or $err) { exit 1 }
     }
     "log" {
         if (-not (Test-Path $TestLog)) { throw "No log yet: $TestLog" }
