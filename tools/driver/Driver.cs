@@ -41,6 +41,7 @@ public sealed class DriverMod : MelonMod
 	private string cmdFile = "";
 	private string outFile = "";
 	private string shots = "";
+	private string resFile = "";
 	private float nextPoll;
 	private float nextEnforce;
 	private bool busy;
@@ -55,6 +56,17 @@ public sealed class DriverMod : MelonMod
 		Directory.CreateDirectory(shots);
 		cmdFile = Path.Combine(dir, "cmd.txt");
 		outFile = Path.Combine(dir, "out.txt");
+		resFile = Path.Combine(dir, "res.txt");
+		// The size a `res` command chose outlives reloads and restarts (HotReload re-runs this on every push).
+		if (File.Exists(resFile))
+		{
+			string[] parts = File.ReadAllText(resFile).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
+			{
+				width = w;
+				height = h;
+			}
+		}
 		// A batch from before a restart would run against a game that isn't where its sender thought it was.
 		if (File.Exists(cmdFile))
 		{
@@ -235,8 +247,10 @@ public sealed class DriverMod : MelonMod
 				return WindowCmd(rest, r);
 			case "state":
 				return State(r);
+			case "ui":
+				return Popup(rest, r);
 			default:
-				r.Fail($"unknown command '{verb}'. phone, back, find, click, scroll, type, tree, shot, wait, res, window, state");
+				r.Fail($"unknown command '{verb}'. phone, back, find, click, scroll, type, tree, shot, wait, res, window, state, ui");
 				return Nothing();
 		}
 	}
@@ -352,7 +366,11 @@ public sealed class DriverMod : MelonMod
 					score = 2;
 				}
 			}
-			else if (string.Equals(rt.name, query, StringComparison.OrdinalIgnoreCase) || (text != null && string.Equals(text.Trim(), query, StringComparison.OrdinalIgnoreCase)))
+			else if (text != null && string.Equals(text.Trim(), query, StringComparison.OrdinalIgnoreCase))
+			{
+				score = 3; // what's written on screen beats an object's name ("Messages": the icon's label, not the app root)
+			}
+			else if (string.Equals(rt.name, query, StringComparison.OrdinalIgnoreCase))
 			{
 				score = 2;
 			}
@@ -511,17 +529,43 @@ public sealed class DriverMod : MelonMod
 		return data;
 	}
 
+	/// <summary>The topmost UI object at a screen point, as the game's EventSystem would hit it with the mouse there.</summary>
+	private static GameObject? RaycastTop(Vector2 point)
+	{
+		EventSystem es = EventSystem.current;
+		if (es == null)
+		{
+			return null;
+		}
+		PointerEventData data = new PointerEventData(es);
+		data.position = point;
+		var results = new Il2CppSystem.Collections.Generic.List<RaycastResult>();
+		es.RaycastAll(data, results);
+		return results.Count > 0 ? results[0].gameObject : null;
+	}
+
+	/// <summary>
+	/// A click where the match is on screen: whatever the EventSystem hits at its center takes it, like the real mouse
+	/// (a row's button is often a sibling of its text, not a parent). Without a raycast hit, the match's own handler.
+	/// </summary>
 	private static IEnumerator Click(string query, Result r)
 	{
-		Hit? hit = One(query, r, h => Clickable(h.Rect) != null);
+		Hit? hit = One(query, r);
 		if (hit == null)
 		{
 			yield break;
 		}
-		GameObject target = Clickable(hit.Rect)!;
 		PointerEventData data = Pointer(hit.Rect);
+		GameObject? top = RaycastTop(data.position);
+		// Whatever is on top there, or (a label outside its button, like an app icon's name) the match's own handler.
+		GameObject? target = (top != null ? Clickable(top.transform) : null) ?? Clickable(hit.Rect);
+		if (target == null)
+		{
+			r.Fail($"nothing takes a click at {hit.Path} ({(top != null ? "topmost there: " + PathOf(top.transform) : "no raycast hit")})");
+			yield break;
+		}
 		data.pointerPress = target;
-		data.rawPointerPress = hit.Rect.gameObject;
+		data.rawPointerPress = top != null ? top : hit.Rect.gameObject;
 		ExecuteEvents.Execute(target, data, ExecuteEvents.pointerEnterHandler);
 		ExecuteEvents.Execute(target, data, ExecuteEvents.pointerDownHandler);
 		ExecuteEvents.Execute(target, data, ExecuteEvents.pointerUpHandler);
@@ -637,6 +681,10 @@ public sealed class DriverMod : MelonMod
 		{
 			Rect s = ScreenRect(rt);
 			sb.Append($" size {rt.rect.width:0}x{rt.rect.height:0} pos {rt.anchoredPosition.x:0},{rt.anchoredPosition.y:0} screen {s.x:0},{s.y:0} {s.width:0}x{s.height:0}");
+			if (rt.localScale != Vector3.one)
+			{
+				sb.Append($" scale {rt.localScale.x:0.##},{rt.localScale.y:0.##}");
+			}
 		}
 		Image img = t.GetComponent<Image>();
 		if (img != null)
@@ -734,6 +782,41 @@ public sealed class DriverMod : MelonMod
 		yield break;
 	}
 
+	/// <summary>
+	/// Opens one of Messages' popups over the open chat, to look at it without waiting for a customer's offer. Their own
+	/// callbacks are left empty, so look and close (back): don't press their confirm buttons.
+	/// </summary>
+	private static IEnumerator Popup(string what, Result r)
+	{
+		var app = PlayerSingleton<Il2CppScheduleOne.UI.Phone.Messages.MessagesApp>.Instance;
+		var conversation = app != null ? app.currentConversation : null;
+		if (conversation == null)
+		{
+			r.Fail("open a chat first (phone open; click Messages; click <name>)");
+			yield break;
+		}
+		switch (what)
+		{
+			case "dealwindow":
+				app!.DealWindowSelector.SetIsOpen(true, conversation, null);
+				break;
+			case "counteroffer":
+				var products = Il2CppScheduleOne.Product.ProductManager.DiscoveredProducts;
+				if (products == null || products.Count == 0)
+				{
+					r.Fail("no discovered products in this world");
+					yield break;
+				}
+				app!.CounterofferInterface.Open(products[0], 2, 100f, conversation, null);
+				break;
+			default:
+				r.Fail("ui dealwindow | ui counteroffer");
+				yield break;
+		}
+		r.Line($"opened {what} over {conversation.ContactName}");
+		yield return Wait(0.6f, r);
+	}
+
 	private IEnumerator Res(string arg, Result r)
 	{
 		string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -744,8 +827,10 @@ public sealed class DriverMod : MelonMod
 		}
 		width = w;
 		height = h;
+		File.WriteAllText(resFile, $"{w} {h}");
 		Screen.SetResolution(w, h, FullScreenMode.Windowed);
-		yield return Wait(0.5f, r);
+		// The window and the UI's screen positions settle over a few frames; a click before that misses.
+		yield return Wait(1f, r);
 		r.Line($"screen {Screen.width}x{Screen.height}");
 	}
 
