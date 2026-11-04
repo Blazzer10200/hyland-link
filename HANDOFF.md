@@ -24,7 +24,9 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 ## Built, not shipped
 | What | State | Where |
 |---|---|---|
-| Notifications, next (no per-frame text sets or allocations) | On `main` (433b61b), built, not released | `mods/notify` |
+| Notifications, next (no per-frame text sets or allocations; room for the minimap's border) | On `main`, built, not released | `mods/notify` |
+| Minimap, next (one projection matrix per frame, pins keep their Image) | On `main`, built, not released | `mods/minimap` |
+| Launcher, next (mod hashes cached by size + mtime, fewer progress events, log head only) | On `main`, `cargo test` incl. the ignored install test pass, not released | `app/` |
 | HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (88d7c4d), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
