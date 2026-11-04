@@ -118,6 +118,8 @@ public sealed class HudMod : MelonMod
 
 	private readonly Backoff appSkinsRetry = new Backoff("redesigned apps");
 
+	private readonly Dictionary<string, Backoff> appSkinRetries = new Dictionary<string, Backoff>();
+
 	private readonly Backoff appRetry = new Backoff("phone app");
 
 	private readonly Backoff rainRetry = new Backoff("rain level");
@@ -317,9 +319,35 @@ public sealed class HudMod : MelonMod
 					new ContactsSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
 				};
 				GameObject? open = Phone.ActiveApp;
+				// Each app fails on its own: a problem in Deliveries leaves Messages redesigned.
 				foreach (GameAppSkin skin in appSkins)
 				{
-					skin.Update(open);
+					if (!appSkinRetries.TryGetValue(skin.AppName, out Backoff? retry))
+					{
+						retry = new Backoff("redesigned " + skin.AppName);
+						appSkinRetries[skin.AppName] = retry;
+					}
+					if (!retry.Due)
+					{
+						continue;
+					}
+					try
+					{
+						skin.Update(open);
+						retry.Succeeded();
+					}
+					catch (Exception ex)
+					{
+						try
+						{
+							skin.Dispose();
+						}
+						catch (Exception undo)
+						{
+							LoggerInstance.Warning($"Putting the game's {skin.AppName} back failed: " + undo.Message);
+						}
+						retry.Failed(ex, LoggerInstance);
+					}
 				}
 				appSkinsRetry.Succeeded();
 			}
@@ -371,6 +399,7 @@ public sealed class HudMod : MelonMod
 		appsSkinRetry.Reset();
 		appLayoutsRetry.Reset();
 		appSkinsRetry.Reset();
+		appSkinRetries.Clear();
 		appRetry.Reset();
 		rainRetry.Reset();
 	}

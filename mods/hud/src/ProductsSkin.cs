@@ -120,6 +120,14 @@ internal sealed class ProductsSkin : GameAppSkin
 		Ghost(details.GetComponent<Graphic>());
 		Ghost(details, "Background");
 		Behind(details, "card", Card(14f), Color.white);
+		Transform? bar = Find(details, "Scroll View/Scrollbar Vertical");
+		if (bar != null)
+		{
+			foreach (Graphic graphic in bar.GetComponentsInChildren<Graphic>(true))
+			{
+				Ghost(graphic, hold: false);
+			}
+		}
 		Transform? content = Find(details, "Scroll View/Viewport/Content");
 		if (content == null)
 		{

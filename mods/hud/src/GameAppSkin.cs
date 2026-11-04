@@ -255,6 +255,7 @@ internal abstract class GameAppSkin : IDisposable
 			FontStyle style = legacy.fontStyle;
 			bool best = legacy.resizeTextForBestFit;
 			TextAnchor anchor = legacy.alignment;
+			VerticalWrapMode overflow = legacy.verticalOverflow;
 			undo.Add(() =>
 			{
 				if (legacy != null)
@@ -263,6 +264,7 @@ internal abstract class GameAppSkin : IDisposable
 					legacy.fontStyle = style;
 					legacy.resizeTextForBestFit = best;
 					legacy.alignment = anchor;
+					legacy.verticalOverflow = overflow;
 				}
 			});
 			if (align != null)
@@ -273,6 +275,9 @@ internal abstract class GameAppSkin : IDisposable
 			{
 				legacy.resizeTextForBestFit = false;
 				legacy.fontSize = Mathf.RoundToInt(boardSize.Value * Unit);
+				// Legacy Text drops a whole line that doesn't fit its box (OpenSans' line is ~1.36 font sizes): at a new
+				// size, let it overflow instead of vanishing. A caller wanting one cut line sets Truncate after.
+				legacy.verticalOverflow = VerticalWrapMode.Overflow;
 			}
 			if (bold != null)
 			{

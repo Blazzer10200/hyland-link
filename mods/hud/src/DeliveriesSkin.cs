@@ -285,7 +285,8 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		foreach (Text text in stack.GetComponentsInChildren<Text>(true))
 		{
 			Transform at = text.transform;
-			if ((confirm != null && at.IsChildOf(confirm)) || text.GetComponentInParent<Dropdown>(true) != null)
+			// Not GetComponentInParent<T>(true): that overload throws a VerificationException under Il2CppInterop.
+			if ((confirm != null && at.IsChildOf(confirm)) || InDropdown(at, stack))
 			{
 				continue;
 			}
@@ -326,6 +327,18 @@ internal sealed class DeliveriesSkin : GameAppSkin
 				Label(label, 14f, C(0x0D1014));
 			}
 		}
+	}
+
+	private static bool InDropdown(Transform at, Transform stop)
+	{
+		for (Transform? up = at; up != null && up != stop; up = up.parent)
+		{
+			if (up.GetComponent<Dropdown>() != null)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/// <summary>An item row (Entry_3) as the board's .ap-item: no picture, name over the green price, − count + on the
