@@ -98,12 +98,15 @@ Hyland is app 8: upright like Messages, key 8.
 - Rain: `src/RainLevel.cs`, on top of the game's multiplier as described above.
 - The game's own apps, redesigned the HUD way: `src/GameAppSkin.cs` keeps the game's objects and logic, hides their
   look (alpha, so buttons still take clicks), draws the board's shapes behind them as "Hyland …" objects, restyles text
-  in place, holds colors the game sets again, and undoes it all. One skin per app: `MessagesSkin` (list rows, the chat
-  header and strip, bubbles, responses, both popups as bottom sheets, deal windows as a 2×2 grid), `DeliveriesSkin`
+  in place, holds colors the game sets again, and undoes it all. One skin per app: `MessagesSkin` (list rows with a
+  one-line preview cut with "…", the ✕'s hover chip and the offer timer bar; the chat header and strip, bubbles,
+  responses, both popups as bottom sheets, deal windows as a 2×2 grid), `DeliveriesSkin`
   (tabs, 2-column shop cards with the colored stripe, the order form and side card, order cards), `DealersSkin`,
   `JournalSkin`, `ProductsSkin`, `ContactsSkin`. Map keeps `AppLayouts`' rounded card. Where an app can't take the
   board's sizes, the skin says why (Dealers can't scroll; Journal places its tasks by its own font; bubbles are placed
   once by the game's font).
+- Motion: an app zooms out of its icon on open, and the header's back button shrinks it back into the icon
+  (`AppLayouts`). Escape and the phone's own button close it the game's way, at once.
 - Whatever a skin doesn't claim, and the incoming-call screen, still gets `src/AppsSkin.cs`' generic dark theme (gray
   panels → slate steps, gray text → the board's text, colored and picture graphics kept). It skips claimed graphics
   (`AppClaims`). Each app logs what it left light once per run (`left light:`), so leftovers show in the log.
