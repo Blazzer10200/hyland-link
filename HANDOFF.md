@@ -32,8 +32,10 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 |---|---|---|
 | HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **App-by-app pass against the board under way** (2026-11-04, Claude hands-off via the driver): Messages, Hyland app, Contacts, Deliveries done; paused at Dealers | `hud-phone` (a7eeee3), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
+| Label-width fixes (TMP measures a never-active label as ~8 units; widths were measured only on text change) | **Clock pill** (`SLEEP NOW` drawn over `4:00 AM`): fixed and seen in the test copy (7cd4960). **Bank panel, hotbar name pill, Notify tracker count pills + deal chip**: same fix, builds clean, **not seen in game** (79fa71e). No version bumps yet | `main` |
+| Linked navigation concept (compass + minimap share one target list, no duplicate icons) | Planning only, nothing in code. Boards: live demo (Today r11 vs Linked, focus, contexts, cluster layout) matched to the real 0.1.2 HUD from a test-copy screenshot, plus a rules sheet | "Hyland HUD" artifact, **Navigation** page (`Nav.dc.html`, `NavRules.dc.html`) |
 
-**Unpushed (local commits only, 2026-11-04):** `main` has d2a9634, fc26000, 9387f2e, a6b9d01 (the driver);
+**Unpushed (local commits only, 2026-11-04):** `main` has d2a9634, fc26000, 9387f2e, a6b9d01, 4d0f135 (the driver), 7cd4960, 79fa71e (the width fixes);
 `hud-phone` has 6395e61, 9c706e8, 058b6d0, a7eeee3 (the app pass). `mod-release.ps1 -Publish` refuses an unpushed
 tree, so push before the next mod release.
 
@@ -49,6 +51,15 @@ runs exactly the live mod list (r11, byte for byte); `dev.ps1 status` shows it. 
 superseded by `dev.ps1` (Blazzer's call whether to delete it).
 
 ## Next steps
+- **Linked navigation (planning, picked back up later).** Today one accepted deal shows in up to 5 places (Notify card,
+  game compass icon, game map POI at the drop, our clock badge on the customer, our edge pin). Proposed: one target
+  list, map shows what's in range, compass shows what isn't, only the focused objective in both; edge pins go away.
+  Next: design options for (a) the focused objective's look and (b) telling a deal from a quest on the compass (both
+  are the game's blue star disc). Open decision for Blazzer: fold the minimap into Hyland HUD (one scan, one settings
+  section; needs `[HylandMinimap]` migration and the phone branch merged first) vs a shared `UserLibs/` library.
+  Unverified on the board: the game's compass icon for a deal (assumed the same star disc).
+- **Check the 79fa71e width fixes in game** when the dev loop is up: hide the HUD (phone open), `push hud`/`push notify`,
+  close it, look at the bank panel, item name pill and tracker headers.
 0. **Blazzer's own game was still on r10** at 12:22 on 2026-11-04 (no `HylandFixes.dll`): one Update click in the
    launcher before joining live.
 1. **Watch for reports on r11** (death screen buttons, the notification cards, minimap markers in the right places). If
@@ -103,6 +114,10 @@ superseded by `dev.ps1` (Blazzer's call whether to delete it).
 - A hotbar missing in a test screenshot was the game, not the HUD: at the 4 AM pass-out, on arrest and on death,
   `Player.ExitAll` / `OnDied` call `SetInventoryEnabled(false)`, which hides `HotbarContainer` and the cash slot with it.
 ## Gotchas worth keeping
+- **TMP `preferredWidth` on a label that has never been active returns a few units.** Measure when
+  `isActiveAndEnabled`, not when the text is set (7cd4960). Anything measured only on text change sticks wrong.
+- **`dev.ps1 push` of a byte-identical DLL doesn't reload** (no "Reloaded" line in `Latest.log`): change something
+  before an A/B push, or the "after" is still the old instance.
 - **After a Schedule I update** the dev server and the test copy are stale copies of the old build: redo
   `docs/DEV-WORKFLOW.md` "Set up" step 1 for both, or joins fail on a version mismatch. Our mod projects compile
   against the real install, so they pick the update up by themselves.
