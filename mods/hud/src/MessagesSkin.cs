@@ -381,31 +381,6 @@ internal sealed class MessagesSkin : GameAppSkin
 		}
 	}
 
-	/// <summary>The longest start of <paramref name="value"/> that fits <paramref name="room"/> with "…" after it.</summary>
-	private static string Fit(Text label, string value, float room)
-	{
-		TextGenerationSettings settings = label.GetGenerationSettings(Vector2.zero);
-		TextGenerator generator = label.cachedTextGeneratorForLayout;
-		float Width(string s) => generator.GetPreferredWidth(s, settings) / label.pixelsPerUnit;
-		if (Width(value) <= room)
-		{
-			return value;
-		}
-		int low = 0, high = value.Length;
-		while (low < high)
-		{
-			int mid = (low + high + 1) / 2;
-			if (Width(value.Substring(0, mid).TrimEnd() + "…") <= room)
-			{
-				low = mid;
-			}
-			else
-			{
-				high = mid - 1;
-			}
-		}
-		return value.Substring(0, low).TrimEnd() + "…";
-	}
 
 	/// <summary>The ✕'s hover as the board's round #222a33 chip (.ap-hide). The game tints only the cross; its clear hit
 	/// area becomes the chip and takes the tint instead.</summary>

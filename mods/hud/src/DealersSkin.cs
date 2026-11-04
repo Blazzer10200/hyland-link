@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Il2CppScheduleOne.UI.Phone;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,13 +10,22 @@ namespace HylandHud;
 /// Dealer Management, redesigned like the board (upright). The dealer dropdown is the board's picker card (its list
 /// too), Cash and Cut are two glass cards with the board's big green and blue values, the inventory sits in a glass card,
 /// the assigned customers are glass rows and "+ Assign customer" the board's outlined button; the customer picker becomes
-/// a bottom sheet. The rows keep the game's 55 height: the app can't scroll, and ten board-sized rows wouldn't fit. The
-/// game's container background is the parent of everything, so it's hidden by alpha, never switched off.
+/// a bottom sheet. The app can't scroll and its screen is ~60 px shorter than the board's, so everything is sized for the
+/// worst case to fit the 1048-tall column: ten customers (or nine and "+ Assign") under a 5-item inventory (3 grid rows).
+/// Rows are 22 px (the board's 42 won't fit ten), 4 px apart; the customer list doesn't size its rows, so each row's
+/// own rect is set. The game's container background is the parent of everything, so it's hidden by alpha, never
+/// switched off.
 /// </summary>
 internal sealed class DealersSkin : GameAppSkin
 {
 	/// <summary>The content column's width inside AppLayouts' insets.</summary>
 	private const float Column = 655f - 2f * 16f * Unit;
+
+	/// <summary>An assigned customer's row and "+ Assign customer", board px.</summary>
+	private const float Row = 22f;
+
+	/// <summary>Inventory entries as the game last wrote them, cut to one line by us (id → our text).</summary>
+	private readonly Dictionary<int, string> cuts = new Dictionary<int, string>();
 
 	internal DealersSkin(HomeScreen home, Sprites sprites, AppClaims claims, Action<string> log)
 		: base(home, sprites, claims, log)
@@ -45,6 +55,14 @@ internal sealed class DealersSkin : GameAppSkin
 				CustomerSheet(picker);
 			}
 		}
+		Transform? entries = Find(box, "Background/Content/Container/Inventory/Entries");
+		if (entries != null)
+		{
+			for (int i = 0; i < entries.childCount; i++)
+			{
+				OneLine(Find<Text>(entries.GetChild(i), "Container/Title"));
+			}
+		}
 		Transform? rows = Find(box, "CustomerSelector/Shade/Content/Scroll View/Viewport/Content");
 		if (rows != null)
 		{
@@ -61,7 +79,9 @@ internal sealed class DealersSkin : GameAppSkin
 
 	private void Layout(Transform column)
 	{
-		Spacing(column.GetComponent<VerticalLayoutGroup>(), 10f);
+		Spacing(column.GetComponent<VerticalLayoutGroup>(), 8f);
+		// A 5-unit spacer before the title: its gap and height are what the tenth row needs.
+		Off(column, "Space");
 		Transform? dropdown = Find(column, "Dropdown (Legacy)");
 		if (dropdown != null)
 		{
@@ -80,23 +100,34 @@ internal sealed class DealersSkin : GameAppSkin
 		{
 			Ghost(inventory, "Backgroiund");
 			Behind(inventory, "card", Card(14f), Color.white);
-			Spacing(inventory.GetComponent<VerticalLayoutGroup>(), 5f, Pad(12f, 12f, 10f, 10f));
-			Grid(Find<GridLayoutGroup>(inventory, "Entries"), new Vector2((Column - 24f * Unit - 10f * Unit) / 2f, 20f * Unit), new Vector2(10f * Unit, 8f * Unit));
+			Spacing(inventory.GetComponent<VerticalLayoutGroup>(), 5f, Pad(12f, 12f, 8f, 8f));
+			// Up to five entries, two columns: three rows of 18 px still leave room for ten customers.
+			Grid(Find<GridLayoutGroup>(inventory, "Entries"), new Vector2((Column - 24f * Unit - 10f * Unit) / 2f, 18f * Unit), new Vector2(10f * Unit, 6f * Unit));
 			Transform? entries = Find(inventory, "Entries");
 			if (entries != null)
 			{
 				foreach (Text text in entries.GetComponentsInChildren<Text>(true))
 				{
-					Label(text, null, C(Theme.PhoneText));
+					// The board's 12 px on one line, cut with "…" (OneLine); the game's best fit shrank a long name to nothing.
+					Label(text, 12f, C(Theme.PhoneText));
+					Set(text, () => text.verticalOverflow, v => text.verticalOverflow = v, VerticalWrapMode.Truncate);
+					Set(text, () => text.horizontalOverflow, v => text.horizontalOverflow = v, HorizontalWrapMode.Overflow);
+				}
+				for (int i = 0; i < entries.childCount; i++)
+				{
+					Transform? icon = Find(entries.GetChild(i), "Container/Icon");
+					Prefer(icon != null ? icon.gameObject : null, 16f, 16f);
 				}
 			}
 			Label(inventory, "Description", 13f, C(Theme.PhoneMuted));
 		}
 		Label(column, "CustomerTitle", 10f, C(Theme.PhoneMuted), align: TextAnchor.MiddleLeft);
+		Transform? title = Find(column, "CustomerTitle");
+		Height(title != null ? title.gameObject : null, 12f);
 		Transform? customers = Find(column, "Customers");
 		if (customers != null)
 		{
-			Spacing(customers.GetComponent<VerticalLayoutGroup>(), 6f);
+			Spacing(customers.GetComponent<VerticalLayoutGroup>(), 4f, Pad(0f, 0f, 0f, 0f));
 			for (int i = 0; i < customers.childCount; i++)
 			{
 				Customer(customers.GetChild(i));
@@ -105,6 +136,7 @@ internal sealed class DealersSkin : GameAppSkin
 		Transform? assign = Find(column, "Assign");
 		if (assign != null)
 		{
+			Height(assign.gameObject, Row);
 			Image? image = assign.GetComponent<Image>();
 			Swap(image, OpaqueChip(10f));
 			Recolor(image, Color.white);
@@ -126,12 +158,12 @@ internal sealed class DealersSkin : GameAppSkin
 	{
 		Ghost(dropdown.GetComponent<Graphic>());
 		Behind(dropdown, "card", Card(14f), Color.white);
-		Height(dropdown.gameObject, 52f);
+		Height(dropdown.gameObject, 48f);
 		Spacing(Find<HorizontalLayoutGroup>(dropdown, "Content"), 10f, Pad(12f, 12f, 9f, 9f));
 		Transform? face = Find(dropdown, "Content/Image");
 		if (face != null)
 		{
-			Prefer(face.gameObject, 34f, 34f);
+			Prefer(face.gameObject, 30f, 30f);
 		}
 		Label(dropdown, "Content/Label", 14f, C(Theme.PhoneText));
 		Recolor(Find<Graphic>(dropdown, "Content/Arrow"), C(Theme.PhoneMuted));
@@ -176,13 +208,67 @@ internal sealed class DealersSkin : GameAppSkin
 		rect.sizeDelta = new Vector2(-24f * Unit, height * Unit);
 	}
 
-	/// <summary>An assigned customer (pooled, ten of them): a glass row, the name light, the ✕ muted.</summary>
+	/// <summary>An assigned customer (pooled, ten of them): a glass row <see cref="Row"/> px tall, the face 19 px, the name
+	/// light and clear of the ✕, the ✕ the board's round chip (.ap-x) shrunk to the row. The list doesn't size its rows,
+	/// so the row's own rect is set.</summary>
 	private void Customer(Transform row)
 	{
 		Ghost(row.GetComponent<Graphic>());
-		Behind(row, "card", Card(12f), Color.white);
-		Label(row, "Name", 14f, C(Theme.PhoneText));
+		Behind(row, "card", Card(10f), Color.white);
+		Move(row.Cast<RectTransform>(), r => r.sizeDelta = new Vector2(r.sizeDelta.x, Row * Unit));
+		Move(row, "Mugshot", r =>
+		{
+			r.anchoredPosition = new Vector2((8f + 9.5f) * Unit, 0f);
+			r.sizeDelta = new Vector2(19f * Unit, 19f * Unit);
+		});
+		Move(row, "Mugshot/ExpectedQuality", r => r.sizeDelta = new Vector2(8f * Unit, 8f * Unit));
+		Label(row, "Name", 13f, C(Theme.PhoneText));
+		Move(row, "Name", r =>
+		{
+			r.offsetMin = new Vector2(36f * Unit, 0f);
+			r.offsetMax = new Vector2(-30f * Unit, 0f);
+		});
+		Transform? remove = Find(row, "Remove");
+		if (remove != null)
+		{
+			Move(remove.Cast<RectTransform>(), r =>
+			{
+				r.anchoredPosition = new Vector2(-(4f + 9f) * Unit, 0f);
+				r.sizeDelta = new Vector2(18f * Unit, 18f * Unit);
+			});
+			Behind(remove, "chip", OpaqueChip(9f), Color.white);
+		}
 		Recolor(Find<Graphic>(row, "Remove/Image"), C(Theme.PhoneMuted));
+		Move(row, "Remove/Image", r => r.sizeDelta = new Vector2(8f * Unit, 8f * Unit));
+	}
+
+	/// <summary>An inventory entry on one line: the game's text as it last wrote it, cut with "…" where the cell ends.
+	/// The game writes it again when the dealer's stock or the picked dealer changes.</summary>
+	private void OneLine(Text? title)
+	{
+		if (title == null || !title.isActiveAndEnabled)
+		{
+			return;
+		}
+		int id = title.GetInstanceID();
+		string text = title.text ?? string.Empty;
+		if (cuts.TryGetValue(id, out string? mine) && mine == text)
+		{
+			return;
+		}
+		// The entry's row: the cell less the icon and the gap (the layout gives the title what's left only once it fits).
+		RectTransform? cell = title.transform.parent != null ? title.transform.parent.Cast<RectTransform>() : null;
+		float room = cell != null ? cell.rect.width - 16f * Unit - 6f : 0f;
+		if (room <= 0f)
+		{
+			return;
+		}
+		string fit = Fit(title, text, room);
+		cuts[id] = fit;
+		if (fit != text)
+		{
+			title.text = fit;
+		}
 	}
 
 	/// <summary>"Assign customer": the game's centered card becomes the board's bottom sheet.</summary>

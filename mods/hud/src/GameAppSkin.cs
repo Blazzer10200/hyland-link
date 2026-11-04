@@ -607,6 +607,32 @@ internal abstract class GameAppSkin : IDisposable
 		return line;
 	}
 
+	/// <summary>The longest start of <paramref name="value"/> that fits <paramref name="room"/> with "…" after it.</summary>
+	protected static string Fit(Text label, string value, float room)
+	{
+		TextGenerationSettings settings = label.GetGenerationSettings(Vector2.zero);
+		TextGenerator generator = label.cachedTextGeneratorForLayout;
+		float Width(string s) => generator.GetPreferredWidth(s, settings) / label.pixelsPerUnit;
+		if (Width(value) <= room)
+		{
+			return value;
+		}
+		int low = 0, high = value.Length;
+		while (low < high)
+		{
+			int mid = (low + high + 1) / 2;
+			if (Width(value.Substring(0, mid).TrimEnd() + "…") <= room)
+			{
+				low = mid;
+			}
+			else
+			{
+				high = mid - 1;
+			}
+		}
+		return value.Substring(0, low).TrimEnd() + "…";
+	}
+
 	/// <summary>Switches off one of the game's objects that only decorates (nothing in the game's code turns it back on).</summary>
 	protected void Off(Transform parent, string path)
 	{

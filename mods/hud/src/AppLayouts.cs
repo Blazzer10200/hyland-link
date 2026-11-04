@@ -236,7 +236,7 @@ internal sealed class AppLayouts : IDisposable
 		case "DealerManagement":
 			Frame(root, box, "Dealer Management", wide: false, () => app.GetComponent<DealersScreen>().SetOpen(false));
 			Hide(box, "Background/Title");
-			Padding(box, "Background/Content/Container", 0, 0, 8, 20);
+			Padding(box, "Background/Content/Container", 0, 0, 8, 8);
 			break;
 		case "Messages":
 			MessagesList(app, box);
