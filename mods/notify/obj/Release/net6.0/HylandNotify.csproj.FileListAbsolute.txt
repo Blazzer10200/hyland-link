@@ -1,0 +1,8 @@
+C:\AI Workflow\projects\hyland-link\mods\notify\bin\Release\net6.0\HylandNotify.deps.json
+C:\AI Workflow\projects\hyland-link\mods\notify\bin\Release\net6.0\HylandNotify.dll
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\HylandNotify.csproj.AssemblyReference.cache
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\HylandNotify.GeneratedMSBuildEditorConfig.editorconfig
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\HylandNotify.csproj.CoreCompileInputs.cache
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\HylandNotify.dll
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\refint\HylandNotify.dll
+C:\AI Workflow\projects\hyland-link\mods\notify\obj\Release\net6.0\ref\HylandNotify.dll

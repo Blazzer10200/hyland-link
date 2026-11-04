@@ -1,4 +1,4 @@
-# Ships one of our own client mods (mods/hud, mods/minimap) to players. Without -Publish nothing leaves this PC: it
+# Ships one of our own client mods (mods/hud, mods/minimap, mods/notify) to players. Without -Publish nothing leaves this PC: it
 # builds, stages dist/<tag>/<Mod>.zip with forward-slash entries and checks it. With -Publish it also creates the GitHub
 # release (never "latest": the launcher's updater reads releases/latest) and adds the mod to manifest/manifest.json.
 # Going live stays a separate step, so the server always applies the mod list first:
@@ -9,7 +9,7 @@
 #
 # The version comes from the mod's src/AssemblyInfo.cs (MelonInfo and AssemblyVersion must agree); bump it there first.
 param(
-    [Parameter(Position = 0, Mandatory)] [ValidateSet("hud", "minimap")] [string] $Mod,
+    [Parameter(Position = 0, Mandatory)] [ValidateSet("hud", "minimap", "notify")] [string] $Mod,
     [switch] $Publish
 )
 
@@ -24,6 +24,8 @@ $Mods = @{
                  Extra = @(); Blurb = "Glass hotbar, compass with friends, clock with curfew and sleep warnings, cash and bank." }
     minimap = @{ Dir = "mods/minimap"; Dll = "HylandMinimap.dll"; Zip = "HylandMinimap.zip"; Tag = "minimap"; Id = "hyland-minimap"
                  Name = "Hyland Minimap"; Extra = @("LICENSE.md"); Blurb = "Minimap with customers, dealers, vehicles and players. PageUp/Down to zoom." }
+    notify  = @{ Dir = "mods/notify"; Dll = "HylandNotify.dll"; Zip = "HylandNotify.zip"; Tag = "notify"; Id = "hyland-notify"
+                 Name = "Hyland Notifications"; Extra = @(); Blurb = "Glass deal and quest tracker, toasts, calls, police status, hints and popups." }
 }
 $m = $Mods[$Mod]
 
