@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 10,
+  "revision": 11,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -45,16 +45,16 @@
     {
       "id": "hyland-hud",
       "name": "Hyland HUD",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "blurb": "Glass hotbar, compass with friends, clock with curfew and sleep warnings, cash and bank.",
       "side": "client",
-      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/hud-v0.1.1/HylandHud.zip",
-      "sha256": "6ede58342c940135d59797c1a4c24ddefe98c3a4bef16d413266a321bfc9ed86",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/hud-v0.1.2/HylandHud.zip",
+      "sha256": "2f011889dc9039828a0ff7175cb26091e3ecb36e3bf100a95398e1058c0a2924",
       "files": [
         {
           "source": "Mods/HylandHud.dll",
           "path": "Mods/HylandHud.dll",
-          "sha256": "a57e98e6f76d8258742cfde9c411670e9e56a9f3b2a2059426bfdcb5dfe64490"
+          "sha256": "90737dfe2ce9cc1078c0a710b2e002f95ac87ef1ee6854155499e699b4c17908"
         }
       ]
     },
@@ -71,6 +71,22 @@
           "source": "Mods/HylandNotify.dll",
           "path": "Mods/HylandNotify.dll",
           "sha256": "756bebb092ed8a21c5c0663de00d3aae98381aa5e0b2ad74b3758a06ca066e99"
+        }
+      ]
+    },
+    {
+      "id": "hyland-fixes",
+      "name": "Hyland Fixes",
+      "version": "0.1.0",
+      "blurb": "Fixes for game bugs on our server, like getting stuck loading in while a rack dries a custom mix.",
+      "side": "client",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/fixes-v0.1.0/HylandFixes.zip",
+      "sha256": "8a4a3b87b89f9a72b05b51182ac11933223912308d84fdd96c48e8d480e333d9",
+      "files": [
+        {
+          "source": "Mods/HylandFixes.dll",
+          "path": "Mods/HylandFixes.dll",
+          "sha256": "bfec49f7a5dbd4fd9396d1e0e0eddf1fd6c8e0356331ff430802e85d284f9f86"
         }
       ]
     }
