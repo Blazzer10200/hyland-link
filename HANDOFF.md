@@ -30,11 +30,16 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 ## Built, not shipped
 | What | State | Where |
 |---|---|---|
-| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (88d7c4d), checked out at `.worktrees/hud-phone` |
+| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **App-by-app pass against the board under way** (2026-11-04, Claude hands-off via the driver): Messages, Hyland app, Contacts, Deliveries done; paused at Dealers | `hud-phone` (a7eeee3), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
-`main` and `hud-phone` are pushed. `mod-release.ps1 -Publish` refuses an unpushed tree, so push before the next mod
-release.
+**Unpushed (local commits only, 2026-11-04):** `main` has d2a9634, fc26000, 9387f2e, a6b9d01 (the driver);
+`hud-phone` has 6395e61, 9c706e8, 058b6d0, a7eeee3 (the app pass). `mod-release.ps1 -Publish` refuses an unpushed
+tree, so push before the next mod release.
+
+**Driver (`tools/driver`, test copy only):** `dev.ps1 drive "phone open; click Deliveries; wait 1.5; shot d1 /phone/AppsCanvas"`
+opens, clicks, dumps (`tree <path> <depth>`) and screenshots the game without the mouse. Gotchas: `back` from an app's
+top level closes the phone; `phone open` reopens the last app; an ambiguous match needs a longer `/path` or `#n`.
 
 **Dev loop (new 2026-11-04, `docs/DEV-WORKFLOW.md`):** a dev server on this PC (`C:\Games\Schedule I (dev server)`,
 S1DS 1.1.6, the 12:24 rolling world from live), and the test copy joining it with HotReload 1.2.0 in `Plugins\`.
@@ -49,7 +54,18 @@ superseded by `dev.ps1` (Blazzer's call whether to delete it).
 1. **Watch for reports on r11** (death screen buttons, the notification cards, minimap markers in the right places). If
    something's off, fix it on `main` and ship the next version the same way: bump `src/AssemblyInfo.cs`, push,
    `mod-release.ps1 <mod> -Publish`, `mods.ps1 publish`.
-2. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
+2. **Phone app pass, resume at Dealers** (2026-11-04). Done and committed: Messages chat + header strip + compose bar
+   + counter-offer and deal-time sheets; the Hyland app's blank rows (RectMask2D can't clip a 90°-turned screen, so a
+   stencil Mask); scrollbars hidden everywhere; Contacts card; Deliveries (tabs on top: the game's container lays out
+   in reverse; 2-column shops: two cells were 6 units wider than the 1099 grid; side card full height beside the
+   header; − + at full size, they sit at 0.5 scale; Place order's label muted while it can't order).
+   **Dealers, measured, not yet edited:** the column is 1048 tall and the 10 customer rows overflow it by ~100 units
+   (10 × 55 + gaps). Plan: rows 55 → 48 units, row gap 6 → 4 board px, column spacing 10 → 8; ✕ as an ~18–20 px chip
+   (rows are only ~23 px); the inventory entry "14x Granddaddy Smegma" shrinks under best-fit (cells 259×41, 2
+   columns): set a sane minimum size or let a long entry take the full row. Then Journal (empty in the dev world),
+   Products, Map, the Hyland app's SOUND section, home screen and call screen, the tearing hunt, a final error-log pass.
+   Order receipts stay 215 tall on purpose (up to 8 items in 4 rows; a grid can't size per card).
+   Older notes: (work in `.worktrees/hud-phone`; test with
    `dev.ps1 server up`, `play`, `watch phone`: saves reload into the running game). On the branch now: the home screen, the Hyland app, and the game's 7
    apps redesigned the HUD way, one skin per app (`GameAppSkin` + `MessagesSkin`, `DeliveriesSkin`, `DealersSkin`,
    `JournalSkin`, `ProductsSkin`, `ContactsSkin`; `mods/hud/PHONE.md` "What we built"), with zoom in/out of the icon.
