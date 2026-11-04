@@ -8,41 +8,79 @@ using UnityEngine.UI;
 namespace HylandNotify;
 
 /// <summary>
-/// The police status (the game's <c>CrimeStatusUI</c>): investigating, under arrest, wanted, wanted dead or alive, or a
-/// pending body search, as a glass pill under the compass. While the police see you the dot beats fast; once they lose
-/// you, the bar under it drains for the time they keep searching, the same fill the game shows.
+/// The police status (the game's <c>CrimeStatusUI</c>) as the board's status box under the compass: a tinted icon badge,
+/// the status in its color with a line under it, and a border in that color. Wanted and wanted dead or alive pulse an
+/// alarm ring. Once the police lose sight of you, the line counts down the time they keep searching (the game's own
+/// search time). Being cuffed shows on the progress bar, not here.
 /// </summary>
 internal sealed class WantedStatus : Surface
 {
-	private const float Height = 40f;
+	private sealed class Look
+	{
+		internal readonly string Label;
+
+		internal readonly string Line;
+
+		internal readonly Color Color;
+
+		internal readonly Icons.Kind Icon;
+
+		/// <summary>Seconds per alarm ring; 0 for none.</summary>
+		internal readonly float Alarm;
+
+		internal Look(string label, string line, Color color, Icons.Kind icon, float alarm)
+		{
+			Label = label;
+			Line = line;
+			Color = color;
+			Icon = icon;
+			Alarm = alarm;
+		}
+	}
+
+	private static readonly Look Investigating = new Look("INVESTIGATING", "Police are looking for you", Glass.Blue, Icons.Kind.Eye, 0f);
+
+	private static readonly Look Arresting = new Look("UNDER ARREST", "Break free before they cuff you", Glass.Blue, Icons.Kind.Cuff, 0f);
+
+	private static readonly Look Wanted = new Look("WANTED", "Lose them or hide", Glass.Orange, Icons.Kind.Siren, 1.4f);
+
+	private static readonly Look Lethal = new Look("WANTED DEAD OR ALIVE", "Police will shoot", Glass.Hex(0xFF6B6B), Icons.Kind.Siren, 1f);
+
+	private static readonly Look Search = new Look("BODY SEARCH", "An officer wants to search you", Glass.Blue, Icons.Kind.Hand, 0f);
+
+	private const float Height = 46f;
+
+	private const float Radius = 10f;
 
 	private Muffle? muffle;
 
-	private RectTransform? pill;
+	private RectTransform? box;
 
 	private CanvasGroup? group;
 
-	private Image? dot;
+	private Image? border;
 
-	private Image? halo;
+	private Image? alarm;
+
+	private Image? badge;
+
+	private Image? icon;
 
 	private TextMeshProUGUI? label;
 
-	private TextMeshProUGUI? detail;
-
-	private Image? track;
-
-	private Image? fill;
+	private TextMeshProUGUI? line;
 
 	private readonly Ease appear = new Ease(0f, 0.25f);
 
 	private readonly Ease width = new Ease(220f, 0.2f);
 
-	private Color color = Glass.Yellow;
+	private Color color = Glass.Blue;
 
-	private string lastLabel = "";
+	private Look? shown;
 
 	private float changedAt;
+
+	private float alarmAt;
 
 	internal WantedStatus()
 		: base("wanted")
@@ -68,139 +106,115 @@ internal sealed class WantedStatus : Surface
 			muffle = new Muffle(ui.gameObject);
 		}
 		muffle.Hold();
-		if (pill == null)
+		if (box == null)
 		{
 			Build(f);
 		}
 		PlayerCrimeData crime = player.CrimeData;
 		PlayerCrimeData.EPursuitLevel level = crime.CurrentPursuitLevel;
 		bool pursued = level != PlayerCrimeData.EPursuitLevel.None;
-		bool search = !pursued && crime.BodySearchPending;
-		bool sighted = pursued && crime.TimeSinceSighted < 3f;
-		string text;
-		Color target;
-		switch (level)
+		Look? look = level switch
 		{
-		case PlayerCrimeData.EPursuitLevel.Investigating:
-			text = "INVESTIGATING";
-			target = Glass.Yellow;
-			break;
-		case PlayerCrimeData.EPursuitLevel.Arresting:
-			text = "UNDER ARREST";
-			target = Glass.Orange;
-			break;
-		case PlayerCrimeData.EPursuitLevel.NonLethal:
-			text = "WANTED";
-			target = Glass.Red;
-			break;
-		case PlayerCrimeData.EPursuitLevel.Lethal:
-			text = "WANTED DEAD OR ALIVE";
-			target = Glass.Hex(0xFF5B5B);
-			break;
-		default:
-			text = "BODY SEARCH";
-			target = Glass.Blue;
-			break;
-		}
-		appear.Target = pursued || search ? 1f : 0f;
+			PlayerCrimeData.EPursuitLevel.Investigating => Investigating,
+			PlayerCrimeData.EPursuitLevel.Arresting => Arresting,
+			PlayerCrimeData.EPursuitLevel.NonLethal => Wanted,
+			PlayerCrimeData.EPursuitLevel.Lethal => Lethal,
+			_ => crime.BodySearchPending ? Search : null
+		};
+		appear.Target = look != null ? 1f : 0f;
 		float a = appear.Step(f.Dt);
-		pill!.gameObject.SetActive(a > 0.001f);
+		box!.gameObject.SetActive(a > 0.001f);
 		if (a <= 0.001f)
 		{
-			lastLabel = "";
+			shown = null;
 			return;
 		}
-		if (pursued || search)
+		if (look != null)
 		{
-			if (text != lastLabel)
+			if (look != shown)
 			{
 				changedAt = Time.unscaledTime;
-				lastLabel = text;
+				alarmAt = Time.unscaledTime;
+				shown = look;
+				label!.text = look.Label;
+				icon!.sprite = Icons.Get(f.Sprites, look.Icon);
 			}
-			label!.text = text;
-			// The game's own drain: full while seen, then empties over the search time.
-			float search01 = 1f - Mathf.Clamp01((crime.TimeSinceSighted - 3f) / Mathf.Max(0.01f, crime.GetSearchTime()));
-			bool bar = pursued;
-			track!.gameObject.SetActive(bar);
-			if (bar)
-			{
-				float inner = width.Value - 32f;
-				fill!.rectTransform.sizeDelta = new Vector2(Mathf.Max(0f, inner * search01), 3f);
-				fill.color = target;
-			}
-			detail!.text = search ? "An officer wants to search you" : sighted ? "Seen" : "Searching · " + Clock(Mathf.Max(0f, crime.GetSearchTime() - (crime.TimeSinceSighted - 3f)));
+			// The game's own rule: seen in the last 3 s, else they search for GetSearchTime() more.
+			bool lost = pursued && crime.TimeSinceSighted >= 3f;
+			line!.text = lost ? "Searching · " + Clock(Mathf.Max(0f, crime.GetSearchTime() - (crime.TimeSinceSighted - 3f))) : look.Line;
 		}
-		color = Color.Lerp(color, target, 1f - Mathf.Exp(-8f * f.Dt));
+		Look current = shown!;
+		color = Color.Lerp(color, current.Color, 1f - Mathf.Exp(-7f * f.Dt));
 		label!.color = color;
-		width.Target = Mathf.Max(200f, Mathf.Ceil(Mathf.Max(label.preferredWidth, detail!.preferredWidth)) + 64f);
+		icon!.color = color;
+		badge!.color = Glass.Tint(color, 0.17f);
+		border!.color = Glass.Tint(color, 0.85f);
+		width.Target = Mathf.Ceil(Mathf.Max(label.preferredWidth, line!.preferredWidth)) + 10f + 26f + 10f + 14f;
 		float w = width.Step(f.Dt);
 		group!.alpha = a;
-		// Drops in from under the compass; a new level gives a small pop.
+		// Drops in from under the compass; a new status gives a small pop.
 		float pop = Mathf.Clamp01((Time.unscaledTime - changedAt) / 0.3f);
-		float scale = (0.92f + 0.08f * HylandHud.Motion.EaseOutCubic(a)) * (1f + 0.06f * Mathf.Sin(pop * Mathf.PI));
-		Glass.Pin(pill, new Vector2(0.5f, 1f), new Vector2(0f, -(f.CenterY - 10f * (1f - a))), new Vector2(w, Height));
-		pill.localScale = Vector3.one * scale;
-		track!.rectTransform.sizeDelta = new Vector2(w - 32f, 3f);
-		// The beat: fast while seen, slow while they search.
-		float period = sighted ? 0.5f : 1.4f;
-		float t = Time.unscaledTime % period / period;
-		dot!.color = color;
-		halo!.color = Glass.Tint(color, 0.5f * (1f - t));
-		float s = 10f + 12f * HylandHud.Motion.EaseOutCubic(t);
-		halo.rectTransform.sizeDelta = new Vector2(s, s);
+		float scale = (0.92f + 0.08f * HylandHud.Motion.EaseOutCubic(a)) * (1f + 0.05f * Mathf.Sin(pop * Mathf.PI));
+		Glass.Pin(box, new Vector2(0.5f, 1f), new Vector2(0f, -(f.CenterY - 10f * (1f - a))), new Vector2(w, Height));
+		box.localScale = Vector3.one * scale;
+		// The alarm: a ring in the status color grows 10 out from the box and fades, like the board's box-shadow.
+		bool ringing = current.Alarm > 0f;
+		alarm!.gameObject.SetActive(ringing);
+		if (ringing)
+		{
+			float t = (Time.unscaledTime - alarmAt) % current.Alarm / current.Alarm;
+			float grow = 10f * HylandHud.Motion.EaseOutCubic(t);
+			alarm.rectTransform.sizeDelta = new Vector2(grow * 2f, grow * 2f);
+			alarm.color = Glass.Tint(color, 0.55f * (1f - t));
+		}
 		f.CenterY += (Height + ScreenLayout.Gap) * a;
 	}
 
 	internal override void Teardown()
 	{
 		Muffle? m = muffle;
-		RectTransform? p = pill;
+		RectTransform? b = box;
 		muffle = null;
-		pill = null;
+		box = null;
 		appear.Value = appear.Target = 0f;
-		lastLabel = "";
-		Steps(() => m?.Release(), () => Destroy(p));
+		shown = null;
+		Steps(() => m?.Release(), () => Destroy(b));
 	}
 
 	private void Build(Frame f)
 	{
-		Image glass = Glass.Panel("Hyland police status", f.Root, f.Sprites, Height / 2f);
-		pill = glass.rectTransform;
-		group = Ui.Group(pill.gameObject);
-		halo = Glass.Solid("Halo", pill, f.Sprites, 11, Glass.Yellow);
-		Middle(halo.rectTransform, new Vector2(20f, -15f), 10f);
-		dot = Glass.Solid("Dot", pill, f.Sprites, 5, Glass.Yellow);
-		Middle(dot.rectTransform, new Vector2(20f, -15f), 10f);
-		label = Glass.Label("Label", pill, f.Font, 13f, Glass.Yellow);
+		Image glass = Glass.Panel("Hyland police status", f.Root, f.Sprites, Radius);
+		box = glass.rectTransform;
+		group = Ui.Group(box.gameObject);
+		alarm = Ui.Image("Alarm", box, Icons.Outline(f.Sprites, Radius), Glass.Orange, sliced: true);
+		Glass.Fill(alarm.rectTransform);
+		border = Ui.Image("Border", box, Icons.Outline(f.Sprites, Radius), Glass.Blue, sliced: true);
+		Glass.Fill(border.rectTransform);
+		badge = Glass.Solid("Badge", box, f.Sprites, 13, Glass.Tint(Glass.Blue, 0.17f));
+		badge.rectTransform.anchorMin = badge.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+		badge.rectTransform.pivot = new Vector2(0f, 0.5f);
+		badge.rectTransform.anchoredPosition = new Vector2(10f, 0f);
+		badge.rectTransform.sizeDelta = new Vector2(26f, 26f);
+		icon = Ui.Image("Icon", badge.transform, null, Glass.Blue);
+		icon.preserveAspect = true;
+		icon.rectTransform.sizeDelta = new Vector2(16f, 16f);
+		label = Glass.Label("Label", box, f.Font, 13f, Glass.Blue);
 		label.fontStyle = FontStyles.Bold;
-		label.characterSpacing = 10f;
-		label.rectTransform.anchorMin = new Vector2(0f, 1f);
-		label.rectTransform.anchorMax = new Vector2(1f, 1f);
-		label.rectTransform.pivot = new Vector2(0f, 1f);
-		label.rectTransform.anchoredPosition = new Vector2(34f, -6f);
-		label.rectTransform.sizeDelta = new Vector2(-46f, 18f);
-		detail = Glass.Label("Detail", pill, f.Font, 11f, Glass.Muted);
-		detail.rectTransform.anchorMin = new Vector2(0f, 1f);
-		detail.rectTransform.anchorMax = new Vector2(1f, 1f);
-		detail.rectTransform.pivot = new Vector2(0f, 1f);
-		detail.rectTransform.anchoredPosition = new Vector2(34f, -22f);
-		detail.rectTransform.sizeDelta = new Vector2(-46f, 14f);
-		track = Glass.Solid("Track", pill, f.Sprites, 1.5, Glass.Hex(0xFFFFFF, 0.1f));
-		track.rectTransform.anchorMin = track.rectTransform.anchorMax = new Vector2(0.5f, 0f);
-		track.rectTransform.pivot = new Vector2(0.5f, 0f);
-		track.rectTransform.anchoredPosition = new Vector2(0f, 3f);
-		fill = Glass.Solid("Fill", track.transform, f.Sprites, 1.5, Glass.Yellow);
-		fill.rectTransform.anchorMin = fill.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-		fill.rectTransform.pivot = new Vector2(0f, 0.5f);
-		fill.rectTransform.anchoredPosition = Vector2.zero;
+		label.characterSpacing = 6f;
+		Row(label.rectTransform, 6f, 19f);
+		line = Glass.Label("Line", box, f.Font, 11f, Glass.Soft);
+		Row(line.rectTransform, 24f, 16f);
 	}
 
-	private static void Middle(RectTransform rect, Vector2 at, float size)
+	/// <summary>A text row right of the badge, stretched to the box's width. Heights are a full line for the font
+	/// size: a shorter rect makes TMP drop the line.</summary>
+	private static void Row(RectTransform rect, float top, float height)
 	{
-		rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
-		rect.pivot = new Vector2(0.5f, 0.5f);
-		rect.anchoredPosition = at;
-		rect.sizeDelta = new Vector2(size, size);
+		rect.anchorMin = new Vector2(0f, 1f);
+		rect.anchorMax = new Vector2(1f, 1f);
+		rect.pivot = new Vector2(0f, 1f);
+		rect.anchoredPosition = new Vector2(46f, -top);
+		rect.sizeDelta = new Vector2(-46f - 14f, height);
 	}
 
 	private static string Clock(float seconds)

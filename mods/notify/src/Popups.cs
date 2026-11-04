@@ -115,17 +115,17 @@ internal sealed class Popups : Surface
 			TextMeshProUGUI caps = Glass.Label("Caps", rect, f.Font, 11f, Glass.Muted);
 			caps.text = "DEAL DONE";
 			caps.characterSpacing = 8f;
-			Glass.Pin(caps.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -15f), new Vector2(150f, 14f));
+			Glass.Pin(caps.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -13f), new Vector2(150f, 17f));
 			name = Glass.Label("Name", rect, f.Font, 16f, Glass.Text);
 			name.fontStyle = FontStyles.Bold;
-			Glass.Pin(name.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -29f), new Vector2(Width - TextX - 130f, 20f));
+			Glass.Pin(name.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -27f), new Vector2(Width - TextX - 130f, 24f));
 			pay = Glass.Label("Pay", rect, f.Font, 22f, Glass.Green, TextAlignmentOptions.MidlineRight);
 			pay.fontStyle = FontStyles.Bold;
-			Glass.Pin(pay.rectTransform, new Vector2(1f, 1f), new Vector2(-Pad, -17f), new Vector2(120f, 28f));
+			Glass.Pin(pay.rectTransform, new Vector2(1f, 1f), new Vector2(-Pad, -15f), new Vector2(120f, 32f));
 			for (int i = 0; i < 4; i++)
 			{
 				TextMeshProUGUI bonus = Glass.Label("Bonus", rect, f.Font, 12f, Glass.Soft);
-				Glass.Pin(bonus.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -(58f + 18f * i)), new Vector2(Width - TextX - Pad, 16f));
+				Glass.Pin(bonus.rectTransform, new Vector2(0f, 1f), new Vector2(TextX, -(57f + 18f * i)), new Vector2(Width - TextX - Pad, 18f));
 				bonuses.Add(bonus);
 			}
 			satisfactionCaption = Caption(f, rect, "Satisfaction");
@@ -500,7 +500,7 @@ internal sealed class Popups : Surface
 			effects = Line(f, rect, 13f, Glass.Text, 88f, Width - 36f);
 			effects.enableWordWrapping = true;
 			quantity = Glass.Label("Quantity", rect, f.Font, 13f, Glass.Soft, TextAlignmentOptions.MidlineRight);
-			Glass.Pin(quantity.rectTransform, new Vector2(1f, 1f), new Vector2(-18f, -12f), new Vector2(140f, 18f));
+			Glass.Pin(quantity.rectTransform, new Vector2(1f, 1f), new Vector2(-18f, -11f), new Vector2(140f, 20f));
 			Height = 118f;
 		}
 
@@ -657,7 +657,7 @@ internal sealed class Popups : Surface
 		TextMeshProUGUI label = Glass.Label("Small", rect, f.Font, 10f, Glass.Muted);
 		label.text = text;
 		label.characterSpacing = 8f;
-		Glass.Pin(label.rectTransform, new Vector2(0f, 1f), new Vector2(18f, -top), new Vector2(200f, 14f));
+		Glass.Pin(label.rectTransform, new Vector2(0f, 1f), new Vector2(18f, -top), new Vector2(200f, 15f));
 	}
 
 	private static TextMeshProUGUI Line(Frame f, RectTransform rect, float size, Color color, float top, float width, bool bold = false)

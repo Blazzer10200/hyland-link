@@ -125,7 +125,7 @@ internal sealed class CallCard : Surface
 		Glass.Pin(label.rectTransform, new Vector2(0f, 1f), new Vector2(64f, -14f), new Vector2(ScreenLayout.ColumnWidth - 76f, 16f));
 		caller = Glass.Label("Caller", card, f.Font, 16f, Glass.Text);
 		caller.fontStyle = FontStyles.Bold;
-		Glass.Pin(caller.rectTransform, new Vector2(0f, 1f), new Vector2(64f, -31f), new Vector2(ScreenLayout.ColumnWidth - 76f, 22f));
+		Glass.Pin(caller.rectTransform, new Vector2(0f, 1f), new Vector2(64f, -30f), new Vector2(ScreenLayout.ColumnWidth - 76f, 24f));
 	}
 
 	private static void Centre(RectTransform rect, Vector2 at, float size)

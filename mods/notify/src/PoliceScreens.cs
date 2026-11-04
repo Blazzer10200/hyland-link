@@ -297,7 +297,8 @@ internal sealed class PoliceScreens : Surface
 		rect.anchorMax = new Vector2(1f, 1f);
 		rect.pivot = new Vector2(0f, 1f);
 		rect.anchoredPosition = new Vector2(32f, -top);
-		rect.sizeDelta = new Vector2(-64f, size + 10f);
+		// A full line for the size (a shorter rect makes TMP drop the line).
+		rect.sizeDelta = new Vector2(-64f, Mathf.Ceil(size * 1.5f));
 	}
 
 	private static void Divider(Frame f, Restyle r, Transform sheet, float top, float width)
