@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 9,
+  "revision": 10,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -29,16 +29,16 @@
     {
       "id": "hyland-minimap",
       "name": "Hyland Minimap",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "blurb": "Minimap with customers, dealers, vehicles and players. PageUp/Down to zoom.",
       "side": "client",
-      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/minimap-v1.2.2/HylandMinimap.zip",
-      "sha256": "46f246e6cfd5738277d0b406e9b62cd1256df4ff223a7471944da2dc22e567b7",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/minimap-v1.2.3/HylandMinimap.zip",
+      "sha256": "29d26cc8e29c6a3661c0da10104d7449fcdea0983806a88738188de109622126",
       "files": [
         {
           "source": "Mods/HylandMinimap.dll",
           "path": "Mods/HylandMinimap.dll",
-          "sha256": "9c7ccb1a46ad5bd9615ae803d298099c7181e12e6e5d9f529255a7ce107fd200"
+          "sha256": "f90d6b1fb9ea3605dcacad32d35d07d3b200500a6aa9313346918bb48292b37b"
         }
       ]
     },
@@ -61,16 +61,16 @@
     {
       "id": "hyland-notify",
       "name": "Hyland Notifications",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "blurb": "Glass deal and quest tracker, toasts, calls, police status, hints and popups.",
       "side": "client",
-      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/notify-v0.1.0/HylandNotify.zip",
-      "sha256": "61340b2c761acd357f29621abcb8f39de008cc292f971c5edfb3c7842709c6e6",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/notify-v0.1.1/HylandNotify.zip",
+      "sha256": "79d02ca091050dfabea1cdcfcb7223520b02531dc32b12340cb1fd6a9cb6647c",
       "files": [
         {
           "source": "Mods/HylandNotify.dll",
           "path": "Mods/HylandNotify.dll",
-          "sha256": "d4594238676f78d1dfc2c4cd1b2f6015bc976811f1fc56a5ed7c13950a39af39"
+          "sha256": "756bebb092ed8a21c5c0663de00d3aae98381aa5e0b2ad74b3758a06ca066e99"
         }
       ]
     }
