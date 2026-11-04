@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using Il2CppScheduleOne;
 using Il2CppScheduleOne.UI.Phone;
 using UnityEngine;
@@ -29,6 +30,9 @@ internal sealed class MessagesSkin : GameAppSkin
 	private const float StripY = HeaderRow + 13f;
 
 	private readonly Dictionary<int, int> bubbleCounts = new Dictionary<int, int>();
+
+	/// <summary>The preview text we last wrote per row, so it's cut again only when the game writes a new one.</summary>
+	private readonly Dictionary<int, string> previews = new Dictionary<int, string>();
 
 	private RectTransform? chatName;
 
@@ -138,15 +142,104 @@ internal sealed class MessagesSkin : GameAppSkin
 		}
 	}
 
-	/// <summary>The game's preview is the last message, line breaks and all, and ours has room for one line: the breaks
-	/// become spaces, so a deal's second line (the money) stays in view. The game writes it again on each new message.</summary>
-	private static void OneLine(Text? preview)
+	/// <summary>The board's one-line preview (.ap-preview). The game's is the last message as it is, line breaks and rich
+	/// text and all ("This is what they got:" then one line per item, the cash last). Ours is that message flat, its lines
+	/// joined with " · ", cut with "…" where the row ends. The game writes it again on each new message.</summary>
+	private void OneLine(Text? preview)
 	{
-		string? text = preview != null ? preview.text : null;
-		if (text != null && text.IndexOf('\n') >= 0)
+		if (preview == null)
 		{
-			preview!.text = text.Replace("\r", "").Replace('\n', ' ');
+			return;
 		}
+		int id = preview.GetInstanceID();
+		string text = preview.text ?? string.Empty;
+		if (previews.TryGetValue(id, out string? mine) && mine == text)
+		{
+			return;
+		}
+		float room = preview.rectTransform.rect.width;
+		if (room <= 0f)
+		{
+			return;
+		}
+		string flat = Regex.Replace(text, "<[^>]*>", string.Empty).Replace("\r", string.Empty).Replace(":\n", ": ").Replace("\n", " · ");
+		string fit = Fit(preview, flat, room);
+		previews[id] = fit;
+		if (fit != text)
+		{
+			preview.text = fit;
+		}
+	}
+
+	/// <summary>The longest start of <paramref name="value"/> that fits <paramref name="room"/> with "…" after it.</summary>
+	private static string Fit(Text label, string value, float room)
+	{
+		TextGenerationSettings settings = label.GetGenerationSettings(Vector2.zero);
+		TextGenerator generator = label.cachedTextGeneratorForLayout;
+		float Width(string s) => generator.GetPreferredWidth(s, settings) / label.pixelsPerUnit;
+		if (Width(value) <= room)
+		{
+			return value;
+		}
+		int low = 0, high = value.Length;
+		while (low < high)
+		{
+			int mid = (low + high + 1) / 2;
+			if (Width(value.Substring(0, mid).TrimEnd() + "…") <= room)
+			{
+				low = mid;
+			}
+			else
+			{
+				high = mid - 1;
+			}
+		}
+		return value.Substring(0, low).TrimEnd() + "…";
+	}
+
+	/// <summary>The ✕'s hover as the board's round #222a33 chip (.ap-hide). The game tints only the cross; its clear hit
+	/// area becomes the chip and takes the tint instead.</summary>
+	private void HideChip(Transform hide)
+	{
+		Image? area = hide.GetComponent<Image>();
+		Button? button = hide.GetComponent<Button>();
+		if (area == null || button == null)
+		{
+			return;
+		}
+		Swap(area, Solid(13f));
+		Recolor(area, Color.white);
+		Set<Graphic>(button, () => button.targetGraphic, g => button.targetGraphic = g, area);
+		Tints(button, b =>
+		{
+			b.normalColor = Color.clear;
+			b.highlightedColor = C(0x222A33);
+			b.pressedColor = C(0x2A313B);
+			b.selectedColor = Color.clear;
+			b.disabledColor = Color.clear;
+			b.colorMultiplier = 1f;
+			return b;
+		});
+	}
+
+	/// <summary>The offer's timer (the game shows it while a customer waits on a deal, red to green as time runs out): the
+	/// board's 2 px bar (.ap-expiry) from under the face to 16 px short of the edge, 4 px up. The game sets its value and
+	/// color.</summary>
+	private void Expiry(Transform? slider)
+	{
+		if (slider == null)
+		{
+			return;
+		}
+		Move(slider.Cast<RectTransform>(), r =>
+		{
+			r.anchorMin = Vector2.zero;
+			r.anchorMax = new Vector2(1f, 0f);
+			r.pivot = new Vector2(0.5f, 0f);
+			r.offsetMin = new Vector2(33f * Unit, 4f * Unit);
+			r.offsetMax = new Vector2(-16f * Unit, 6f * Unit);
+		});
+		Swap(Find<Image>(slider, "Fill Area/Fill"), Solid(1f));
 	}
 
 	private void Scrollbar(Transform? bar)
@@ -190,13 +283,18 @@ internal sealed class MessagesSkin : GameAppSkin
 		Label(preview, 12f, C(Theme.PhoneMuted), align: TextAnchor.UpperLeft);
 		if (preview != null)
 		{
-			// One line: it wraps, and the line that doesn't fit is cut.
+			// One line that never wraps: OneLine cuts it to the row with "…".
 			Set(preview, () => preview.verticalOverflow, v => preview.verticalOverflow = v, VerticalWrapMode.Truncate);
-			Set(preview, () => preview.horizontalOverflow, v => preview.horizontalOverflow = v, HorizontalWrapMode.Wrap);
+			Set(preview, () => preview.horizontalOverflow, v => preview.horizontalOverflow = v, HorizontalWrapMode.Overflow);
 			Move(preview.rectTransform, r => Column(r, 34f, 18f));
 		}
 		Category(entry, name);
+		Expiry(Find(entry, "Slider"));
 		Transform? hide = Find(entry, "Hide");
+		if (hide != null)
+		{
+			HideChip(hide);
+		}
 		Move(hide != null ? hide.Cast<RectTransform>() : null, r =>
 		{
 			r.anchoredPosition = new Vector2(-19f * Unit, -19f * Unit);
