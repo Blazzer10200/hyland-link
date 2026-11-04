@@ -20,7 +20,8 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
   earlier looks; Minimap 1.2.3's projection rewrite (one matrix per frame) wasn't seen in game.
 - **The server's save before the r9 restart failed** ("save command failed (console unreachable?)"; it stopped anyway;
   the r10 save worked). Anything between its last autosave and 19:15 may be lost; the backup taken after the stop is
-  `/opt/s1ds/backups/s1-world-20261103-191532-pre-mods-r9.tar.zst`. Why the save failed belongs to schedule1-server.
+  `/opt/s1ds/backups/s1-world-20261103-191532-pre-mods-r9.tar.zst`. Likely cause: the server froze ~19:10 (out of
+  memory) and was killed from the host, last save 19:01 (schedule1-server's Daily note for 2026-11-03).
 - The server is live with players on it. **No mod publishes or server restarts without Blazzer's go-ahead.**
 
 ## Built, not shipped
