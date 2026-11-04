@@ -2,7 +2,7 @@
 title: Hyland Link handoff
 tags: [project, handoff]
 status: active
-updated: 2026-11-03
+updated: 2026-11-04
 ---
 
 # Hyland Link: handoff
@@ -13,16 +13,19 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 ## Live right now
 - **Launcher 0.1.5** is `releases/latest` (2026-11-03: mod hashes cached by size + mtime, one progress event per
   percent, Latest.log head only). Installed launchers update themselves to it on their next start.
-- **Mod list revision 10** (2026-11-03): MelonLoader 0.7.3, the server mod (DedicatedServerClient 1.1.6), Hyland
-  Minimap 1.2.3, Hyland HUD 0.1.1, Hyland Notifications 0.1.1. Players get it with one Update click in the launcher.
-  Revisions 9 and 10 went out on Blazzer's call without an in-game check of the final builds: HUD 0.1.1's Respawn
-  was never seen in game; of Notifications, the tracker, unread badge, deal-done card and police status were seen in
-  earlier looks; Minimap 1.2.3's projection rewrite (one matrix per frame) wasn't seen in game.
+- **Mod list revision 11** (2026-11-04, overnight, nobody on): MelonLoader 0.7.3, the server mod
+  (DedicatedServerClient 1.1.6), Hyland Minimap 1.2.3, **Hyland HUD 0.1.2** (0.1.1's Respawn swap reverted: it froze
+  the death screen), Hyland Notifications 0.1.1, **Hyland Fixes 0.1.0** (new: drying racks drying a custom mix no
+  longer hang joins; `mods/fixes/README.md`). Players get it with one Update click in the launcher.
+  This exact set was tested with `scripts/join-test.ps1` against a sandbox server holding tonight's broken world
+  (schedule1-server `s1ds-sandbox`): LOADED IN, no errors; the plain client gets STUCK on the same world. Not seen in
+  game by eye: Minimap 1.2.3's projection rewrite, the Notifications cards beyond the tracker/badge/deal-done/police.
 - **The server's save before the r9 restart failed** ("save command failed (console unreachable?)"; it stopped anyway;
   the r10 save worked). Anything between its last autosave and 19:15 may be lost; the backup taken after the stop is
   `/opt/s1ds/backups/s1-world-20261103-191532-pre-mods-r9.tar.zst`. Likely cause: the server froze ~19:10 (out of
   memory) and was killed from the host, last save 19:01 (schedule1-server's Daily note for 2026-11-03).
-- The server is live with players on it. **No mod publishes or server restarts without Blazzer's go-ahead.**
+- The server is live with players on it. **No mod publishes or server restarts without Blazzer's go-ahead** (r11 went
+  out on his "ship what you need, no questions" for the overnight run of 2026-11-04).
 
 ## Built, not shipped
 | What | State | Where |
@@ -31,10 +34,11 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` and `hud-phone` are pushed. `mod-release.ps1 -Publish` refuses an unpushed tree, so push before the next mod
-release. The test copy has main's HUD 0.1.1 and a notify build from before 0.1.1's speedups.
+release. The test copy still has HUD 0.1.1, Minimap 1.2.2 and Notifications 0.1.0 (put back as found after the r11
+tests; `hud-testcopy.ps1 use main` / `use notify` bring it up to date).
 
 ## Next steps
-1. **Watch for reports on r10** (Respawn on death, the notification cards, minimap markers in the right places). If
+1. **Watch for reports on r11** (death screen buttons, the notification cards, minimap markers in the right places). If
    something's off, fix it on `main` and ship the next version the same way: bump `src/AssemblyInfo.cs`, push,
    `mod-release.ps1 <mod> -Publish`, `mods.ps1 publish`.
 2. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
@@ -71,8 +75,9 @@ release. The test copy has main's HUD 0.1.1 and a notify build from before 0.1.1
 - The server console's `bring <player> <player>` answers "Brought …" but the player doesn't move: the game teleports
   only the local player (`PlayerMovement.Teleport`, no RPC), so the server moves its own copy. A server mod gap, not
   ours. Names with non-ASCII (BLAZZER™) don't resolve over the console either: use the Steam ID from `listops`.
-- HUD 0.1.1's Respawn hasn't been seen yet; everything else in it (rail, compass, clock, friends, bank-only panel)
-  passed in game on 2026-11-03.
+- HUD 0.1.1's Respawn swap froze the death screen in game; 0.1.2 (r11) reverts it. A working Respawn needs a fix seen
+  in the test copy first. Everything else in the HUD (rail, compass, clock, friends, bank-only panel) passed in game
+  on 2026-11-03.
 - A hotbar missing in a test screenshot was the game, not the HUD: at the 4 AM pass-out, on arrest and on death,
   `Player.ExitAll` / `OnDied` call `SetInventoryEnabled(false)`, which hides `HotbarContainer` and the cash slot with it.
 ## Gotchas worth keeping

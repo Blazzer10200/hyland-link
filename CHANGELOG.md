@@ -22,6 +22,14 @@ anyone yet.
 
 ## Shipped
 
+### 2026-11-04, mod list revision 11
+- **No more getting stuck on the loading screen while weed's drying.** New client mod **Hyland Fixes 0.1.0**: if a
+  drying rack on the server was drying one of our own mixes, everyone joining hung on the loading screen forever. Now
+  you load in, and the buds show up on the rack a couple of seconds later.
+- **Hyland HUD 0.1.2: the death screen works again.** 0.1.1's Respawn button froze the death screen (nothing clickable,
+  no moving). The game's own buttons are back.
+- The mushroom spawn station is safe to place again: the lockout blamed on it was the drying racks.
+
 ### 2026-11-03, launcher 0.1.5 and mod list revision 10
 - **Launcher 0.1.5: lighter while it sits open.** It no longer re-reads and checksums your mod files (about 2 MB) every
   4 seconds; it checks them again only when one actually changes. Downloads update the progress bar once per percent
