@@ -42,7 +42,7 @@ internal sealed class ContactsSkin : GameAppSkin
 			Swap(Find<Image>(scroll, "Viewport"), Solid(14f));
 			Ghost(scroll, "Viewport/Content/Background");
 			Ghost(scroll, "Locked/Image");
-			Ghost(scroll, "CenterPoint");
+			Ghost(box, "CenterPoint");
 			Ghost(scroll, "LowerContainer/Shade");
 			Ghost(scroll, "LowerContainer/UnlockInfo/Shade");
 			Ghost(scroll, "LowerContainer/UnlockInfo/Background");

@@ -146,7 +146,7 @@ internal sealed class JournalSkin : GameAppSkin
 		if (heading != null)
 		{
 			Label(heading, null, C(Theme.PhoneMuted));
-			Set(() => heading.text, v => heading.text = v, "TASKS");
+			Set(heading, () => heading.text, v => heading.text = v, "TASKS");
 		}
 		Transform? entries = Find(panel, "OuterContainer/Entries");
 		if (entries != null)

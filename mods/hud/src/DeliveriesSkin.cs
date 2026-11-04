@@ -110,7 +110,7 @@ internal sealed class DeliveriesSkin : GameAppSkin
 		HorizontalLayoutGroup? row = Find<HorizontalLayoutGroup>(bar, "Container");
 		if (row != null)
 		{
-			Set(() => row.childForceExpandWidth, v => row.childForceExpandWidth = v, false);
+			Set(row, () => row.childForceExpandWidth, v => row.childForceExpandWidth = v, false);
 			Transform items = row.transform;
 			for (int i = 0; i < items.childCount; i++)
 			{

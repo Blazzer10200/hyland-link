@@ -110,7 +110,7 @@ internal sealed class MessagesSkin : GameAppSkin
 		}
 		foreach (Graphic graphic in bar.GetComponentsInChildren<Graphic>(true))
 		{
-			Ghost(graphic);
+			Ghost(graphic, hold: false);
 		}
 	}
 
@@ -144,8 +144,8 @@ internal sealed class MessagesSkin : GameAppSkin
 		if (preview != null)
 		{
 			// One line: it wraps, and the line that doesn't fit is cut.
-			Set(() => preview.verticalOverflow, v => preview.verticalOverflow = v, VerticalWrapMode.Truncate);
-			Set(() => preview.horizontalOverflow, v => preview.horizontalOverflow = v, HorizontalWrapMode.Wrap);
+			Set(preview, () => preview.verticalOverflow, v => preview.verticalOverflow = v, VerticalWrapMode.Truncate);
+			Set(preview, () => preview.horizontalOverflow, v => preview.horizontalOverflow = v, HorizontalWrapMode.Wrap);
 			Move(preview.rectTransform, r => Column(r, 34f, 18f));
 		}
 		Category(entry, name);
@@ -321,43 +321,42 @@ internal sealed class MessagesSkin : GameAppSkin
 		if (First(chat))
 		{
 			Transform? responses = Find(chat, "Responses");
+			// One set per contact, and the game never recolors these: set once, not held every pass.
 			if (responses != null)
 			{
-				Recolor(Find<Graphic>(responses, "Background"), C(0x0C0F12));
-				Ghost(responses, "Shade");
+				Recolor(Find<Graphic>(responses, "Background"), C(0x0C0F12), hold: false);
+				Ghost(Find<Graphic>(responses, "Shade"), hold: false);
 				Line(responses, top: true, C(0x1B2128));
 			}
 			Scrollbar(Find(chat, "ScrollContainer/ScrollRect/Scrollbar Vertical"));
 			Transform? menu = Find(chat, "SenderInterface/Menu");
 			if (menu != null)
 			{
-				Recolor(Find<Graphic>(menu, "Background"), C(0x0C0F12));
-				Ghost(menu, "Background/Shade");
+				Recolor(Find<Graphic>(menu, "Background"), C(0x0C0F12), hold: false);
+				Ghost(Find<Graphic>(menu, "Background/Shade"), hold: false);
 				Bar(Find(menu, "ComposeButton"));
 				Bar(Find(menu, "CancelButton"));
-				Label(menu, "SendTitle", null, C(Theme.PhoneText));
+				Label(Find<Graphic>(menu, "SendTitle"), null, C(Theme.PhoneText), hold: false);
 			}
 		}
-		Transform? bubbles = Find(chat, "ScrollContainer/ScrollRect/Viewport/Content");
-		if (bubbles != null)
+		// Only when a list's count changes: the game adds and clears these, it doesn't recolor them.
+		Changed(Find(chat, "ScrollContainer/ScrollRect/Viewport/Content"), response: false);
+		Changed(Find(chat, "Responses"), response: true);
+		Changed(Find(chat, "SenderInterface/Menu/Sendables"), response: true);
+	}
+
+	private void Changed(Transform? list, bool response)
+	{
+		if (list == null)
 		{
-			int id = bubbles.GetInstanceID();
-			int count = bubbles.childCount;
-			if (!bubbleCounts.TryGetValue(id, out int seen) || seen != count)
-			{
-				bubbleCounts[id] = count;
-				Bubbles(bubbles, response: false);
-			}
+			return;
 		}
-		Transform? options = Find(chat, "Responses");
-		if (options != null)
+		int id = list.GetInstanceID();
+		int count = list.childCount;
+		if (!bubbleCounts.TryGetValue(id, out int seen) || seen != count)
 		{
-			Bubbles(options, response: true);
-		}
-		Transform? sendables = Find(chat, "SenderInterface/Menu/Sendables");
-		if (sendables != null)
-		{
-			Bubbles(sendables, response: true);
+			bubbleCounts[id] = count;
+			Bubbles(list, response);
 		}
 	}
 
@@ -368,9 +367,9 @@ internal sealed class MessagesSkin : GameAppSkin
 		{
 			return;
 		}
-		Recolor(button.GetComponent<Graphic>(), C(Theme.PhoneChip));
-		Label(button, "Text (Legacy)", null, C(Theme.PhoneMuted));
-		Recolor(Find<Graphic>(button, "Image"), C(Theme.PhoneMuted));
+		Recolor(button.GetComponent<Graphic>(), C(Theme.PhoneChip), hold: false);
+		Label(Find<Graphic>(button, "Text (Legacy)"), null, C(Theme.PhoneMuted), hold: false);
+		Recolor(Find<Graphic>(button, "Image"), C(Theme.PhoneMuted), hold: false);
 	}
 
 	private void Bubbles(Transform parent, bool response)
@@ -588,7 +587,7 @@ internal sealed class MessagesSkin : GameAppSkin
 		{
 			foreach (Graphic graphic in ring.GetComponentsInChildren<Graphic>(true))
 			{
-				Ghost(graphic);
+				Ghost(graphic, hold: false);
 			}
 		}
 		Text? title = Find<Text>(window, "Title");

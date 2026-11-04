@@ -94,14 +94,16 @@ internal sealed class ProductsSkin : GameAppSkin
 			Label(header, "Container/Title", 12f, align: TextAnchor.MiddleLeft);
 		}
 		Label(section, "None", 12f, C(Theme.PhoneMuted));
-		Grid(Find<GridLayoutGroup>(section, "Entries"), new Vector2(46f * Unit, 46f * Unit), new Vector2(6f * Unit, 6f * Unit));
+		// The tiles are scaled to 46 px (their parts are fixed at 100), so the grid keeps 100 cells and takes the shrink
+		// out of the gaps: 6 px between what shows.
+		Grid(Find<GridLayoutGroup>(section, "Entries"), new Vector2(100f, 100f), Vector2.one * (6f * Unit - (100f - 46f * Unit)));
 	}
 
 	/// <summary>A product tile (ProductEntry_0): glass behind, the game's frame as the tile's rounded border in the game's
 	/// color (gray turned to the board's slate, green kept for listed).</summary>
 	private void Tile(Transform tile)
 	{
-		Set(() => tile.localScale, v => tile.localScale = v, Vector3.one * (46f * Unit / 100f));
+		Set(tile, () => tile.localScale, v => tile.localScale = v, Vector3.one * (46f * Unit / 100f));
 		Behind(tile, "tile", sprites.PhoneGlass(11f * Unit / (46f * Unit / 100f)), Color.white);
 		Image? frame = Find<Image>(tile, "Frame");
 		Swap(frame, sprites.Ring(11f * Unit / (46f * Unit / 100f), Theme.White));

@@ -181,11 +181,18 @@ internal abstract class GameAppSkin : IDisposable
 		Recolor(graphic, c => new Color(c.r, c.g, c.b, 0f), hold);
 	}
 
-	/// <summary>Records a value, sets ours, and puts the recorded one back in <see cref="Dispose"/>.</summary>
-	protected void Set<T>(Func<T> get, Action<T> set, T value)
+	/// <summary>Records a value on <paramref name="owner"/>, sets ours, and puts the recorded one back in
+	/// <see cref="Dispose"/> if the owner still exists (the game destroys rows and panels as it goes).</summary>
+	protected void Set<T>(UnityEngine.Object owner, Func<T> get, Action<T> set, T value)
 	{
 		T was = get();
-		undo.Add(() => set(was));
+		undo.Add(() =>
+		{
+			if (owner != null)
+			{
+				set(was);
+			}
+		});
 		set(value);
 	}
 
