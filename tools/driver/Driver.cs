@@ -686,6 +686,11 @@ public sealed class DriverMod : MelonMod
 				sb.Append($" scale {rt.localScale.x:0.##},{rt.localScale.y:0.##}");
 			}
 		}
+		CanvasGroup fade = t.GetComponent<CanvasGroup>();
+		if (fade != null)
+		{
+			sb.Append($" alpha {fade.alpha:0.##}{(fade.blocksRaycasts ? "" : " no-raycasts")}");
+		}
 		Image img = t.GetComponent<Image>();
 		if (img != null)
 		{
