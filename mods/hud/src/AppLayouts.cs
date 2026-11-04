@@ -96,10 +96,22 @@ internal sealed class AppLayouts : IDisposable
 	/// <summary>The board's motion for the game's apps: the screen zooms out of its icon (0.34 s), like the Hyland app.</summary>
 	private void StartZoom(GameObject app)
 	{
+		if (!Prepare(app))
+		{
+			return;
+		}
+		zoomAt = Time.unscaledTime;
+		closeAfterZoom = null;
+		Animate();
+	}
+
+	/// <summary>Picks up the app's container for a zoom: where it rests and where its icon is.</summary>
+	private bool Prepare(GameObject app)
+	{
 		Transform? container = app.transform.Find("Container");
 		if (container == null)
 		{
-			return;
+			return false;
 		}
 		RectTransform rect = container.Cast<RectTransform>();
 		zoomGroup = container.GetComponent<CanvasGroup>();
@@ -125,16 +137,15 @@ internal sealed class AppLayouts : IDisposable
 			zoomFrom = rect.parent.InverseTransformPoint(icons[index].transform.position);
 			zoomFrom.z = zoomRest.z;
 		}
-		zoomAt = Time.unscaledTime;
-		closeAfterZoom = null;
-		Animate();
+		return true;
 	}
 
 	/// <summary>The back button: the app shrinks into its icon over the home screen (0.3 s), then the game closes it.
 	/// Escape and the phone's button close it the game's way, at once.</summary>
 	private void ZoomClosed(Action close)
 	{
-		if (zooming == null || closeAfterZoom != null)
+		// The open zoom is over by now (it lets go of the container when it ends), so this one picks it up again.
+		if (closeAfterZoom != null || shown == null || (zooming == null && !Prepare(shown)))
 		{
 			close();
 			return;

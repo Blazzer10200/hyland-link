@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using Il2CppScheduleOne;
 using Il2CppScheduleOne.UI.Phone;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace HylandHud;
@@ -61,6 +64,7 @@ internal sealed class MessagesSkin : GameAppSkin
 				{
 					Row(entry);
 				}
+				OneLine(Find<Text>(entry, "Preview"));
 			}
 		}
 		Transform? topbar = Find(container, "DialogueScreen/Topbar");
@@ -99,6 +103,49 @@ internal sealed class MessagesSkin : GameAppSkin
 		if (chatFace != null)
 		{
 			PlaceFace(chatFace);
+		}
+		if (GameInput.GetButtonDown(GameInput.ButtonCode.PrimaryClick))
+		{
+			Probe();
+		}
+	}
+
+	/// <summary>Temporary, while the row's ✕ doesn't hide it in game: logs what's under the cursor on each click.</summary>
+	private void Probe()
+	{
+		try
+		{
+			EventSystem system = EventSystem.current;
+			if (system == null)
+			{
+				log("Messages click: no EventSystem.");
+				return;
+			}
+			Vector3 mouse = GameInput.MousePosition;
+			PointerEventData data = new PointerEventData(system) { position = new Vector2(mouse.x, mouse.y) };
+			Il2CppSystem.Collections.Generic.List<RaycastResult> hits = new Il2CppSystem.Collections.Generic.List<RaycastResult>();
+			system.RaycastAll(data, hits);
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < hits.Count && i < 3; i++)
+			{
+				sb.Append("\n  hit ").Append(i).Append(':').Append(Diagnostics.Chain(hits[i].gameObject.transform, 3));
+			}
+			log($"Messages click at {data.position}: {hits.Count} hit(s).{sb}");
+		}
+		catch (Exception e)
+		{
+			log($"Messages click probe failed: {e.Message}");
+		}
+	}
+
+	/// <summary>The game's preview is the last message, line breaks and all, and ours has room for one line: the breaks
+	/// become spaces, so a deal's second line (the money) stays in view. The game writes it again on each new message.</summary>
+	private static void OneLine(Text? preview)
+	{
+		string? text = preview != null ? preview.text : null;
+		if (text != null && text.IndexOf('\n') >= 0)
+		{
+			preview!.text = text.Replace("\r", "").Replace('\n', ' ');
 		}
 	}
 
