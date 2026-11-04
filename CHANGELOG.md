@@ -20,8 +20,9 @@ anyone yet.
 - **Toasts and messages:** texts and app notices as glass cards. Several texts from one person fold into one card with
   a count. The unread messages bubble shows how many chats are waiting.
 - **Incoming calls:** the caller's face and name, with a ringing pulse.
-- **Police status** under the compass: investigating, under arrest, wanted, wanted dead or alive, or a body search. The
-  dot beats fast while they can see you, and a bar drains while they search for you.
+- **Police status** under the compass: investigating, under arrest, wanted, wanted dead or alive, or a body search, each
+  with its own icon and color. Wanted pulses an alarm ring, and once they lose sight of you it counts down how long
+  they'll keep searching.
 - **Big moments** at the top center: deal done (pay counting up, satisfaction, relationship, bonuses), new customers
   with their faces, cartel influence and cartel status changes. The special customers' arrival card shows bottom left.
 - **Hints and "Game saved"** sit under the minimap instead of on top of it. Nothing of ours lands on the minimap,
