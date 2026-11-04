@@ -35,7 +35,8 @@ switch ($Command) {
     }
     "launch" {
         if ($running) { throw "The test copy is already running (pid $($running.ProcessId))." }
-        $real = Get-CimInstance Win32_Process -Filter "Name='Schedule I.exe'"
+        # A game that has exited can linger with no threads and no path while something (Steam) still holds its handle.
+        $real = Get-CimInstance Win32_Process -Filter "Name='Schedule I.exe'" | Where-Object { $_.ThreadCount -gt 0 }
         if ($real) { throw "Another Schedule I is running ($($real.ExecutablePath)). Close it first." }
         Start-Process -FilePath "$Test\Schedule I.exe" -WorkingDirectory $Test
         "Started the test copy. Join the server, not single player."
