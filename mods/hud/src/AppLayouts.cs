@@ -47,8 +47,28 @@ internal sealed class AppLayouts : IDisposable
 
 	private readonly HashSet<int> done = new HashSet<int>();
 
+	private readonly HomeScreen home;
+
+	/// <summary>The game's apps in the order they made their home-screen icons (home.appIcons): each zooms out of its own.</summary>
+	private static readonly string[] IconOrder = { "Messages", "Journal", "ProductManagerApp", "ContactsApp", "MapApp", "DealerManagement", "DeliveryApp" };
+
+	private GameObject? shown;
+
+	private RectTransform? zooming;
+
+	private CanvasGroup? zoomGroup;
+
+	private Vector3 zoomFrom;
+
+	private Vector3 zoomRest;
+
+	private float zoomAt;
+
+	private Action? closeAfterZoom;
+
 	internal AppLayouts(HomeScreen home, Sprites sprites, Action<string> log)
 	{
+		this.home = home;
 		this.sprites = sprites;
 		this.log = log;
 		font = home.timeText.font;
@@ -57,10 +77,117 @@ internal sealed class AppLayouts : IDisposable
 	internal void Update()
 	{
 		GameObject? app = Phone.ActiveApp;
-		if (app == null || app.name == HylandApp.RootName || !done.Add(app.GetInstanceID()))
+		if (app != null && app.name != HylandApp.RootName && done.Add(app.GetInstanceID()))
+		{
+			LayOut(app);
+		}
+		if (app != shown)
+		{
+			shown = app;
+			EndZoom();
+			if (app != null && Array.IndexOf(IconOrder, app.name) >= 0)
+			{
+				StartZoom(app);
+			}
+		}
+		Animate();
+	}
+
+	/// <summary>The board's motion for the game's apps: the screen zooms out of its icon (0.34 s), like the Hyland app.</summary>
+	private void StartZoom(GameObject app)
+	{
+		Transform? container = app.transform.Find("Container");
+		if (container == null)
 		{
 			return;
 		}
+		RectTransform rect = container.Cast<RectTransform>();
+		zoomGroup = container.GetComponent<CanvasGroup>();
+		if (zoomGroup == null)
+		{
+			CanvasGroup added = container.gameObject.AddComponent<CanvasGroup>();
+			zoomGroup = added;
+			undo.Add(() =>
+			{
+				if (added != null)
+				{
+					UnityEngine.Object.Destroy(added);
+				}
+			});
+		}
+		zooming = rect;
+		zoomRest = rect.localPosition;
+		zoomFrom = zoomRest;
+		int index = Array.IndexOf(IconOrder, app.name);
+		Il2CppSystem.Collections.Generic.List<Button> icons = home.appIcons;
+		if (index >= 0 && icons != null && index < icons.Count && icons[index] != null && rect.parent != null)
+		{
+			zoomFrom = rect.parent.InverseTransformPoint(icons[index].transform.position);
+			zoomFrom.z = zoomRest.z;
+		}
+		zoomAt = Time.unscaledTime;
+		closeAfterZoom = null;
+		Animate();
+	}
+
+	/// <summary>The back button: the app shrinks into its icon over the home screen (0.3 s), then the game closes it.
+	/// Escape and the phone's button close it the game's way, at once.</summary>
+	private void ZoomClosed(Action close)
+	{
+		if (zooming == null || closeAfterZoom != null)
+		{
+			close();
+			return;
+		}
+		closeAfterZoom = close;
+		zoomAt = Time.unscaledTime;
+		home.SetIsOpen(true);
+	}
+
+	private void Animate()
+	{
+		if (zooming == null || zoomGroup == null)
+		{
+			return;
+		}
+		float t = Time.unscaledTime - zoomAt;
+		bool closing = closeAfterZoom != null;
+		float k = closing ? 1f - Motion.EaseOutCubic(t / 0.3f) : Motion.EaseOutCubic(t / 0.34f);
+		float scale = Mathf.Lerp(0.12f, 1f, k);
+		zooming.localScale = new Vector3(scale, scale, 1f);
+		zooming.localPosition = Vector3.Lerp(zoomFrom, zoomRest, k);
+		zoomGroup.alpha = k;
+		if (closing && t >= 0.3f)
+		{
+			Action close = closeAfterZoom!;
+			EndZoom();
+			close();
+		}
+		else if (!closing && t >= 0.34f)
+		{
+			EndZoom();
+		}
+	}
+
+	/// <summary>Puts the app back exactly at rest (full size, in place, opaque).</summary>
+	private void EndZoom()
+	{
+		if (zooming != null)
+		{
+			zooming.localScale = Vector3.one;
+			zooming.localPosition = zoomRest;
+		}
+		if (zoomGroup != null)
+		{
+			zoomGroup.alpha = 1f;
+		}
+		zooming = null;
+		zoomGroup = null;
+		closeAfterZoom = null;
+	}
+
+	private void LayOut(GameObject app)
+	{
 		RectTransform root = app.GetComponent<RectTransform>();
 		Transform? container = app.transform.Find("Container");
 		if (root == null || container == null)
@@ -160,7 +287,7 @@ internal sealed class AppLayouts : IDisposable
 		TopLeft(back.rectTransform, new Vector2(left, -top), new Vector2(size, size));
 		Button button = back.gameObject.AddComponent<Button>();
 		button.transition = Selectable.Transition.None;
-		button.onClick.AddListener((UnityAction)close);
+		button.onClick.AddListener((UnityAction)(() => ZoomClosed(close)));
 		Image arrow = Ui.Image("Arrow", back.rectTransform, sprites.Glyph(Art.Icon.Back), Color.white);
 		arrow.raycastTarget = false;
 		arrow.rectTransform.sizeDelta = new Vector2(18f * Unit, 18f * Unit);
@@ -189,6 +316,15 @@ internal sealed class AppLayouts : IDisposable
 		}
 		Hide(box, "Home/Header");
 		Top(box, "Home/Scroll View", TallHeader);
+		// Messages has no inset frame (the chat needs the full screen): the list stops above the home bar instead of
+		// running under it.
+		Transform? list = box.Find("Home/Scroll View");
+		if (list != null)
+		{
+			RectTransform rect = list.Cast<RectTransform>();
+			Keep(rect);
+			rect.offsetMin = new Vector2(rect.offsetMin.x, 24f * Unit);
+		}
 		RectTransform bar = Header(home, "Messages", wide: false, () => app.GetComponent<MessagesScreen>().SetOpen(false));
 		undo.Add(() => Destroy(bar));
 	}
@@ -345,6 +481,8 @@ internal sealed class AppLayouts : IDisposable
 	public void Dispose()
 	{
 		Exception? failure = null;
+		Ui.Step(ref failure, EndZoom);
+		shown = null;
 		for (int i = undo.Count - 1; i >= 0; i--)
 		{
 			Action step = undo[i];
