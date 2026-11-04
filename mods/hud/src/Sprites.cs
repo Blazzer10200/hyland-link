@@ -63,6 +63,12 @@ internal sealed class Sprites : IDisposable
 		return Get("pill" + radius + "/" + color.R + color.G + color.B + color.A, () => Art.Glass(radius, color, color.WithAlpha(0f)));
 	}
 
+	/// <summary>A white chat bubble with a tighter tail corner (<see cref="Art.Tail"/>), for tinting.</summary>
+	internal Sprite Tail(double radius, double tail, bool right)
+	{
+		return Get("tail" + radius + "/" + tail + "/" + right, () => Art.Tail(radius, tail, right, Theme.White));
+	}
+
 	/// <summary>Just the edge of a rounded panel: the selected/hover ring on app tiles. As wide as the phone's other edges and
 	/// mipmapped like them: a 2-wide unmipmapped line showed at a third of a pixel and broke into fragments.</summary>
 	internal Sprite Ring(double radius, Rgba color)

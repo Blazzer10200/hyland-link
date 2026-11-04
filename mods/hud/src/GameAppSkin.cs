@@ -205,16 +205,21 @@ internal abstract class GameAppSkin : IDisposable
 		}
 		Sprite was = image.sprite;
 		Image.Type type = image.type;
+		float multiplier = image.pixelsPerUnitMultiplier;
 		undo.Add(() =>
 		{
 			if (image != null)
 			{
 				image.sprite = was;
 				image.type = type;
+				image.pixelsPerUnitMultiplier = multiplier;
 			}
 		});
 		image.sprite = sprite;
 		image.type = sprite != null && sprite.border != Vector4.zero ? Image.Type.Sliced : Image.Type.Simple;
+		// Many of the game's images scale their own sprite's corners with this (bubbles, buttons); ours are drawn at
+		// canvas size, and a leftover multiplier shrinks a 14 px corner to a few pixels.
+		image.pixelsPerUnitMultiplier = 1f;
 	}
 
 	/// <summary>Changes a button's tint colors, recorded (bubbles and rows get their color from the tint, not the image).</summary>

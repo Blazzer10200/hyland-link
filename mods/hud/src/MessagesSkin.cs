@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Il2CppScheduleOne.DevUtilities;
+using Il2CppScheduleOne.Economy;
+using Il2CppScheduleOne.GameTime;
 using Il2CppScheduleOne.UI.Phone;
+using Il2CppScheduleOne.UI.Phone.Messages;
+using Il2CppScheduleOne.UI.Tooltips;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,6 +39,18 @@ internal sealed class MessagesSkin : GameAppSkin
 	private RectTransform? chatName;
 
 	private RectTransform? chatFace;
+
+	private Transform? conversations;
+
+	/// <summary>The size we last gave each bubble: the game sizes them all again (by its own numbers) whenever a chat
+	/// opens, and a mismatch here is how the next frame knows to lay the chat out again.</summary>
+	private readonly Dictionary<int, Vector2> laid = new Dictionary<int, Vector2>();
+
+	/// <summary>Per bubble list: the count, viewport height and bottom padding it was last laid out for.</summary>
+	private readonly Dictionary<int, (int Count, float Viewport, float Pad)> stacks = new Dictionary<int, (int, float, float)>();
+
+	/// <summary>Bubble roots whose original placement is recorded (once each, so teardown restores the game's layout).</summary>
+	private readonly HashSet<int> recorded = new HashSet<int>();
 
 	internal MessagesSkin(HomeScreen home, Sprites sprites, AppClaims claims, Action<string> log)
 		: base(home, sprites, claims, log)
@@ -91,6 +108,10 @@ internal sealed class MessagesSkin : GameAppSkin
 		{
 			DealWindow(window);
 		}
+		if (window != null && window.gameObject.activeInHierarchy)
+		{
+			WindowEdges();
+		}
 	}
 
 	/// <summary>The game places the chat's name and face again on every open (by the name's width): ours goes back on
@@ -104,6 +125,230 @@ internal sealed class MessagesSkin : GameAppSkin
 		if (chatFace != null)
 		{
 			PlaceFace(chatFace);
+		}
+		Strip();
+		conversations ??= Find(app.transform, "Container/DialogueScreen/ConversationContainers");
+		if (conversations == null)
+		{
+			return;
+		}
+		for (int i = 0; i < conversations.childCount; i++)
+		{
+			Transform chat = conversations.GetChild(i);
+			if (chat.gameObject.activeSelf)
+			{
+				OpenChat(chat);
+				return;
+			}
+		}
+		openChat = 0;
+	}
+
+	/// <summary>The chat open last frame (0: none), so a chat that just opened starts at its newest message.</summary>
+	private int openChat;
+
+	/// <summary>
+	/// The open chat laid out like the board, after the game: bubbles at 13 px with 8/11 px padding, at most 80% wide,
+	/// 4 px apart within a run and 14 px where the sender changes (the game uses 5, 50 and 100 of its units, with a 75
+	/// minimum height), sitting at the bottom when there are few, the last of each run with its tail corner. Response
+	/// buttons as the board's 36 px rows 6 px apart. Only redone when the game has changed something.
+	/// </summary>
+	private void OpenChat(Transform chat)
+	{
+		Transform? responses = Find(chat, "Responses");
+		bool responsesOn = responses != null && responses.gameObject.activeSelf;
+		Transform? compose = Find(chat, "SenderInterface/Menu");
+		bool composeOn = compose != null && compose.gameObject.activeInHierarchy;
+		if (responses != null && responsesOn)
+		{
+			StackResponses(chat, responses);
+		}
+		Transform? content = Find(chat, "ScrollContainer/ScrollRect/Viewport/Content");
+		if (content != null)
+		{
+			StackBubbles(chat, content, responsesOn || composeOn ? 12f : 26f);
+		}
+		if (openChat != chat.GetInstanceID())
+		{
+			openChat = chat.GetInstanceID();
+			ScrollRect? scroll = Find<ScrollRect>(chat, "ScrollContainer/ScrollRect");
+			if (scroll != null)
+			{
+				scroll.verticalNormalizedPosition = 0f;
+			}
+		}
+	}
+
+	private static List<Transform> BubblesIn(Transform list)
+	{
+		List<Transform> found = new List<Transform>();
+		for (int i = 0; i < list.childCount; i++)
+		{
+			Transform child = list.GetChild(i);
+			if (child.gameObject.activeSelf && child.GetComponent<MessageBubble>() != null)
+			{
+				found.Add(child);
+			}
+		}
+		return found;
+	}
+
+	/// <summary>True when the list's bubbles aren't the sizes we gave them (new ones, or the game sized them again).</summary>
+	private bool Dirty(List<Transform> bubbles)
+	{
+		foreach (Transform bubble in bubbles)
+		{
+			if (!laid.TryGetValue(bubble.GetInstanceID(), out Vector2 size) || bubble.Cast<RectTransform>().sizeDelta != size)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>Records a bubble's placement once and styles it, before the first layout.</summary>
+	private void Prepare(Transform bubble, bool response)
+	{
+		if (recorded.Add(bubble.GetInstanceID()))
+		{
+			Move(bubble.Cast<RectTransform>(), r => r.pivot = new Vector2(0.5f, 0.5f));
+		}
+		if (First(bubble))
+		{
+			Bubble(bubble, response);
+		}
+	}
+
+	/// <summary>A bubble's size for its text: <paramref name="maxWidth"/> wide at most (or exactly, when
+	/// <paramref name="fixedWidth"/>), 8/11 px padding, at least <paramref name="minHeight"/> tall (board px).</summary>
+	private static Vector2 Measure(Transform bubble, float maxWidth, bool fixedWidth, float minHeight)
+	{
+		Text? text = Find<Text>(bubble, "Background/Content");
+		if (text == null)
+		{
+			return bubble.Cast<RectTransform>().sizeDelta;
+		}
+		float padX = 22f * Unit, padY = 16f * Unit;
+		TextGenerator generator = text.cachedTextGeneratorForLayout;
+		float ppu = text.pixelsPerUnit;
+		float width = maxWidth;
+		if (!fixedWidth)
+		{
+			float natural = generator.GetPreferredWidth(text.text, text.GetGenerationSettings(Vector2.zero)) / ppu;
+			width = Mathf.Min(Mathf.Ceil(natural) + padX + 1f, maxWidth);
+		}
+		float textHeight = generator.GetPreferredHeight(text.text, text.GetGenerationSettings(new Vector2(width - padX, 0f))) / ppu;
+		return new Vector2(width, Mathf.Max(Mathf.Ceil(textHeight) + padY, minHeight * Unit));
+	}
+
+	private void StackBubbles(Transform chat, Transform content, float bottomPad)
+	{
+		RectTransform list = content.Cast<RectTransform>();
+		RectTransform? viewport = list.parent != null ? list.parent.Cast<RectTransform>() : null;
+		float viewportHeight = viewport != null ? viewport.rect.height : 0f;
+		List<Transform> bubbles = BubblesIn(content);
+		int id = content.GetInstanceID();
+		stacks.TryGetValue(id, out var was);
+		// New bubbles, or the view got shorter (the response buttons came up under it): keep the newest one in sight.
+		bool grew = bubbles.Count != was.Count || viewportHeight < was.Viewport - 1f;
+		if (!grew && Mathf.Approximately(was.Viewport, viewportHeight) && Mathf.Approximately(was.Pad, bottomPad) && !Dirty(bubbles))
+		{
+			return;
+		}
+		stacks[id] = (bubbles.Count, viewportHeight, bottomPad);
+		float maxWidth = (list.rect.width - 28f * Unit) * 0.8f;
+		Vector2[] sizes = new Vector2[bubbles.Count];
+		int[] sides = new int[bubbles.Count];
+		float total = 12f * Unit;
+		for (int i = 0; i < bubbles.Count; i++)
+		{
+			Prepare(bubbles[i], response: false);
+			RectTransform root = bubbles[i].Cast<RectTransform>();
+			sides[i] = root.anchorMin.x < 0.25f ? -1 : root.anchorMin.x > 0.75f ? 1 : 0;
+			sizes[i] = Measure(bubbles[i], maxWidth, fixedWidth: false, minHeight: 34f);
+			total += (i == 0 ? 0f : (sides[i] == sides[i - 1] ? 4f : 14f) * Unit) + sizes[i].y;
+		}
+		total += bottomPad * Unit;
+		// The board's flex-end: a short chat sits on the bottom edge, like a messenger.
+		float y = 12f * Unit + Mathf.Max(0f, viewportHeight - total);
+		for (int i = 0; i < bubbles.Count; i++)
+		{
+			if (i > 0)
+			{
+				y += (sides[i] == sides[i - 1] ? 4f : 14f) * Unit;
+			}
+			RectTransform root = bubbles[i].Cast<RectTransform>();
+			Vector2 size = sizes[i];
+			root.pivot = new Vector2(0.5f, 0.5f);
+			root.sizeDelta = size;
+			float x = sides[i] < 0 ? 14f * Unit + size.x / 2f : sides[i] > 0 ? -(14f * Unit + size.x / 2f) : 0f;
+			root.anchoredPosition = new Vector2(x, -(y + size.y / 2f));
+			laid[root.GetInstanceID()] = size;
+			y += size.y;
+			bool tail = i == bubbles.Count - 1 || sides[i + 1] != sides[i];
+			Image? background = Find<Image>(bubbles[i], "Background");
+			if (background != null)
+			{
+				Sprite shape = tail && sides[i] != 0 ? sprites.Tail(14f * Unit, 4f * Unit, sides[i] > 0) : Solid(14f);
+				if (background.sprite != shape)
+				{
+					background.sprite = shape;
+					background.type = Image.Type.Sliced;
+				}
+			}
+		}
+		list.sizeDelta = new Vector2(list.sizeDelta.x, Mathf.Max(total, viewportHeight));
+		if (grew)
+		{
+			ScrollRect? scroll = Find<ScrollRect>(chat, "ScrollContainer/ScrollRect");
+			if (scroll != null)
+			{
+				scroll.verticalNormalizedPosition = 0f;
+			}
+		}
+	}
+
+	/// <summary>The response buttons: the board's .ap-resp, full width less 14 px a side, 6 px apart, 10 px above and
+	/// 24 px below (room for the home bar). The chat above shrinks to match, as the game does with its own height.</summary>
+	private void StackResponses(Transform chat, Transform responses)
+	{
+		RectTransform area = responses.Cast<RectTransform>();
+		List<Transform> buttons = BubblesIn(responses);
+		int id = responses.GetInstanceID();
+		stacks.TryGetValue(id, out var was);
+		if (buttons.Count == was.Count && !Dirty(buttons))
+		{
+			return;
+		}
+		stacks[id] = (buttons.Count, 0f, 0f);
+		float width = area.rect.width - 28f * Unit;
+		float y = 10f * Unit;
+		for (int i = 0; i < buttons.Count; i++)
+		{
+			Prepare(buttons[i], response: true);
+			// The game brackets its actions ("[Counter-offer]"); the board doesn't. Only the shown text: the game's own
+			// copy (MessageBubble.text) puts it back on every open, and this runs again then.
+			Text? label = Find<Text>(buttons[i], "Background/Content");
+			if (label != null && label.text.StartsWith("[", StringComparison.Ordinal) && label.text.EndsWith("]", StringComparison.Ordinal))
+			{
+				label.text = label.text.Substring(1, label.text.Length - 2);
+			}
+			RectTransform root = buttons[i].Cast<RectTransform>();
+			Vector2 size = Measure(buttons[i], width, fixedWidth: true, minHeight: 36f);
+			y += i == 0 ? 0f : 6f * Unit;
+			root.pivot = new Vector2(0.5f, 0.5f);
+			root.sizeDelta = size;
+			root.anchoredPosition = new Vector2(0f, -(y + size.y / 2f));
+			laid[root.GetInstanceID()] = size;
+			y += size.y;
+		}
+		y += 24f * Unit;
+		area.sizeDelta = new Vector2(area.sizeDelta.x, y);
+		area.anchoredPosition = new Vector2(area.anchoredPosition.x, y / 2f);
+		RectTransform? scroll = Find<RectTransform>(chat, "ScrollContainer");
+		if (scroll != null)
+		{
+			scroll.offsetMin = new Vector2(scroll.offsetMin.x, y);
 		}
 	}
 
@@ -350,17 +595,55 @@ internal sealed class MessagesSkin : GameAppSkin
 		Transform? debt = Find(topbar, "Debt");
 		if (debt != null)
 		{
+			// The board's pill at the strip's end: "Debt $360", the word muted, the amount red. The game stacks the two
+			// in a column; they're placed in a row instead.
 			Move(debt.Cast<RectTransform>(), r =>
 			{
 				r.anchorMin = r.anchorMax = new Vector2(1f, 1f);
 				r.pivot = new Vector2(1f, 0.5f);
-				r.anchoredPosition = new Vector2(-16f * Unit, -34f * Unit);
-				r.sizeDelta = new Vector2(85f, 80f);
+				r.anchoredPosition = new Vector2(-16f * Unit, -StripY * Unit);
+				r.sizeDelta = new Vector2(60f * Unit, 18f * Unit);
 			});
-			Recolor(Find<Graphic>(debt, "Container/Content/Background"), C(Theme.PhoneChip));
-			Label(debt, "Container/DebtHeader", 10f, C(Theme.PhoneMuted));
-			Label(debt, "Container/Content/Value", 13f);
+			foreach (string path in new[] { "Container", "Container/Content" })
+			{
+				VerticalLayoutGroup? column = Find<VerticalLayoutGroup>(debt, path);
+				if (column != null)
+				{
+					Set(column, () => column.enabled, v => column.enabled = v, false);
+				}
+			}
+			Ghost(Find<Graphic>(debt, "Container/Content/Background"));
+			Behind(debt, "pill", Solid(8f), C(Theme.PhoneChip));
+			Stretch(Find(debt, "Container"));
+			debtRect = debt.Cast<RectTransform>();
+			debtWord = Find<Text>(debt, "Container/DebtHeader");
+			debtValue = Find<Text>(debt, "Container/Content/Value");
+			Label(debtWord, 10f, C(Theme.PhoneMuted), align: TextAnchor.MiddleLeft);
+			Label(debtValue, 10f, C(0xED4B41), bold: true, align: TextAnchor.MiddleLeft);
+			Move(debtWord != null ? debtWord.rectTransform : null, r => Inline(r, 7f));
+			Move(Find<RectTransform>(debt, "Container/Content"), r =>
+			{
+				r.anchorMin = Vector2.zero;
+				r.anchorMax = Vector2.one;
+				r.offsetMin = r.offsetMax = Vector2.zero;
+			});
+			Move(debtValue != null ? debtValue.rectTransform : null, r => Inline(r, 7f + 26f));
 		}
+	}
+
+	private RectTransform? debtRect;
+
+	private Text? debtWord;
+
+	private Text? debtValue;
+
+	/// <summary>A label in a pill's row, <paramref name="x"/> board px from its left edge.</summary>
+	private static void Inline(RectTransform rect, float x)
+	{
+		rect.anchorMin = rect.anchorMax = new Vector2(0f, 0.5f);
+		rect.pivot = new Vector2(0f, 0.5f);
+		rect.anchoredPosition = new Vector2(x * Unit, 0f);
+		rect.sizeDelta = new Vector2(80f * Unit, 14f * Unit);
 	}
 
 	/// <summary>The name as the header's title, right of the back button (the game centers it by its width).</summary>
@@ -407,20 +690,130 @@ internal sealed class MessagesSkin : GameAppSkin
 			Move(relationship, "Band", r => r.sizeDelta = new Vector2(130f * Unit, 5f * Unit));
 			Image? notch = Find<Image>(relationship, "Band/Scrollbar/Sliding Area/Handle/Notch");
 			Swap(notch, Solid(1.5f));
+			// The board's white notch (the game's is the band's dark track color, lost on the band).
+			Recolor(notch, Color.white);
 			Move(notch != null ? notch.rectTransform : null, r => r.sizeDelta = new Vector2(3f * Unit, 11f * Unit));
+			relationshipRect = relationship.Cast<RectTransform>();
+			relationshipTip = relationship.GetComponent<Tooltip>();
+			relationshipLabel = NewLabel(relationship, "relationship", 11f, C(Theme.PhoneText), TextAnchor.MiddleLeft);
+			RectTransform label = relationshipLabel.rectTransform;
+			label.anchorMin = label.anchorMax = new Vector2(1f, 0.5f);
+			label.pivot = new Vector2(0f, 0.5f);
+			label.anchoredPosition = new Vector2(8f * Unit, 0f);
+			label.sizeDelta = new Vector2(80f * Unit, 16f * Unit);
 		}
 		Transform? standards = Find(name, "Standards");
 		if (standards != null)
 		{
-			Move(standards.Cast<RectTransform>(), r =>
-			{
-				r.anchoredPosition = new Vector2((-12f + 130f + 8f + 11f) * Unit, y);
-				r.sizeDelta = new Vector2(22f * Unit, 22f * Unit);
-			});
+			// The board's pill (.ap-pill): "★ Moderate standards" on #1b2128, star and words in the quality's color.
+			Move(standards.Cast<RectTransform>(), r => r.sizeDelta = new Vector2(120f * Unit, 18f * Unit));
 			Image? pill = Find<Image>(standards, "Background");
-			Swap(pill, Solid(11f));
+			Swap(pill, Solid(8f));
 			Recolor(pill, C(Theme.PhoneChip));
-			Move(standards, "Star", r => r.sizeDelta = new Vector2(13f * Unit, 13f * Unit));
+			Image? star = Find<Image>(standards, "Star");
+			starImage = star;
+			Move(star != null ? star.rectTransform : null, r =>
+			{
+				r.anchorMin = r.anchorMax = new Vector2(0f, 0.5f);
+				r.pivot = new Vector2(0f, 0.5f);
+				r.anchoredPosition = new Vector2(7f * Unit, 0f);
+				r.sizeDelta = new Vector2(10f * Unit, 10f * Unit);
+			});
+			standardsRect = standards.Cast<RectTransform>();
+			standardsTip = standards.GetComponent<Tooltip>();
+			standardsLabel = NewLabel(standards, "standards", 10f, Color.white, TextAnchor.MiddleLeft);
+			RectTransform label = standardsLabel.rectTransform;
+			label.anchorMin = label.anchorMax = new Vector2(0f, 0.5f);
+			label.pivot = new Vector2(0f, 0.5f);
+			label.anchoredPosition = new Vector2(21f * Unit, 0f);
+			label.sizeDelta = new Vector2(100f * Unit, 14f * Unit);
+		}
+		stripY = y;
+	}
+
+	private RectTransform? relationshipRect;
+
+	private Tooltip? relationshipTip;
+
+	private Text? relationshipLabel;
+
+	private RectTransform? standardsRect;
+
+	private Tooltip? standardsTip;
+
+	private Text? standardsLabel;
+
+	private Image? starImage;
+
+	private float stripY;
+
+	/// <summary>The relationship word in the game's color for it (RelationshipCategory's).</summary>
+	private static Color RelationshipColor(string word)
+	{
+		switch (word)
+		{
+			case "Hostile": return C(0xAD3F3F);
+			case "Unfriendly": return C(0xE38837);
+			case "Friendly": return C(0x3DB5F3);
+			case "Loyal": return C(0x3FD33F);
+			default: return C(0xD0D0D0);
+		}
+	}
+
+	/// <summary>
+	/// The strip under the chat's name, as the board lays it out from the face (16 + 26 + 8 px) to 16 px short of the
+	/// edge: the band takes what the word and the standards pill leave. The game writes the word and the standard into
+	/// its hover tooltips on every open; they're read from there, so they follow the game.
+	/// </summary>
+	private void Strip()
+	{
+		if (relationshipRect == null || relationshipLabel == null)
+		{
+			return;
+		}
+		string word = relationshipTip != null ? relationshipTip.text ?? string.Empty : string.Empty;
+		if (relationshipLabel.text != word)
+		{
+			relationshipLabel.text = word;
+			relationshipLabel.color = RelationshipColor(word);
+		}
+		float pill = 0f;
+		if (standardsRect != null && standardsLabel != null && standardsRect.gameObject.activeSelf)
+		{
+			string standard = (standardsTip != null ? standardsTip.text ?? string.Empty : string.Empty).TrimEnd('.');
+			if (standardsLabel.text != standard)
+			{
+				standardsLabel.text = standard;
+			}
+			if (starImage != null && standardsLabel.color != starImage.color)
+			{
+				standardsLabel.color = starImage.color;
+			}
+			pill = 7f + 10f + 4f + standardsLabel.preferredWidth / Unit + 7f;
+		}
+		if (debtRect != null && debtWord != null && debtValue != null && debtRect.gameObject.activeSelf)
+		{
+			float debtWidth = debtWord.preferredWidth / Unit;
+			debtValue.rectTransform.anchoredPosition = new Vector2((7f + debtWidth + 4f) * Unit, 0f);
+			pill = 7f + debtWidth + 4f + debtValue.preferredWidth / Unit + 7f;
+			debtRect.sizeDelta = new Vector2(pill * Unit, 18f * Unit);
+		}
+		float wordWidth = relationshipLabel.preferredWidth / Unit;
+		// Board px from the phone's left edge: the strip runs 50 → 300; the name (these rects' reference) starts at 62.
+		float end = 300f - (pill > 0f ? pill + 8f : 0f) - wordWidth - 8f;
+		float band = Mathf.Max(40f, end - 50f);
+		relationshipRect.sizeDelta = new Vector2(band * Unit, relationshipRect.sizeDelta.y);
+		relationshipRect.anchoredPosition = new Vector2((50f - 62f + band / 2f) * Unit, stripY);
+		Transform? bandRect = relationshipRect.Find("Band");
+		if (bandRect != null)
+		{
+			RectTransform r = bandRect.Cast<RectTransform>();
+			r.sizeDelta = new Vector2(band * Unit, r.sizeDelta.y);
+		}
+		if (standardsRect != null && pill > 0f)
+		{
+			standardsRect.sizeDelta = new Vector2(pill * Unit, 18f * Unit);
+			standardsRect.anchoredPosition = new Vector2((300f - 62f - pill / 2f) * Unit, stripY);
 		}
 	}
 
@@ -470,16 +863,38 @@ internal sealed class MessagesSkin : GameAppSkin
 		}
 	}
 
-	/// <summary>The compose and cancel bars: the board's .ap-resp, muted label.</summary>
+	/// <summary>The compose and cancel bars: the board's .ap-resp (36 px, 10 px corners, an edge), its 13 px muted label
+	/// centered; the pencil 16 px at the right. Same centers as the game's, so the menu's slide still lines up.</summary>
 	private void Bar(Transform? button)
 	{
 		if (button == null)
 		{
 			return;
 		}
-		Recolor(button.GetComponent<Graphic>(), C(Theme.PhoneChip), hold: false);
-		Label(Find<Graphic>(button, "Text (Legacy)"), null, C(Theme.PhoneMuted), hold: false);
-		Recolor(Find<Graphic>(button, "Image"), C(Theme.PhoneMuted), hold: false);
+		// Stretched across (sizeDelta is then the inset) or not: 14 px from each edge either way.
+		Move(button.Cast<RectTransform>(), r => r.sizeDelta = new Vector2(r.anchorMin.x != r.anchorMax.x ? -28f * Unit : 288f * Unit, 36f * Unit));
+		Image? face = button.GetComponent<Image>();
+		Swap(face, Solid(10f));
+		Recolor(face, C(Theme.PhoneChip), hold: false);
+		Image edge = Front(button, "edge", sprites.Ring(10f * Unit, Theme.PhoneStroke), Color.white);
+		edge.raycastTarget = false;
+		Fill(edge.rectTransform);
+		Graphic? label = Find<Graphic>(button, "Text (Legacy)");
+		Label(label, 13f, C(Theme.PhoneMuted), align: TextAnchor.MiddleCenter, hold: false);
+		Move(label != null ? label.rectTransform : null, r =>
+		{
+			r.anchorMin = Vector2.zero;
+			r.anchorMax = Vector2.one;
+			r.offsetMin = r.offsetMax = Vector2.zero;
+		});
+		Graphic? pencil = Find<Graphic>(button, "Image");
+		Recolor(pencil, C(Theme.PhoneMuted), hold: false);
+		Move(pencil != null ? pencil.rectTransform : null, r =>
+		{
+			r.anchorMin = r.anchorMax = new Vector2(1f, 0.5f);
+			r.anchoredPosition = new Vector2(-20f * Unit, 0f);
+			r.sizeDelta = new Vector2(16f * Unit, 16f * Unit);
+		});
 	}
 
 	private void Bubbles(Transform parent, bool response)
@@ -513,6 +928,23 @@ internal sealed class MessagesSkin : GameAppSkin
 		}
 		Move(background, "Triangle_Left", r => r.sizeDelta = Vector2.zero);
 		Move(background, "Triangle_Right", r => r.sizeDelta = Vector2.zero);
+		// The board's shape and text box: 14 px corners (10 on responses), 13 px text inset 11 px across and 8 down.
+		Swap(background.GetComponent<Image>(), Solid(response ? 10f : 14f));
+		Text? content = Find<Text>(background, "Content");
+		Move(content != null ? content.rectTransform : null, r =>
+		{
+			r.anchorMin = Vector2.zero;
+			r.anchorMax = Vector2.one;
+			r.pivot = new Vector2(0.5f, 0.5f);
+			r.offsetMin = new Vector2(11f * Unit, 8f * Unit);
+			r.offsetMax = new Vector2(-11f * Unit, -8f * Unit);
+		});
+		if (response)
+		{
+			Image edge = Front(background, "edge", sprites.Ring(10f * Unit, Theme.PhoneStroke), Color.white);
+			edge.raycastTarget = false;
+			Fill(edge.rectTransform);
+		}
 		if (response || button.interactable)
 		{
 			Tints(button, b =>
@@ -539,7 +971,7 @@ internal sealed class MessagesSkin : GameAppSkin
 				return b;
 			});
 		}
-		Label(Find<Text>(background, "Content"), null, C(Theme.PhoneText), hold: false);
+		Label(content, 13f, C(Theme.PhoneText), align: response ? TextAnchor.MiddleCenter : TextAnchor.UpperLeft, hold: false);
 	}
 
 	/// <summary>Counter-offer: the game's centered white card becomes the board's bottom sheet. Its rows stay the game's
@@ -556,14 +988,98 @@ internal sealed class MessagesSkin : GameAppSkin
 		Ghost(card, "Background");
 		Ghost(card, "Shade");
 		Behind(card, "sheet", Solid(20f), C(0x151A20));
-		Label(card, "Header/Title", 16f, C(Theme.PhoneText));
+		Image edge = Front(card, "sheet edge", sprites.Ring(20f * Unit, Theme.PhoneStroke), Color.white);
+		edge.raycastTarget = false;
+		Fill(edge.rectTransform);
+		edge.transform.SetSiblingIndex(1);
+		// The board's .ap-sheet-card: 14 px in at the top, 16 at the sides, room for the home bar under Send.
+		Spacing(card.GetComponent<VerticalLayoutGroup>(), 6f, Pad(16f, 16f, 14f, 24f));
+		Transform? header = Find(card, "Header");
+		if (header != null)
+		{
+			Off(Find(header, "Space")?.gameObject);
+			Label(Find<Text>(header, "Title"), 16f, C(Theme.PhoneText), bold: true, align: TextAnchor.MiddleLeft);
+			Prefer(Find(header, "Title")?.gameObject, 240f, 28f);
+			Transform? cancel = Find(header, "Cancel");
+			if (cancel != null)
+			{
+				Prefer(cancel.gameObject, 28f, 28f);
+				Behind(cancel, "x", Solid(14f), C(Theme.PhoneChip));
+				Image? cross = Find<Image>(cancel, "Image");
+				Recolor(cross, C(Theme.PhoneMuted));
+				Move(cross != null ? cross.rectTransform : null, r =>
+				{
+					r.anchorMin = r.anchorMax = new Vector2(0.5f, 0.5f);
+					r.anchoredPosition = Vector2.zero;
+					r.sizeDelta = new Vector2(11f * Unit, 11f * Unit);
+				});
+			}
+		}
+		foreach (string section in new[] { "Customer", "Dealer" })
+		{
+			Transform? group = Find(card, section);
+			if (group == null)
+			{
+				continue;
+			}
+			Spacing(group.GetComponent<VerticalLayoutGroup>(), 5f, Pad(0f, 0f, 4f, 0f));
+			// The board's .ap-label: 10 px muted capitals.
+			Text? subtitle = Find<Text>(group, "Subtitle");
+			if (subtitle != null)
+			{
+				Label(subtitle, 10f, C(Theme.PhoneMuted), align: TextAnchor.MiddleLeft);
+				string caps = subtitle.text.ToUpperInvariant();
+				Set(subtitle, () => subtitle.text, v => subtitle.text = v, caps);
+				Prefer(subtitle.gameObject, null, 14f);
+			}
+		}
+		foreach (string path in new[] { "Customer/Product", "Customer/Amount", "Dealer/AmountSelector" })
+		{
+			Image? row = Find<Image>(card, path);
+			Swap(row, Solid(10f));
+			Recolor(row, C(Theme.PhoneChip));
+			Prefer(row != null ? row.gameObject : null, null, 40f);
+		}
+		Label(card, "Customer/Product/Title", 14f, C(Theme.PhoneText));
+		// Quantity −/+ and the price steps: the board's .ap-step (30 px, 8 px corners, #222831 with an edge).
+		foreach (Button step in card.GetComponentsInChildren<Button>(true))
+		{
+			string name = step.gameObject.name;
+			bool quantity = name == "RemoveButton" || name == "AddButton";
+			bool price = step.transform.parent != null && step.transform.parent.name.StartsWith("NegativeValues", StringComparison.Ordinal)
+				|| step.transform.parent != null && step.transform.parent.name.StartsWith("PositiveValues", StringComparison.Ordinal);
+			if (!quantity && !price)
+			{
+				continue;
+			}
+			Image? face = step.GetComponent<Image>();
+			Swap(face, Solid(8f));
+			Recolor(face, C(0x222831));
+			float width = quantity ? 28f : step.gameObject.name.Length switch { <= 2 => 28f, 3 => 34f, _ => 40f };
+			Prefer(step.gameObject, width, 28f);
+			foreach (Text label in step.GetComponentsInChildren<Text>(true))
+			{
+				// These labels sit at half scale in the prefab: twice the size reads as the board's 12 px.
+				float scale = Mathf.Max(0.1f, label.rectTransform.localScale.x);
+				Label(label, 12f / scale, C(Theme.PhoneText));
+				Text kept = label;
+				Set(kept, () => kept.horizontalOverflow, v => kept.horizontalOverflow = v, HorizontalWrapMode.Overflow);
+			}
+		}
+		Text? fair = Find<Text>(card, "Dealer/Fair price");
+		Label(fair, 11f, C(Theme.PhoneMuted), bold: false, align: TextAnchor.MiddleCenter);
+		Prefer(fair != null ? fair.gameObject : null, null, 16f);
 		Transform? send = Deep(card, "Confirm");
 		if (send != null)
 		{
-			Recolor(send.GetComponent<Graphic>(), C(Theme.PhoneAccent));
+			// The board's .ap-primary: 40 px, 10 px corners, the accent, 12 px under the rows.
+			Image? face = send.GetComponent<Image>();
+			Swap(face, Solid(10f));
+			Recolor(face, C(Theme.PhoneAccent));
+			Prefer(send.gameObject, null, 40f);
 			foreach (Text label in send.GetComponentsInChildren<Text>(true))
 			{
-				Label(label, null, C(0x0D1014));
+				Label(label, 14f, C(0x0D1014), bold: true);
 			}
 		}
 	}
@@ -597,7 +1113,7 @@ internal sealed class MessagesSkin : GameAppSkin
 			return;
 		}
 		Ghost(shade.GetComponent<Graphic>());
-		Sheet(shade.Cast<RectTransform>(), 224f * Unit);
+		Sheet(shade.Cast<RectTransform>(), 240f * Unit);
 		Move(card.Cast<RectTransform>(), r =>
 		{
 			r.anchorMin = Vector2.zero;
@@ -637,7 +1153,8 @@ internal sealed class MessagesSkin : GameAppSkin
 		Move(subtitle != null ? subtitle.rectTransform : null, r =>
 		{
 			r.anchoredPosition = new Vector2(0f, -54f * Unit);
-			r.sizeDelta = new Vector2(-32f * Unit, 16f * Unit);
+			// Two lines: "…any time within the window" wraps at the board's width too.
+			r.sizeDelta = new Vector2(-32f * Unit, 32f * Unit);
 		});
 		Transform? wheel = Find(card, "Wheel");
 		if (wheel != null)
@@ -646,7 +1163,7 @@ internal sealed class MessagesSkin : GameAppSkin
 			{
 				r.anchorMin = r.anchorMax = new Vector2(0.5f, 1f);
 				r.pivot = new Vector2(0.5f, 1f);
-				r.anchoredPosition = new Vector2(0f, -72f * Unit);
+				r.anchoredPosition = new Vector2(0f, -WindowsTop * Unit);
 				r.sizeDelta = new Vector2(284f * Unit, 108f * Unit);
 			});
 			for (int i = 0; i < wheel.childCount; i++)
@@ -662,15 +1179,57 @@ internal sealed class MessagesSkin : GameAppSkin
 			Window(wheel, "Night", -1f, -1f);
 			Window(wheel, "LateNight", 1f, -1f);
 		}
+		// The board's one line, "Current time 12:42 AM": the game's caption ends at the middle, its clock starts there.
 		Text? now = Find<Text>(card, "CurrentTime");
-		Label(now, 11f, C(Theme.PhoneMuted), align: TextAnchor.MiddleCenter);
+		Label(now, 11f, C(Theme.PhoneMuted), align: TextAnchor.MiddleRight);
+		if (now != null)
+		{
+			Set(now, () => now.text, v => now.text = v, "Current time");
+		}
 		Move(now != null ? now.rectTransform : null, r =>
 		{
 			r.anchorMin = r.anchorMax = new Vector2(0f, 1f);
 			r.pivot = new Vector2(0f, 1f);
-			r.anchoredPosition = new Vector2(16f * Unit, -(72f + 108f + 10f) * Unit);
-			r.sizeDelta = new Vector2(284f * Unit, 16f * Unit);
+			r.anchoredPosition = new Vector2(16f * Unit, -(WindowsTop + 108f + 10f) * Unit);
+			r.sizeDelta = new Vector2(140f * Unit, 16f * Unit);
 		});
+		Text? clock = now != null ? Find<Text>(now.transform, "Title") : null;
+		Label(clock, 11f, C(Theme.PhoneText), bold: false, align: TextAnchor.MiddleLeft);
+		Move(clock != null ? clock.rectTransform : null, r =>
+		{
+			r.anchorMin = r.anchorMax = new Vector2(1f, 0.5f);
+			r.pivot = new Vector2(0f, 0.5f);
+			r.anchoredPosition = new Vector2(4f * Unit, 0f);
+			r.sizeDelta = new Vector2(140f * Unit, 16f * Unit);
+		});
+	}
+
+	/// <summary>Where the window grid starts, under the title and the two-line subtitle (board px).</summary>
+	private const float WindowsTop = 88f;
+
+	/// <summary>Each window card's edge, by the game's window name (EDealWindow's names).</summary>
+	private readonly Dictionary<string, Image> windowEdges = new Dictionary<string, Image>();
+
+	/// <summary>The board marks the window the clock is in with the accent (the rest get the slate edge).</summary>
+	private void WindowEdges()
+	{
+		if (windowEdges.Count == 0)
+		{
+			return;
+		}
+		TimeManager time = NetworkSingleton<TimeManager>.Instance;
+		if (time == null)
+		{
+			return;
+		}
+		string current = DealWindowInfo.GetWindow(time.CurrentTime).ToString();
+		foreach (KeyValuePair<string, Image> edge in windowEdges)
+		{
+			if (edge.Value != null)
+			{
+				edge.Value.color = edge.Key == current ? C(Theme.PhoneAccent) : C(Theme.PhoneStroke);
+			}
+		}
 	}
 
 	/// <summary>One deal window as the board's card (.ap-win: 12 px padding, the name over its hours), in the grid cell at
@@ -700,6 +1259,10 @@ internal sealed class MessagesSkin : GameAppSkin
 				Ghost(graphic, hold: false);
 			}
 		}
+		Image edge = Front(window, "edge", sprites.Ring(12f * Unit, Theme.White), C(Theme.PhoneStroke));
+		edge.raycastTarget = false;
+		Fill(edge.rectTransform);
+		windowEdges[name] = edge;
 		Text? title = Find<Text>(window, "Title");
 		if (title != null)
 		{

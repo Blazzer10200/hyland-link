@@ -200,6 +200,20 @@ internal static class Art
 		});
 	}
 
+	/// <summary>A solid 9-sliced rounded panel whose bottom-left (or bottom-right) corner is tighter: a chat bubble's tail
+	/// corner (the board's 14 px with 4 px at the tail). Bitmap rows run bottom-up, so the bottom is y &lt; 0.</summary>
+	internal static Bitmap Tail(double radius, double tail, bool right, Rgba fill)
+	{
+		int side = (int)Math.Ceiling(radius + 2.0) * 2 * Scale;
+		double half = side / 2.0 / Scale;
+		return new Bitmap(side, side, Scale, (int)Math.Ceiling(radius + 1.0) * Scale).Fill((x, y) =>
+		{
+			bool corner = y < 0 && (right ? x > 0 : x < 0);
+			float shape = Coverage(RoundedBox(x, y, half, half, corner ? tail : radius) * Scale);
+			return shape <= 0f ? default : fill.WithAlpha(fill.A * shape);
+		});
+	}
+
 	/// <summary>The board's phone body as a 9-sliced frame: a rounded slab with a stroke on its outer edge and a rounded
 	/// hole where the screen shows through, <paramref name="side"/> in from the left and right, <paramref name="top"/> and
 	/// <paramref name="bottom"/> in from those edges. One border wide enough for the deepest inset keeps every corner,
