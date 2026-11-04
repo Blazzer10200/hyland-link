@@ -20,7 +20,7 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | What | State | Where |
 |---|---|---|
 | HUD 0.1.1 (Respawn instead of "Load last save" on the server) | On `main`, staged, **not seen in game**, not published | `dist/hud-v0.1.1/HylandHud.zip` |
-| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (9bcdf6b), checked out at `.worktrees/hud-phone` |
+| HUD 0.2.0 (glass phone, Hyland app on key 8, rain level, the game's 7 apps redesigned like the board, the call screen) | **Back-burnered on branch `hud-phone`, needs a lot more work** (Blazzer, end of 2026-11-03). Runs in the test copy with no errors | `hud-phone` (88d7c4d), checked out at `.worktrees/hud-phone` |
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` is ahead of `origin/main` (nothing pushed since revision 8). `mod-release.ps1 -Publish` refuses an unpushed
