@@ -58,15 +58,16 @@ Output: `mods/notify/bin/Release/net6.0/HylandNotify.dll`. References come from 
 
 ## Testing in game
 
-Same test copy as the HUD (`C:\Games\Schedule I (HUD test)`, see `mods/hud/README.md`), never Blazzer's own game folder.
+The local dev loop (`docs/DEV-WORKFLOW.md`), never Blazzer's own game folder or the live server.
 
 ```bash
-pwsh scripts/hud-testcopy.ps1 use notify
-pwsh scripts/hud-testcopy.ps1 launch
-pwsh scripts/hud-testcopy.ps1 log
+pwsh scripts/dev.ps1 server up
+pwsh scripts/dev.ps1 play
+pwsh scripts/dev.ps1 watch notify   # every save rebuilds; the running game reloads it
+pwsh scripts/dev.ps1 log
 ```
 
-**Join the server**, never single player (both copies share the saves). Things to make happen: take a deal and let it
+Never single player (the test copy shares the saves with the real game). Things to make happen: take a deal and let it
 get close to its window's end, finish it (deal done), get texted twice by one person, get a call, get a hint, save, get
 seen by police and lose them, get cuffed (progress bar and arrest notice), get a ticket, get knocked out (hospital bill).
 

@@ -24,6 +24,9 @@ exception in that purely visual method, so it can never take a join down again.
 **Server side:** `s1ds world-check` (schedule1-server) flags racks drying a custom product, and `s1ds-diag fix-drying
 --apply` moves them to the output slot. With this mod on every player that's a safety net, not a must.
 
-**Testing:** `s1ds-sandbox up <backup>` (schedule1-server, on the server box) loads a world with such a rack on port 38466; then
-`pwsh scripts/join-test.ps1 -Port 38466` (expect STUCK) and the same with
-`-Mod mods/fixes/bin/Release/net6.0/HylandFixes.dll` (expect LOADED IN).
+**Testing:** load a world with such a rack into the local dev server (`docs/DEV-WORKFLOW.md`):
+`pwsh scripts/dev.ps1 server world s1-world-20261104-002934-pre-fix-drying.tar.zst`, `server up`. Take Hyland Fixes
+out of the test copy's `Mods`, then `pwsh scripts/dev.ps1 jointest` (expect STUCK) and
+`pwsh scripts/dev.ps1 jointest mods/fixes/bin/Release/net6.0/HylandFixes.dll` (expect LOADED IN). The same works
+against the server box's sandbox (`s1ds-sandbox up <backup>`, `join-test.ps1 -Port 38466`) when a bug only shows on
+the Linux/Wine server.

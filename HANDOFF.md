@@ -34,15 +34,21 @@ commit. What changed for players: `CHANGELOG.md`. Server-side state: the schedul
 | Phone design board | Published, every screen clicked through (all 7 game apps with sample data, the game's ✕ hide on chats, the Hyland app) | claude.ai artifact "Hyland phone" |
 
 `main` and `hud-phone` are pushed. `mod-release.ps1 -Publish` refuses an unpushed tree, so push before the next mod
-release. The test copy still has HUD 0.1.1, Minimap 1.2.2 and Notifications 0.1.0 (put back as found after the r11
-tests; `hud-testcopy.ps1 use main` / `use notify` bring it up to date).
+release.
+
+**Dev loop (new 2026-11-04, `docs/DEV-WORKFLOW.md`):** a dev server on this PC (`C:\Games\Schedule I (dev server)`,
+S1DS 1.1.6, the 12:24 rolling world from live), and the test copy joining it with HotReload 1.2.0 in `Plugins\`.
+Verified: server boots in ~22 s, the test copy joins by itself in ~15 s, a HUD rebuild reloads in the running game in
+~70 ms (twice in a row, HUD drawn once, 0 errors), `server down` saves with the game's confirmation. The test copy now
+runs exactly the live mod list (r11, byte for byte); `dev.ps1 status` shows it. `scripts/hud-testcopy.ps1` is
+superseded by `dev.ps1` (Blazzer's call whether to delete it).
 
 ## Next steps
 1. **Watch for reports on r11** (death screen buttons, the notification cards, minimap markers in the right places). If
    something's off, fix it on `main` and ship the next version the same way: bump `src/AssemblyInfo.cs`, push,
    `mod-release.ps1 <mod> -Publish`, `mods.ps1 publish`.
 2. **Phone: back-burnered, still needs a lot of work** (work in `.worktrees/hud-phone`; test with
-   `hud-testcopy.ps1 use phone`, `launch`, `log`). On the branch now: the home screen, the Hyland app, and the game's 7
+   `dev.ps1 server up`, `play`, `watch phone`: saves reload into the running game). On the branch now: the home screen, the Hyland app, and the game's 7
    apps redesigned the HUD way, one skin per app (`GameAppSkin` + `MessagesSkin`, `DeliveriesSkin`, `DealersSkin`,
    `JournalSkin`, `ProductsSkin`, `ContactsSkin`; `mods/hud/PHONE.md` "What we built"), with zoom in/out of the icon.
    Seen and accepted in game on 2026-11-03: the Messages list (rows, previews, the ✕ hiding a chat) and the home
@@ -90,6 +96,6 @@ tests; `hud-testcopy.ps1 use main` / `use notify` bring it up to date).
 - Il2CppInterop: `GetComponentInParent<T>(true)` throws a VerificationException; walk the parents by hand.
 - The game's legacy `Text` drops any line that doesn't fit its rect (OpenSans needs ~1.36× the font size per line),
   so restyled labels that grow need `verticalOverflow = Overflow`.
-- A closed game can linger in the process list with no threads while Steam holds its handle. `hud-testcopy.ps1
-  launch` now ignores it (e150ef9); before that it refused with "Another Schedule I is running ()".
+- A closed game can linger in the process list with no threads while Steam holds its handle. `dev.ps1` (and
+  `hud-testcopy.ps1` since e150ef9) ignores those; before that launch refused with "Another Schedule I is running ()".
 - Screen grabs from a non-DPI-aware PowerShell come out at 2048×1152 on this 2560×1440 screen (125% scaling).

@@ -69,8 +69,9 @@ mods/notify/         Hyland Notifications: the game's tracker, toasts, police st
 mods/fixes/          Hyland Fixes: client-side workarounds for game bugs on our server, one file per fix
 scripts/mods.ps1     edit the server's mod list and publish it (server first, then main)
 scripts/mod-release.ps1  build, stage and release one of our own mods (hud, minimap, notify, fixes)
-scripts/hud-testcopy.ps1  put a mod build into the HUD test copy of the game, launch it, read its log
+scripts/dev.ps1      the dev loop: local dev server, test copy, push/watch builds into the running game (docs/DEV-WORKFLOW.md)
 scripts/join-test.ps1     one unattended join from the test copy: prints LOADED IN or STUCK
+docs/DEV-WORKFLOW.md where testing happens (dev server on this PC, never live) and which loop fits which change
 tools/joindiag/      test-only mod that logs which object's init threw during a join (never shipped)
 scripts/release.sh   build, sign and publish a launcher release
 scripts/read-app.mjs print the real app's screen text (dev check, see CLAUDE.md)

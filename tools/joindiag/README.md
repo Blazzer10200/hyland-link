@@ -6,7 +6,8 @@ FishNet start callbacks, spray surfaces, `DryingRack.PleaseReceiveOp` and `Confi
 first `start` without an `ok` is the object whose init threw. It found the drying rack bug (see `mods/fixes/README.md`).
 
 Build (references the test copy): `dotnet build -c Release tools/joindiag`, then
-`pwsh scripts/join-test.ps1 -Port 38466 -Mod tools/joindiag/bin/Release/net6.0/JoinDiag.dll` and read
+`pwsh scripts/dev.ps1 jointest tools/joindiag/bin/Release/net6.0/JoinDiag.dll` against the local dev server (or
+`join-test.ps1 -Port 38466 -Mod ...` against the server box's sandbox) and read
 `[JoinDiag]` lines in the test copy's `MelonLoader/Latest.log`. Add a `[HarmonyPatch]` for whatever new suspect a
 log points at; RPC bodies are `RpcLogic___<Name>_<hash>` in `.gameref/src`.
 

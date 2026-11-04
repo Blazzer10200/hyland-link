@@ -35,20 +35,25 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
 - `mods/hud/`: Hyland HUD, our restyle of the game's hotbar, compass and money (Blazzer's "Glass Rail" concept). It
   restyles the game's own HUD objects in place and restores them on disable or error. Shipped (`hud-v0.1.2`, id
   `hyland-hud`, mod list r11). `mods/hud/preview` renders its sprites to PNG without the game; `Diagnostics.cs` dumps a
-  real prefab's layout to the log. In-game testing: see its README ("Testing in game");
-  `pwsh scripts/hud-testcopy.ps1 use main|phone|notify`, `launch`, `log` drive the test copy. The phone (0.2.0: glass home
+  real prefab's layout to the log. In-game testing: the dev loop below (`dev.ps1 watch hud|phone`). The phone (0.2.0: glass home
   screen, Hyland app, rain level, the game's apps restyled and framed) is parked off `main` on branch `hud-phone`,
   checked out at `.worktrees/hud-phone` (gitignored); HANDOFF says what's left and how it comes back.
 - `mods/notify/`: Hyland Notifications (id `hyland-notify`, shipped `notify-v0.1.1`, mod list r10), every on-screen notification in HUD's
   glass: deal/quest tracker, toasts, unread badge, call card, police status, hints, game saved, progress bar, big
   popups, and the ticket/arrest/hospital screens restyled in place. Mirrors the game's pieces (`Muffle` hides them
   without touching what the game reads back); `ScreenLayout` keeps it off Hyland Minimap in any corner. One file per
-  surface; its README maps them. Test: `pwsh scripts/hud-testcopy.ps1 use notify`.
+  surface; its README maps them. Test: `pwsh scripts/dev.ps1 watch notify`.
 - `mods/fixes/`: Hyland Fixes (id `hyland-fixes`), client-side workarounds for game bugs on our server, one file per
   fix. 0.1.0: drying racks drying a custom mix no longer hang joins (`DryingRackVisuals.cs`; its README has the chain).
-- Join bugs ("stuck loading in"): `pwsh scripts/join-test.ps1 [-Port 38466] [-Mod <dll>]` does one unattended join from
-  the test copy and prints LOADED IN or STUCK. Reproduce against a sandbox server (`s1ds-sandbox up <backup>` on the server box,
-  port 38466, schedule1-server). `tools/joindiag/` (test only, never shipped) logs which object's init threw.
+- **Dev loop** (`docs/DEV-WORKFLOW.md`, `scripts/dev.ps1`): a dev server on this PC (`C:\Games\Schedule I (dev server)`,
+  127.0.0.1:38465, its own world from `C:\Games\Schedule I dev worlds`), the test copy joining it (`dev.ps1 play`), and
+  HotReload (test copy's `Plugins\` only; pinned source in `.gameref/tools/hotreload`) swapping builds into the running
+  game (`dev.ps1 push|watch <mod>`). All mod testing happens here, never on the live server. `dev.ps1 status` compares
+  the test copy with your builds and the live mod list. World backups come down with schedule1-server's `pull-world.sh`.
+- Join bugs ("stuck loading in"): `pwsh scripts/dev.ps1 jointest [<dll>...]` does one unattended join from the test copy
+  against the dev server and prints LOADED IN or STUCK (`dev.ps1 server world <backup>` loads the broken world).
+  `join-test.ps1 -TestHost <ip> -Port 38466` does the same against the server box's sandbox (`s1ds-sandbox`), for bugs
+  only the Linux/Wine server shows. `tools/joindiag/` (test only, never shipped) logs which object's init threw.
 - `scripts/mod-release.ps1 hud|minimap|notify|fixes`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
   Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
   release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.
@@ -90,8 +95,9 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   `Hyland-Link-Setup.exe`, so the friend download link never changes.
 - Don't install the mod into Blazzer's real game folder to test. That copy is used for co-op. Use the browser mock
   (`pnpm --dir app dev`, `?s=<state>`) or `cargo test -- --ignored` (installs into a temp folder). For our client mods
-  in the real game, use the test copy `C:\Games\Schedule I (HUD test)` (runs its own exe via `steam_appid.txt`; join
-  the server, never single-player: saves are shared). See `mods/hud/README.md`.
+  in the real game, use the dev loop: the test copy `C:\Games\Schedule I (HUD test)` (runs its own exe via
+  `steam_appid.txt`) on the local dev server, never the live server and never single-player (saves are shared with the
+  real game). HotReload and test builds never go into the real game or the manifest. See `docs/DEV-WORKFLOW.md`.
 
 ## Build
 - `CARGO_TARGET_DIR=C:\cargo-targets` on this PC, so bundles land in `C:\cargo-targets\release\bundle\nsis\`.

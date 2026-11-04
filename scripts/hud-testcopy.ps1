@@ -1,6 +1,9 @@
-# The HUD test copy (C:\Games\Schedule I (HUD test), see mods/hud/README.md "Testing in game"). Never touches the real
-# Steam install. Swapping needs the test copy's game closed (MelonLoader has no hot reload); launch needs Steam open and
-# then: join the server, never single player (both copies share the saves).
+# SUPERSEDED by scripts/dev.ps1 (docs/DEV-WORKFLOW.md): `dev.ps1 push|watch <mod>` replaces `use` and works while the
+# game runs (HotReload), `dev.ps1 play` replaces `launch` and joins the local dev server, `dev.ps1 log` replaces `log`.
+# Kept until Blazzer decides to delete it.
+#
+# The HUD test copy (C:\Games\Schedule I (HUD test)). Never touches the real Steam install. Never single player (both
+# copies share the saves).
 #
 #   pwsh scripts/hud-testcopy.ps1 use main     # main's HUD build (mods/hud/bin/Release)
 #   pwsh scripts/hud-testcopy.ps1 use phone    # the parked phone's build (.worktrees/hud-phone, branch hud-phone)

@@ -71,12 +71,11 @@ dotnet run --project mods/hud/preview -c Release -- <output folder>
 
 ## Testing in game
 
-Never in Blazzer's own game folder (it's the co-op copy). There's a test copy at `C:\Games\Schedule I (HUD test)`: the
-whole game folder plus a `steam_appid.txt` (3164500), so its `Schedule I.exe` runs from there (Steam open) instead of
-Steam starting the real install. `pwsh scripts/hud-testcopy.ps1 use main` (or `use phone` for the parked phone's build
-in `.worktrees/hud-phone`) copies a fresh `bin/Release/net6.0/HylandHud.dll` into its `Mods/` (the game must be closed),
-`launch` starts it, `log` prints what the HUD said. **Join the server**: both copies share the save folder in
-`AppData\LocalLow`, so a single-player test would write to Blazzer's real saves.
+Never in Blazzer's own game folder (it's the co-op copy), and not on the live server: use the local dev loop
+(`docs/DEV-WORKFLOW.md`). `pwsh scripts/dev.ps1 server up`, `play` (the test copy at `C:\Games\Schedule I (HUD test)`
+joins the dev server by itself), then `watch hud` (or `watch phone` for the parked phone in `.worktrees/hud-phone`):
+every save rebuilds and HotReload swaps the HUD into the running game. `dev.ps1 log` prints what the HUD said. Never
+single player: the test copy shares the save folder in `AppData\LocalLow` with Blazzer's real game.
 
 Each session the mod logs one line about the hotbar and one about the compass (slot size, parents, canvas scale, which
 bank readout it hid) to that copy's `MelonLoader/Latest.log`. When a screenshot shows something out of place, log the
