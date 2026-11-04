@@ -39,6 +39,11 @@ internal sealed class MoneyPanel
 	/// <summary>The text's width, measured only when the text changes (TMP re-measures on every read).</summary>
 	private float textWidth;
 
+	/// <summary>The text changed and isn't measured yet. TMP measures a label that has never been active (the hotbar
+	/// hidden at the 4 AM pass-out, on arrest or death) as a few units wide, and a balance that changes while it's hidden
+	/// would keep that width until the next change, so it's measured once it shows.</summary>
+	private bool textDirty;
+
 	internal MoneyPanel(Transform parent, Sprites sprites, TMP_FontAsset font)
 	{
 		root = Ui.Rect("Money", parent);
@@ -58,6 +63,11 @@ internal sealed class MoneyPanel
 		if (money != null)
 		{
 			Count(money.sync___get_value_onlineBalance(), dt);
+		}
+		if (textDirty && text.isActiveAndEnabled)
+		{
+			textWidth = text.preferredWidth;
+			textDirty = false;
 		}
 		float width = PadX + IconSize + 8f + Mathf.Max(62f, textWidth) + PadX;
 		float height = PadY + RowHeight + PadY;
@@ -93,6 +103,6 @@ internal sealed class MoneyPanel
 	private void Show(float amount)
 	{
 		text.text = MoneyManager.FormatAmount(amount, false, false);
-		textWidth = text.preferredWidth;
+		textDirty = true;
 	}
 }

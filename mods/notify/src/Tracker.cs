@@ -103,6 +103,9 @@ internal sealed class Tracker : Surface
 
 		internal Color ChipColor = Glass.Soft;
 
+		/// <summary>The chip's text changed and isn't measured yet (see <see cref="MeasureChip"/>).</summary>
+		internal bool ChipDirty;
+
 		internal readonly Ease Appear = new Ease(0f, 0.25f);
 
 		internal readonly Ease Y = new Ease(0f, 0.22f);
@@ -139,6 +142,14 @@ internal sealed class Tracker : Surface
 	private TextMeshProUGUI? questHeader;
 
 	private TextMeshProUGUI? questCount;
+
+	private RectTransform? dealPill;
+
+	private RectTransform? questPill;
+
+	private bool dealPillPinned;
+
+	private bool questPillPinned;
 
 	private TextMeshProUGUI? more;
 
@@ -208,19 +219,21 @@ internal sealed class Tracker : Surface
 		Image glass = Glass.Panel("Hyland tracker", f.Root, f.Sprites);
 		panel = glass.rectTransform;
 		Ui.Group(panel.gameObject);
-		dealHeader = Header(f, "DEALS", out dealCount);
-		questHeader = Header(f, "QUESTS", out questCount);
+		dealHeader = Header(f, "DEALS", out dealCount, out dealPill);
+		questHeader = Header(f, "QUESTS", out questCount, out questPill);
+		dealPillPinned = questPillPinned = false;
 		more = Glass.Label("More", panel, f.Font, 12f, Glass.Muted);
 	}
 
-	private TextMeshProUGUI Header(Frame f, string text, out TextMeshProUGUI count)
+	private TextMeshProUGUI Header(Frame f, string text, out TextMeshProUGUI count, out RectTransform pillRect)
 	{
 		TextMeshProUGUI label = Glass.Label(text, panel!, f.Font, 11f, Glass.Muted);
 		label.text = text;
 		label.characterSpacing = 8f;
 		label.fontStyle = FontStyles.Bold;
 		Image pill = Glass.Solid("Count", label.transform, f.Sprites, 8, Glass.Hex(0x222831));
-		Glass.Pin(pill.rectTransform, new Vector2(0f, 0.5f), new Vector2(label.preferredWidth + 8f, 0f), new Vector2(24f, 16f));
+		pillRect = pill.rectTransform;
+		Glass.Pin(pillRect, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(24f, 16f));
 		count = Glass.Label("N", pill.transform, f.Font, 11f, Glass.Soft, TextAlignmentOptions.Center);
 		Glass.Fill(count.rectTransform);
 		return label;
@@ -473,6 +486,8 @@ internal sealed class Tracker : Surface
 		}
 		dealHeader!.gameObject.SetActive(dealHeaderPlaced);
 		questHeader!.gameObject.SetActive(questHeaderPlaced);
+		PinCount(dealHeader, dealPill!, ref dealPillPinned);
+		PinCount(questHeader, questPill!, ref questPillPinned);
 		dealCount!.text = deals.ToString();
 		questCount!.text = quests.ToString();
 		more!.gameObject.SetActive(hidden > 0);
@@ -524,6 +539,31 @@ internal sealed class Tracker : Surface
 		}
 	}
 
+	/// <summary>Sizes the chip and the name beside it from the chip's text, on the first frame the chip is active. TMP
+	/// measures a label that has never been active (a row filled while it's hidden) as a few units wide.</summary>
+	private static void MeasureChip(Row row)
+	{
+		if (!row.ChipDirty || !row.ChipText.isActiveAndEnabled)
+		{
+			return;
+		}
+		row.ChipDirty = false;
+		float w = Mathf.Ceil(row.ChipText.preferredWidth) + 14f;
+		Glass.Pin(row.ChipBack.rectTransform, new Vector2(1f, 1f), new Vector2(-12f, -8f), new Vector2(w, 18f));
+		Glass.Pin(row.Name.rectTransform, new Vector2(0f, 1f), new Vector2(56f, -7f), new Vector2(Width - 56f - 12f - w - 8f, 20f));
+	}
+
+	/// <summary>Puts a header's count pill after its label once the label is active, for the same reason.</summary>
+	private static void PinCount(TextMeshProUGUI label, RectTransform pill, ref bool pinned)
+	{
+		if (pinned || !label.isActiveAndEnabled)
+		{
+			return;
+		}
+		pinned = true;
+		Glass.Pin(pill, new Vector2(0f, 0.5f), new Vector2(label.preferredWidth + 8f, 0f), new Vector2(24f, 16f));
+	}
+
 	private static void Place(RectTransform rect, float top)
 	{
 		Glass.Pin(rect, new Vector2(0f, 1f), new Vector2(12f, -top), new Vector2(Width - 24f, HeaderHeight));
@@ -542,6 +582,7 @@ internal sealed class Tracker : Surface
 			Timing.Closing => Glass.Orange,
 			_ => Glass.Soft
 		};
+		MeasureChip(row);
 		row.ChipColor = Color.Lerp(row.ChipColor, target, 1f - Mathf.Exp(-6f * dt));
 		row.ChipText.color = row.ChipColor;
 		row.ChipBack.color = Glass.Tint(row.ChipColor, 0.16f);
@@ -654,12 +695,10 @@ internal sealed class Tracker : Surface
 		row.Line2.gameObject.SetActive(d.Line2.Length > 0);
 		bool chip = d.Chip.Length > 0;
 		row.ChipBack.gameObject.SetActive(chip);
-		if (chip)
+		if (chip && d.Chip != row.ChipText.text)
 		{
 			row.ChipText.text = d.Chip;
-			float w = Mathf.Ceil(row.ChipText.preferredWidth) + 14f;
-			Glass.Pin(row.ChipBack.rectTransform, new Vector2(1f, 1f), new Vector2(-12f, -8f), new Vector2(w, 18f));
-			Glass.Pin(row.Name.rectTransform, new Vector2(0f, 1f), new Vector2(56f, -7f), new Vector2(Width - 56f - 12f - w - 8f, 20f));
+			row.ChipDirty = true;
 		}
 		bool twoLines = row.Kind == Kind.Deal || d.Line2.Length > 0;
 		row.TargetHeight = twoLines ? DealHeight : 56f;

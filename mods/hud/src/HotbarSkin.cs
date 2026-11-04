@@ -132,6 +132,10 @@ internal sealed class HotbarSkin : IDisposable
 
 	private float labelWidth;
 
+	/// <summary>The name changed and isn't measured yet: TMP measures a label that has never been active (the hotbar
+	/// hidden at the 4 AM pass-out, on arrest or death) as a few units wide, so it's measured once it shows.</summary>
+	private bool labelDirty;
+
 	private float labelIn;
 
 	private readonly List<Slot> rowSlots = new List<Slot>();
@@ -378,9 +382,14 @@ internal sealed class HotbarSkin : IDisposable
 			{
 				labelName = name;
 				labelText.text = name;
-				labelWidth = labelText.preferredWidth;
+				labelDirty = true;
 				labelIn = 0f;
 			}
+		}
+		if (labelDirty && labelText.isActiveAndEnabled)
+		{
+			labelWidth = labelText.preferredWidth;
+			labelDirty = false;
 		}
 		labelIn = Mathf.Min(1f, labelIn + dt / 0.22f);
 		float rise = (1f - Motion.EaseOutCubic(labelIn)) * 6f;
