@@ -44,6 +44,8 @@ runs exactly the live mod list (r11, byte for byte); `dev.ps1 status` shows it. 
 superseded by `dev.ps1` (Blazzer's call whether to delete it).
 
 ## Next steps
+0. **Blazzer's own game was still on r10** at 12:22 on 2026-11-04 (no `HylandFixes.dll`): one Update click in the
+   launcher before joining live.
 1. **Watch for reports on r11** (death screen buttons, the notification cards, minimap markers in the right places). If
    something's off, fix it on `main` and ship the next version the same way: bump `src/AssemblyInfo.cs`, push,
    `mod-release.ps1 <mod> -Publish`, `mods.ps1 publish`.
@@ -68,6 +70,8 @@ superseded by `dev.ps1` (Blazzer's call whether to delete it).
    checklist in `mods/hud/README.md`, ship the same way.
 
 ## Open items
+- `scripts/hud-testcopy.ps1` is superseded by `dev.ps1` (header says so). Deleting it is Blazzer's call.
+- `dist/hud-v0.1.1/` is a superseded local zip (gitignored, the release stays on GitHub). Deleting it is Blazzer's call.
 - **This file is public** (tracked and pushed). Sessions 1–10 held server and network details; they're out of the
   current file but stay in history. Untracking it is Blazzer's call.
 - Server-side items (the `mods.ps1 publish` ssh drop, the unseen watchdog crash path, the console's `bring`) moved to
@@ -83,6 +87,12 @@ superseded by `dev.ps1` (Blazzer's call whether to delete it).
 - A hotbar missing in a test screenshot was the game, not the HUD: at the 4 AM pass-out, on arrest and on death,
   `Player.ExitAll` / `OnDied` call `SetInventoryEnabled(false)`, which hides `HotbarContainer` and the cash slot with it.
 ## Gotchas worth keeping
+- **After a Schedule I update** the dev server and the test copy are stale copies of the old build: redo
+  `docs/DEV-WORKFLOW.md` "Set up" step 1 for both, or joins fail on a version mismatch. Our mod projects compile
+  against the real install, so they pick the update up by themselves.
+- HotReload keeps each old build in memory (~the DLL's size per reload): restart the test copy after a long session.
+- In `dev.ps1`, `$a, $b = $Rest` made `$b` a string with one argument (`$b[0]` = its first letter); `@($Rest |
+  Select-Object -Skip 1)` keeps it an array. Watch for the same PowerShell destructuring trap in new scripts.
 - **"Live" means a launcher read it:** the raw manifest is cached up to 5 min per CDN edge and query strings don't
   bypass it. Check `bash scripts/logs.sh` or wait 5 min after the push.
 - **Changing a setting's default doesn't reach existing players:** MelonPreferences keeps saved values. Flip a
