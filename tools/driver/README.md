@@ -40,6 +40,7 @@ stops the rest of its batch.
 | `wait <seconds>` | real time |
 | `res <w> <h>` | another window size (kept until the game restarts) |
 | `window back` / `hide` / `show` | behind the others / off screen (still renders) / back on screen, never activated |
+| `hands on` / `hands off` | Blazzer plays it: the screen's refresh rate, sound on, window in front with focus / back to 20 fps, muted, off screen (not kept across a driver reload) |
 
 Queries: a name or a visible text, case ignored, exact beats contains (`Messages`). `/A/B` matches the end of a
 hierarchy path. Several equally good hits fail and list them; add ` #n` to pick one (`click Accept #2`).

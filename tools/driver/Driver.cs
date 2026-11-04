@@ -49,6 +49,9 @@ public sealed class DriverMod : MelonMod
 	private int height = 900;
 	private bool windowPlaced;
 
+	/// <summary>`hands on`: Blazzer plays the test copy himself, so the background mode (20 fps, muted, off screen) pauses.</summary>
+	private bool hands;
+
 	public override void OnInitializeMelon()
 	{
 		string dir = Path.Combine(MelonEnvironment.UserDataDirectory, "Driver");
@@ -97,6 +100,10 @@ public sealed class DriverMod : MelonMod
 	private void Enforce()
 	{
 		Application.runInBackground = true;
+		if (hands)
+		{
+			return; // Blazzer is playing it: his frame rate, sound and window (`hands off` gives it back)
+		}
 		AudioListener.volume = 0f;
 		if (QualitySettings.vSyncCount != 0)
 		{
@@ -247,12 +254,14 @@ public sealed class DriverMod : MelonMod
 				return Res(rest, r);
 			case "window":
 				return WindowCmd(rest, r);
+			case "hands":
+				return Hands(rest, r);
 			case "state":
 				return State(r);
 			case "ui":
 				return Popup(rest, r);
 			default:
-				r.Fail($"unknown command '{verb}'. phone, back, find, click, scroll, type, tree, shot, wait, res, window, state, ui");
+				r.Fail($"unknown command '{verb}'. phone, back, find, click, scroll, type, tree, shot, wait, res, window, hands, state, ui");
 				return Nothing();
 		}
 	}
@@ -861,6 +870,31 @@ public sealed class DriverMod : MelonMod
 		r.Line($"screen {Screen.width}x{Screen.height}");
 	}
 
+	/// <summary>hands on: the screen's refresh rate, sound on, the window in front with focus, for Blazzer to play.
+	/// hands off: back to the background mode (the next enforce pass caps, mutes; the window goes off screen).</summary>
+	private IEnumerator Hands(string arg, Result r)
+	{
+		switch (arg)
+		{
+			case "on":
+				hands = true;
+				int hz = Mathf.Max(30, Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value));
+				Application.targetFrameRate = hz;
+				AudioListener.volume = 1f;
+				r.Line($"hands on: {hz} fps, sound on; " + (Window.Place("front", width, height) ?? "no Unity window found"));
+				break;
+			case "off":
+				hands = false;
+				Enforce();
+				r.Line("hands off: 20 fps, muted; " + (Window.Place("hide", width, height) ?? "no Unity window found"));
+				break;
+			default:
+				r.Fail("hands on | off");
+				break;
+		}
+		yield break;
+	}
+
 	private IEnumerator WindowCmd(string arg, Result r)
 	{
 		string? done = Window.Place(arg, width, height);
@@ -895,6 +929,9 @@ internal static class Window
 
 	[DllImport("user32.dll")]
 	private static extern bool IsIconic(IntPtr hwnd);
+
+	[DllImport("user32.dll")]
+	private static extern bool SetForegroundWindow(IntPtr hwnd);
 
 	[DllImport("user32.dll")]
 	private static extern bool ShowWindow(IntPtr hwnd, int cmd);
@@ -950,6 +987,10 @@ internal static class Window
 			case "show":
 				SetWindowPos(hwnd, Bottom, 80, 80, 0, 0, NoSize | NoActivate);
 				return "window on screen at 80,80, behind the others";
+			case "front":
+				// The one placement that takes focus: only for `hands on`, when Blazzer asked to play it.
+				SetWindowPos(hwnd, IntPtr.Zero, 80, 80, 0, 0, NoSize);
+				return SetForegroundWindow(hwnd) ? "window in front at 80,80 with focus" : "window in front at 80,80 (click it for focus)";
 			default:
 				return null;
 		}
