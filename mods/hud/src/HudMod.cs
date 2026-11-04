@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.Persistence;
 using Il2CppScheduleOne.PlayerScripts;
@@ -88,6 +89,12 @@ public sealed class HudMod : MelonMod
 
 	private AppLayouts? appLayouts;
 
+	/// <summary>The game's apps redesigned like the board, one skin per app; <see cref="appsSkin"/>'s recolor covers the
+	/// rest and leaves what these claim alone.</summary>
+	private List<GameAppSkin>? appSkins;
+
+	private readonly AppClaims appClaims = new AppClaims();
+
 	private HylandApp? app;
 
 	private RainLevel? rain;
@@ -108,6 +115,8 @@ public sealed class HudMod : MelonMod
 	private readonly Backoff appsSkinRetry = new Backoff("game apps");
 
 	private readonly Backoff appLayoutsRetry = new Backoff("app layouts");
+
+	private readonly Backoff appSkinsRetry = new Backoff("redesigned apps");
 
 	private readonly Backoff appRetry = new Backoff("phone app");
 
@@ -237,6 +246,7 @@ public sealed class HudMod : MelonMod
 			if (phoneDirty || !(settings.Enabled.Value && settings.GlassPhone.Value))
 			{
 				DisposePhoneSkin();
+				DisposeAppSkins();
 				DisposeAppsSkin();
 				DisposeAppLayouts();
 				phoneDirty = false;
@@ -293,11 +303,32 @@ public sealed class HudMod : MelonMod
 				appLayoutsRetry.Failed(ex, LoggerInstance);
 			}
 		}
+		if (settings.Enabled.Value && settings.GlassPhone.Value && appSkinsRetry.Due)
+		{
+			try
+			{
+				appSkins ??= new List<GameAppSkin>
+				{
+					new MessagesSkin(home, phoneSprites, appClaims, LoggerInstance.Msg),
+				};
+				GameObject? open = Phone.ActiveApp;
+				foreach (GameAppSkin skin in appSkins)
+				{
+					skin.Update(open);
+				}
+				appSkinsRetry.Succeeded();
+			}
+			catch (Exception ex)
+			{
+				DisposeAppSkins();
+				appSkinsRetry.Failed(ex, LoggerInstance);
+			}
+		}
 		if (settings.Enabled.Value && settings.GlassPhone.Value && appsSkinRetry.Due)
 		{
 			try
 			{
-				appsSkin ??= new AppsSkin(LoggerInstance.Msg);
+				appsSkin ??= new AppsSkin(appClaims, LoggerInstance.Msg);
 				appsSkin.Update(home);
 				appsSkinRetry.Succeeded();
 			}
@@ -334,6 +365,7 @@ public sealed class HudMod : MelonMod
 		phoneSkinRetry.Reset();
 		appsSkinRetry.Reset();
 		appLayoutsRetry.Reset();
+		appSkinsRetry.Reset();
 		appRetry.Reset();
 		rainRetry.Reset();
 	}
@@ -369,6 +401,25 @@ public sealed class HudMod : MelonMod
 			LoggerInstance.Warning("Putting the game's app colors back failed: " + ex.Message);
 		}
 		appsSkin = null;
+	}
+
+	private void DisposeAppSkins()
+	{
+		if (appSkins != null)
+		{
+			foreach (GameAppSkin skin in appSkins)
+			{
+				try
+				{
+					skin.Dispose();
+				}
+				catch (Exception ex)
+				{
+					LoggerInstance.Warning($"Putting the game's {skin.AppName} back failed: " + ex.Message);
+				}
+			}
+		}
+		appSkins = null;
 	}
 
 	private void DisposeAppLayouts()
@@ -414,6 +465,7 @@ public sealed class HudMod : MelonMod
 	{
 		// The restyle first, so it puts the Hyland icon back to plain before the app removes it.
 		DisposePhoneSkin();
+		DisposeAppSkins();
 		DisposeAppsSkin();
 		DisposeAppLayouts();
 		DisposeApp();

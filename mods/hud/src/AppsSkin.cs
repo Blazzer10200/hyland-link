@@ -79,9 +79,28 @@ internal sealed class AppsSkin : IDisposable
 
 	private float nextCall;
 
-	internal AppsSkin(Action<string> log)
+	private readonly AppClaims claims;
+
+	internal AppsSkin(AppClaims claims, Action<string> log)
 	{
+		this.claims = claims;
 		this.log = log;
+		claims.Releasing = Release;
+	}
+
+	/// <summary>An app skin takes this graphic over: the game's color goes back on first, so that's what it records.</summary>
+	private void Release(Graphic graphic)
+	{
+		int id = graphic.GetInstanceID();
+		if (records.TryGetValue(id, out Record? record))
+		{
+			if (Same(graphic.color, record.Applied))
+			{
+				graphic.color = record.Original;
+			}
+			records.Remove(id);
+		}
+		kept.Remove(id);
 	}
 
 	internal void Update(HomeScreen home)
@@ -136,7 +155,7 @@ internal sealed class AppsSkin : IDisposable
 		List<(float Area, string Line)> light = new List<(float, string)>();
 		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(false))
 		{
-			if (!graphic.enabled || records.ContainsKey(graphic.GetInstanceID()) || Ours(graphic.transform, app.transform))
+			if (!graphic.enabled || records.ContainsKey(graphic.GetInstanceID()) || claims.Has(graphic.GetInstanceID()) || Ours(graphic.transform, app.transform))
 			{
 				continue;
 			}
@@ -199,6 +218,10 @@ internal sealed class AppsSkin : IDisposable
 		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(true))
 		{
 			int id = graphic.GetInstanceID();
+			if (claims.Has(id))
+			{
+				continue;
+			}
 			Color color = graphic.color;
 			Color? tint = null;
 			if (tinted.TryGetValue(id, out Selectable? owner))
@@ -528,6 +551,10 @@ internal sealed class AppsSkin : IDisposable
 
 	public void Dispose()
 	{
+		if (claims.Releasing == (Action<Graphic>)Release)
+		{
+			claims.Releasing = null;
+		}
 		Exception? failure = null;
 		foreach (Record record in records.Values)
 		{
