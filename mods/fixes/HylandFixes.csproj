@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Builds against the MelonLoader + IL2CPP assemblies in a Schedule I install (the game must have run with
+       MelonLoader once so Il2CppAssemblies exists). Override with: dotnet build -p:GamePath="D:\...\Schedule I" -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>HylandFixes</AssemblyName>
+    <RootNamespace>HylandFixes</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>annotations</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <GamePath Condition="'$(GamePath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Schedule I</GamePath>
+    <Il2Cpp>$(GamePath)\MelonLoader\Il2CppAssemblies</Il2Cpp>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(GamePath)\MelonLoader\net6\MelonLoader.dll" Private="false" />
+    <Reference Include="$(GamePath)\MelonLoader\net6\0Harmony.dll" Private="false" />
+    <Reference Include="$(GamePath)\MelonLoader\net6\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\Il2Cppmscorlib.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\Il2CppScheduleOne.Core.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\Il2CppFishNet.Runtime.dll" Private="false" />
+    <Reference Include="$(Il2Cpp)\UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+</Project>

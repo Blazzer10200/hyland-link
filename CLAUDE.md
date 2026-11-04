@@ -44,7 +44,12 @@ State and next steps: `HANDOFF.md`. Maintainer flow (shipping mod/launcher updat
   popups, and the ticket/arrest/hospital screens restyled in place. Mirrors the game's pieces (`Muffle` hides them
   without touching what the game reads back); `ScreenLayout` keeps it off Hyland Minimap in any corner. One file per
   surface; its README maps them. Test: `pwsh scripts/hud-testcopy.ps1 use notify`.
-- `scripts/mod-release.ps1 hud|minimap|notify`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
+- `mods/fixes/`: Hyland Fixes (id `hyland-fixes`), client-side workarounds for game bugs on our server, one file per
+  fix. 0.1.0: drying racks drying a custom mix no longer hang joins (`DryingRackVisuals.cs`; its README has the chain).
+- Join bugs ("stuck loading in"): `pwsh scripts/join-test.ps1 [-Port 38466] [-Mod <dll>]` does one unattended join from
+  the test copy and prints LOADED IN or STUCK. Reproduce against a sandbox server (`s1ds-sandbox up <backup>` on the server box,
+  port 38466, schedule1-server). `tools/joindiag/` (test only, never shipped) logs which object's init threw.
+- `scripts/mod-release.ps1 hud|minimap|notify|fixes`: the only way to ship our own mods. Bump the mod's `src/AssemblyInfo.cs` first.
   Alone it builds and stages `dist/<tag>/<Mod>.zip` (forward-slash entries, sha256); `-Publish` also creates the GitHub
   release with `--latest=false` (**never latest**: the launcher updater reads `releases/latest`) and runs `mods.ps1 add`.
   Then `mods.ps1 publish` as usual.
