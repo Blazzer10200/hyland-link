@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "revision": 8,
+  "revision": 9,
   "server": {
     "name": "Blazzer's Schedule I",
     "host": "69.50.245.12",
@@ -45,16 +45,32 @@
     {
       "id": "hyland-hud",
       "name": "Hyland HUD",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "blurb": "Glass hotbar, compass with friends, clock with curfew and sleep warnings, cash and bank.",
       "side": "client",
-      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/hud-v0.1.0/HylandHud.zip",
-      "sha256": "62fc1f546c0b8db5d20a2a9a497eb706ddca3089104b67c6b1a062e387f77a1c",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/hud-v0.1.1/HylandHud.zip",
+      "sha256": "6ede58342c940135d59797c1a4c24ddefe98c3a4bef16d413266a321bfc9ed86",
       "files": [
         {
           "source": "Mods/HylandHud.dll",
           "path": "Mods/HylandHud.dll",
-          "sha256": "a50b04c57b1e4e53ec0f188f64cdd0c353ec7e5f215b5f464c2c18660d53be29"
+          "sha256": "a57e98e6f76d8258742cfde9c411670e9e56a9f3b2a2059426bfdcb5dfe64490"
+        }
+      ]
+    },
+    {
+      "id": "hyland-notify",
+      "name": "Hyland Notifications",
+      "version": "0.1.0",
+      "blurb": "Glass deal and quest tracker, toasts, calls, police status, hints and popups.",
+      "side": "client",
+      "url": "https://github.com/Blazzer10200/hyland-link/releases/download/notify-v0.1.0/HylandNotify.zip",
+      "sha256": "61340b2c761acd357f29621abcb8f39de008cc292f971c5edfb3c7842709c6e6",
+      "files": [
+        {
+          "source": "Mods/HylandNotify.dll",
+          "path": "Mods/HylandNotify.dll",
+          "sha256": "d4594238676f78d1dfc2c4cd1b2f6015bc976811f1fc56a5ed7c13950a39af39"
         }
       ]
     }
