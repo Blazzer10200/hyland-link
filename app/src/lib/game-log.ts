@@ -1,4 +1,5 @@
-// Reading MelonLoader's Latest.log: one line at a time for the log sheet, and the whole run for "where is the game at".
+// Reading MelonLoader's Latest.log: one line at a time for the log sheet, and the newest stage marker in each batch of
+// new lines for "where is the game at".
 
 /** Where a running game is, read off its log. */
 export type GameStage = "starting" | "preparing" | "loading" | "menu" | "connecting" | "joined" | "closing";

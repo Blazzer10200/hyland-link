@@ -1,10 +1,11 @@
 //! Installing / checking MelonLoader, the server client mod and the server's extra mods in the game folder.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use log::warn;
@@ -118,12 +119,38 @@ fn game_file(game: &Path, relative: &str) -> PathBuf {
     relative.split('/').fold(game.to_path_buf(), |path, part| path.join(part))
 }
 
+/// Hashes of game files by path, with the size and modified time they had. `state` runs on every 4 s poll and checks
+/// every mod file (the server mod's DLL alone is 1.7 MB), so a file is read and hashed again only when it changed.
+fn hash_cache() -> &'static Mutex<HashMap<PathBuf, (u64, SystemTime, String)>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (u64, SystemTime, String)>>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+fn file_hash(path: &Path) -> Option<String> {
+    let meta = fs::metadata(path).ok()?;
+    let (len, modified) = (meta.len(), meta.modified().ok()?);
+    if let Some((l, m, hash)) = hash_cache().lock().unwrap_or_else(|e| e.into_inner()).get(path) {
+        if *l == len && *m == modified {
+            return Some(hash.clone());
+        }
+    }
+    let hash = sha256_hex(&fs::read(path).ok()?);
+    hash_cache().lock().unwrap_or_else(|e| e.into_inner()).insert(path.to_path_buf(), (len, modified, hash.clone()));
+    Some(hash)
+}
+
+/// Our own writes and removals drop the cached hash, so a rewrite within the same size and timestamp can't look current.
+fn forget_hash(path: &Path) {
+    hash_cache().lock().unwrap_or_else(|e| e.into_inner()).remove(path);
+}
+
 fn file_matches(path: &Path, sha256: &str) -> bool {
-    fs::read(path).map(|b| sha256_hex(&b) == sha256).unwrap_or(false)
+    file_hash(path).is_some_and(|hash| hash == sha256)
 }
 
 fn write_game_file(game: &Path, relative: &str, data: &[u8]) -> Result<(), String> {
     let target = game_file(game, relative);
+    forget_hash(&target);
     fs::create_dir_all(target.parent().expect("game file has a parent")).map_err(|e| e.to_string())?;
     fs::write(&target, data).map_err(|e| format!("Couldn't write {relative}: {e}"))
 }
@@ -134,6 +161,7 @@ fn remove_game_file(game: &Path, relative: &str) -> Result<(), String> {
         return Err(format!("Refused to remove {relative}: it isn't a plain path inside the game folder."));
     }
     let path = game_file(game, relative);
+    forget_hash(&path);
     if path.is_file() {
         fs::remove_file(&path).map_err(|e| format!("Couldn't remove {relative}: {e}"))?;
     }
@@ -172,9 +200,12 @@ fn stale_mods(game: &Path, manifest: &Manifest, marker: &Marker) -> Vec<StaleMod
         .collect()
 }
 
-/// MelonLoader writes "MelonLoader v0.7.2 Open-Beta" near the top of Latest.log on every launch.
+/// MelonLoader writes "MelonLoader v0.7.2 Open-Beta" near the top of Latest.log on every launch. Only the head is read:
+/// the log can be megabytes by the end of a session, and this runs on every poll when the marker has no version.
 fn melonloader_version_from_log(game: &Path) -> Option<String> {
-    let log = fs::read_to_string(game.join("MelonLoader").join("Latest.log")).ok()?;
+    let mut head = Vec::new();
+    fs::File::open(game.join("MelonLoader").join("Latest.log")).ok()?.take(16 * 1024).read_to_end(&mut head).ok()?;
+    let log = String::from_utf8_lossy(&head);
     log.lines().take(40).find_map(|line| {
         let start = line.find("MelonLoader v")? + "MelonLoader v".len();
         let version: String = line[start..].chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
@@ -191,8 +222,7 @@ pub fn state(game: &Path, manifest: &Manifest) -> InstallState {
 
     let dll = game_file(game, &manifest.mod_package.dll);
     let mod_installed = dll.is_file();
-    let mod_current = mod_installed
-        && fs::read(&dll).map(|b| sha256_hex(&b) == manifest.mod_package.dll_sha256).unwrap_or(false);
+    let mod_current = mod_installed && file_matches(&dll, &manifest.mod_package.dll_sha256);
     let mod_version = match (mod_installed, mod_current) {
         (true, true) => Some(manifest.mod_package.version.clone()),
         (true, false) => marker.server_mod.clone(),
@@ -240,14 +270,23 @@ fn download(
     let mut reader = response.body_mut().with_config().limit(MAX_DOWNLOAD).reader();
     let mut bytes = Vec::with_capacity(total.min(MAX_DOWNLOAD) as usize);
     let mut chunk = [0u8; 64 * 1024];
+    // One event per visible step (each percent, or each MiB when the size is unknown), not one per read: every event
+    // re-renders the window.
+    let step_of = |done: u64| if total > 0 { done * 100 / total } else { done >> 20 };
+    let mut shown = u64::MAX;
     loop {
         let n = reader.read(&mut chunk).map_err(|e| format!("The {label} download was interrupted ({e})."))?;
         if n == 0 {
             break;
         }
         bytes.extend_from_slice(&chunk[..n]);
-        emit(bytes.len() as u64, total);
+        let done = bytes.len() as u64;
+        if step_of(done) != shown {
+            shown = step_of(done);
+            emit(done, total);
+        }
     }
+    emit(bytes.len() as u64, total);
 
     let actual = sha256_hex(&bytes);
     if actual != expected_sha256 {

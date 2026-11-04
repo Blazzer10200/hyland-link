@@ -152,9 +152,7 @@
         {#if state === "current"}
           <div class="body" transition:slide={{ duration: 340 }}>
             {#if s.n === 1}
-              {#if phase === "loading"}
-                <p>Looking through your Steam libraries…</p>
-              {:else if phase === "branch"}
+              {#if phase === "branch"}
                 <p class="warn-text">
                   Your game is on the <b>“{snapshot?.game.branch}”</b> beta. This server needs the normal version:
                 </p>
