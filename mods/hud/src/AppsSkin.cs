@@ -389,7 +389,10 @@ internal sealed class AppsSkin : IDisposable
 		{
 			return null;
 		}
-		Color color = records.TryGetValue(image.GetInstanceID(), out Record? record) && Same(image.color, record.Applied) ? record.Original : image.color;
+		int id = image.GetInstanceID();
+		// An app skin may have darkened it: the game's own color still says whether the app is a light or a dark one.
+		Color color = claims.TryOriginal(id, out Color claimed) ? claimed
+			: records.TryGetValue(id, out Record? record) && Same(image.color, record.Applied) ? record.Original : image.color;
 		return color.a > 0.9f && Gray(color) ? Lightness(color) : null;
 	}
 

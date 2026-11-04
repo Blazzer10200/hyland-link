@@ -13,16 +13,20 @@ namespace HylandHud;
 /// </summary>
 internal sealed class AppClaims
 {
-	private readonly HashSet<int> ids = new HashSet<int>();
+	/// <summary>Each claimed graphic's color as the game had it, so the recolor can still judge an app by its own
+	/// background after an app skin has darkened it.</summary>
+	private readonly Dictionary<int, Color> ids = new Dictionary<int, Color>();
 
 	/// <summary>Set by <see cref="AppsSkin"/>: puts the game's color back on a graphic it had themed.</summary>
 	internal Action<Graphic>? Releasing;
 
 	internal void Claim(Graphic graphic)
 	{
-		if (ids.Add(graphic.GetInstanceID()))
+		int id = graphic.GetInstanceID();
+		if (!ids.ContainsKey(id))
 		{
 			Releasing?.Invoke(graphic);
+			ids[id] = graphic.color;
 		}
 	}
 
@@ -33,7 +37,12 @@ internal sealed class AppClaims
 
 	internal bool Has(int id)
 	{
-		return ids.Contains(id);
+		return ids.ContainsKey(id);
+	}
+
+	internal bool TryOriginal(int id, out Color color)
+	{
+		return ids.TryGetValue(id, out color);
 	}
 }
 
@@ -625,13 +634,22 @@ internal abstract class GameAppSkin : IDisposable
 		return sprites.Pill(boardRadius * Unit, Theme.White);
 	}
 
+	private readonly List<int> gone = new List<int>();
+
 	private void Hold()
 	{
-		foreach (Paint paint in paints.Values)
+		foreach (KeyValuePair<int, Paint> entry in paints)
 		{
-			Graphic graphic = paint.Graphic;
-			if (!paint.Held || graphic == null)
+			Paint paint = entry.Value;
+			if (!paint.Held)
 			{
+				continue;
+			}
+			Graphic graphic = paint.Graphic;
+			if (graphic == null)
+			{
+				// The game destroyed it (Journal's card on every hover, an unfavourited product).
+				gone.Add(entry.Key);
 				continue;
 			}
 			Color now = graphic.color;
@@ -644,6 +662,12 @@ internal abstract class GameAppSkin : IDisposable
 			paint.Applied = paint.Map(now);
 			graphic.color = paint.Applied;
 		}
+		foreach (int id in gone)
+		{
+			paints.Remove(id);
+			claims.Unclaim(id);
+		}
+		gone.Clear();
 	}
 
 	private static bool Same(Color a, Color b)
