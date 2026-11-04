@@ -214,6 +214,23 @@ internal sealed class AppsSkin : IDisposable
 				tinted[selectable.targetGraphic.GetInstanceID()] = selectable;
 			}
 		}
+		// The board has no scrollbars (scrollbar-width: none): the bars a scroll view drives go clear, and the wheel and
+		// drags still scroll. Only those: Messages' relationship band is a Scrollbar too, but no ScrollRect's.
+		HashSet<int> bars = new HashSet<int>();
+		foreach (ScrollRect scroll in app.GetComponentsInChildren<ScrollRect>(true))
+		{
+			foreach (Scrollbar? bar in new[] { scroll.verticalScrollbar, scroll.horizontalScrollbar })
+			{
+				if (bar == null)
+				{
+					continue;
+				}
+				foreach (Graphic part in bar.GetComponentsInChildren<Graphic>(true))
+				{
+					bars.Add(part.GetInstanceID());
+				}
+			}
+		}
 		int themed = 0;
 		foreach (Graphic graphic in app.GetComponentsInChildren<Graphic>(true))
 		{
@@ -257,7 +274,7 @@ internal sealed class AppsSkin : IDisposable
 				kept[id] = (color, tint);
 				continue;
 			}
-			Color? target = Target(graphic, color, appBase, tint, tinted);
+			Color? target = bars.Contains(id) ? new Color(color.r, color.g, color.b, 0f) : Target(graphic, color, appBase, tint, tinted);
 			if (target == null)
 			{
 				records.Remove(id);

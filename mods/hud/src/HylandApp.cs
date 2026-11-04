@@ -182,10 +182,13 @@ internal sealed class HylandApp : IDisposable
 		viewport.anchorMax = Vector2.one;
 		viewport.offsetMin = Vector2.zero;
 		viewport.offsetMax = new Vector2(0f, -top);
-		viewport.gameObject.AddComponent<RectMask2D>();
-		// Clear but hit, so a drag or scroll anywhere in the list moves it.
+		// A stencil Mask, not a RectMask2D: this screen is turned 90° inside the sideways AppsCanvas, and RectMask2D clips
+		// against an unrotated rect in canvas space, which here hid every row. The image is opaque so it writes the
+		// stencil (a clear one gets culled) and hidden by the mask; it also takes drags and the wheel anywhere in the list.
 		Image hit = viewport.gameObject.AddComponent<Image>();
-		hit.color = new Color(0f, 0f, 0f, 0f);
+		hit.color = Color.white;
+		Mask mask = viewport.gameObject.AddComponent<Mask>();
+		mask.showMaskGraphic = false;
 		RectTransform list = Ui.Rect("Rows", viewport);
 		list.anchorMin = new Vector2(0f, 1f);
 		list.anchorMax = new Vector2(1f, 1f);
