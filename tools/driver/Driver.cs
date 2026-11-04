@@ -520,6 +520,20 @@ public sealed class DriverMod : MelonMod
 		}
 	}
 
+	/// <summary>Whether <paramref name="other"/> sits under one of <paramref name="t"/>'s first <paramref name="levels"/> parents.</summary>
+	private static bool Near(Transform other, Transform t, int levels)
+	{
+		Transform? p = t;
+		for (int i = 0; i <= levels && p != null; i++, p = p.parent)
+		{
+			if (other == p || other.IsChildOf(p))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static PointerEventData Pointer(RectTransform rt)
 	{
 		PointerEventData data = new PointerEventData(EventSystem.current);
@@ -557,8 +571,14 @@ public sealed class DriverMod : MelonMod
 		}
 		PointerEventData data = Pointer(hit.Rect);
 		GameObject? top = RaycastTop(data.position);
-		// Whatever is on top there, or (a label outside its button, like an app icon's name) the match's own handler.
-		GameObject? target = (top != null ? Clickable(top.transform) : null) ?? Clickable(hit.Rect);
+		// Whatever is on top there; or, when that takes no click and is close family of the match (a label hanging outside
+		// its button, like an app icon's name over the home screen's backdrop), the match's own handler. Never through
+		// another screen: something covered by an open app stays unclickable, as with the real mouse.
+		GameObject? target = top != null ? Clickable(top.transform) : null;
+		if (target == null && (top == null || Near(top.transform, hit.Rect, 3)))
+		{
+			target = Clickable(hit.Rect);
+		}
 		if (target == null)
 		{
 			r.Fail($"nothing takes a click at {hit.Path} ({(top != null ? "topmost there: " + PathOf(top.transform) : "no raycast hit")})");
